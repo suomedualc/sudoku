@@ -31,14 +31,28 @@ import kotlin.math.sin
  * - 字体走系统手写体（[systemInkFontFamily]），取不到时回退衬线体，绝不因缺字体而崩。
  */
 object Ink {
-    /** 纸：暖白（刻意极淡，避免彩色观感）。 */
+    /**
+     * 纸：三层，由下往上**逐层变白**，用"纸的深浅"而不是阴影表达层级。
+     * - [Paper] 页面底纸（最暖、最暗）；
+     * - [PaperShade] 压印 / 底纹（比底纸更暗一档，用于"凹下去"的面）；
+     * - [PaperSheet] 上层纸片（棋盘、抽屉、浮层、暂停遮挡——读作"上面又铺了一张纸"）。
+     */
     val Paper = Color(0xFFF7F5F0)
     val PaperShade = Color(0xFFEDE9DF)
+    val PaperSheet = Color(0xFFFFFFFF)
 
-    /** 墨：主色 / 次级 / 最淡。 */
+    /**
+     * 墨：四级浓淡（全站唯一的分层手段）。
+     *
+     * 每一级都要能**当正文用**，因此都满足 WCAG 2.1 AA（小字 ≥ 4.5:1）：
+     * 对纸面实测 Black 15.97:1 / Grey 8.35:1 / Light 5.31:1；最淡的 [Faint] 只用于
+     * **禁用态文字**（WCAG 对禁用控件不要求对比度，它的"淡"正是要表达不可用）。
+     * 改任何一个色值前先跑一次对比度核算（`docs/07` §5 有量算脚本）。
+     */
     val Black = Color(0xFF1B1A17)
     val Grey = Color(0xFF4B4843)
-    val Light = Color(0xFF8B867C)
+    val Light = Color(0xFF6A655C)
+    val Faint = Color(0xFF8B867C)
 
     /** 墨的浓淡层级（唯一的分层手段）。 */
     object Alpha {
@@ -50,15 +64,22 @@ object Ink {
         const val Disabled = 0.26f
         /** 模态遮罩：覆盖层的"纸背压暗"程度（全站统一，避免各覆盖层深浅不一）。 */
         const val Mask = 0.16f
+        /** 上层纸片的不透明度：浮层纸面半透明时底下的网格隐约可见（读作"薄纸"）。 */
+        const val Sheet = 0.94f
+        /** 装饰墨点的基础浓度与逐枚递增步长（首页手绘草图）。 */
+        const val Decor = 0.20f
+        const val DecorStep = 0.06f
+        /**
+         * 候选数字（空格里的半透明灰数字）。
+         *
+         * 它是**冗余通道**：同一信息在悬浮面板（只列可填）与数字键盘的重墨强调里都能拿到，
+         * 所以刻意不做 AA 对比度——做得太黑就会和"题目给定"的数字抢层级。
+         * 0.50 是在"能读"与"退后"之间取的值（早期 0.42 在缩放下几乎看不见）。
+         */
+        const val Hint = 0.50f
     }
 
-    /** 线宽（像素值；如需 dp 请用 [DesignTokens] 里的尺寸再 `toPx()`）。 */
-    object StrokeWidth {
-        const val Hair = 0.8f
-        const val Thin = 1.3f
-        const val Bold = 2.0f
-        const val Frame = 2.4f
-    }
+    // 线宽不在此处定义——统一走 DesignTokens.Stroke（dp 令牌，可适配高 DPI）。
 
     /** 手写体：优先系统硬笔楷书，取不到则回退衬线体。 */
     val InkFont: FontFamily get() = systemInkFontFamily() ?: FontFamily.Serif
@@ -69,13 +90,47 @@ object Ink {
         color: Color = Black,
         weight: FontWeight = FontWeight.Normal,
         letterSpacing: TextUnit = 0.6.sp,
+        lineHeight: TextUnit = TextUnit.Unspecified,
     ) = TextStyle(
         fontFamily = InkFont,
         fontSize = size,
         color = color,
         fontWeight = weight,
         letterSpacing = letterSpacing,
+        lineHeight = lineHeight,
     )
+
+    /**
+     * **排版阶梯：全站唯一的字号出口**（共六档，含字号 / 字距 / 行高三要素）。
+     *
+     * 为什么是这六档：
+     * - 手写体笔画细、字面小，阶梯必须**拉开**（12 → 40，相邻档比值 1.15–1.4）。
+     *   此前散落着 13 档（10/11/12/13/14/15/16/17/18/21/22/28/40），其中 11 与 12、
+     *   17 与 18 在屏幕上毫无区别——那不是层级，只是魔法值堆积；
+     * - 字距随字号**反向放大**：小字疏排（呼吸感）、大字更疏（手写标题的题感）；
+     * - **不用字重做层级**：系统手写体没有真正的 Bold，Compose 合成的粗体会发虚、
+     *   破坏"手绘"的工艺感。层级只靠「字号 + 字距 + 墨的浓淡」——与"只有纸与墨"同源；
+     * - 行高全部显式给定（此前全站 0 处），多行文本才有稳定节奏。
+     */
+    object Type {
+        /** 角标 / 脚注 / 键位提示。 */
+        val Meta = style(12.sp, letterSpacing = 1.6.sp, lineHeight = 18.sp)
+
+        /** 副说明 / 次要信息 / 紧凑按钮文字。 */
+        val Caption = style(14.sp, letterSpacing = 0.8.sp, lineHeight = 22.sp)
+
+        /** 正文 / 按钮 / 数字键。 */
+        val Body = style(16.sp, letterSpacing = 0.6.sp, lineHeight = 24.sp)
+
+        /** 抽屉 / 面板标题、强调按钮。 */
+        val Title = style(20.sp, letterSpacing = 2.0.sp, lineHeight = 30.sp)
+
+        /** 页面主标题、状态大字（如"已暂停"）。 */
+        val Headline = style(28.sp, letterSpacing = 4.0.sp, lineHeight = 40.sp)
+
+        /** 首页主标识（全站唯一超大字，极疏排，当作图形而非文字使用）。 */
+        val Display = style(40.sp, letterSpacing = 6.0.sp, lineHeight = 56.sp)
+    }
 }
 
 /** 由平台提供手写体（桌面尝试系统中文字体文件；后续平台可改为打包字体）。 */

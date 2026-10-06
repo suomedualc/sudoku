@@ -4,18 +4,17 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.toComposeImageBitmap
-import androidx.compose.ui.unit.DpSize
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import org.example.sudoku.platform.FileGameStore
+import org.example.sudoku.ui.theme.DesignTokens
 import java.awt.Dimension
 import java.awt.image.BufferedImage
 import javax.imageio.ImageIO
 
 fun main() = application {
-    val windowState = rememberWindowState(size = DpSize(1180.dp, 900.dp))
+    val windowState = rememberWindowState(size = DesignTokens.Sizes.WindowDefault)
     Window(
         onCloseRequest = ::exitApplication,
         state = windowState,

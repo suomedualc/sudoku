@@ -8,8 +8,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.sp
 import org.example.sudoku.ui.theme.DesignTokens
+import org.example.sudoku.ui.theme.Ink
 
 /**
  * 数字键盘（墨线版）：3×3 数字 + 擦除。
@@ -64,7 +64,7 @@ fun NumberPad(
             modifier = Modifier.fillMaxWidth(),
             enabled = enabled,
             height = DesignTokens.Sizes.CompactItemHeight,
-            fontSize = 17.sp,
+            fontSize = Ink.Type.Body.fontSize,
         )
     }
 }

@@ -228,7 +228,7 @@ fun MenuScreen(
                     InkText(
                         text = "暂无未完成的对局",
                         modifier = Modifier.fillMaxWidth(),
-                        style = Ink.style(12.sp, Ink.Light, letterSpacing = 2.sp),
+                        style = Ink.Type.Meta.copy(color = Ink.Light),
                         textAlign = TextAlign.Center,
                     )
                 }
@@ -244,7 +244,7 @@ fun MenuScreen(
                 InkText(
                     text = "↑↓ 选择 · Enter 确认",
                     modifier = Modifier.fillMaxWidth(),
-                    style = Ink.style(11.sp, Ink.Light, letterSpacing = 2.sp),
+                    style = Ink.Type.Meta.copy(color = Ink.Light),
                     textAlign = TextAlign.Center,
                 )
             }
@@ -255,7 +255,7 @@ fun MenuScreen(
 
             Spacer(Modifier.height(DesignTokens.Spacing.Lg))
 
-            InkText(text = "单机 · 无需联网", style = Ink.style(12.sp, Ink.Light, letterSpacing = 3.sp))
+            InkText(text = "单机 · 无需联网", style = Ink.Type.Meta.copy(color = Ink.Light))
 
             Spacer(Modifier.height(DesignTokens.Spacing.Xl))
         }
@@ -269,7 +269,7 @@ fun MenuScreen(
             InkText(
                 text = "选择难度",
                 modifier = Modifier.fillMaxWidth(),
-                style = Ink.style(22.sp, Ink.Black, letterSpacing = 4.sp),
+                style = Ink.Type.Title,
                 textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(DesignTokens.Spacing.Md))
@@ -298,7 +298,7 @@ fun MenuScreen(
             InkText(
                 text = "↑↓ 选择 · Enter 确认 · Esc 返回",
                 modifier = Modifier.fillMaxWidth(),
-                style = Ink.style(11.sp, Ink.Light, letterSpacing = 1.sp),
+                style = Ink.Type.Meta.copy(color = Ink.Light),
                 textAlign = TextAlign.Center,
             )
         }
@@ -312,14 +312,14 @@ fun MenuScreen(
             InkText(
                 text = "退出游戏？",
                 modifier = Modifier.fillMaxWidth(),
-                style = Ink.style(22.sp, Ink.Black, letterSpacing = 4.sp),
+                style = Ink.Type.Title,
                 textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(DesignTokens.Spacing.Sm))
             InkText(
                 text = "未完成的对局会自动保存",
                 modifier = Modifier.fillMaxWidth(),
-                style = Ink.style(13.sp, Ink.Light),
+                style = Ink.Type.Caption.copy(color = Ink.Light),
                 textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(DesignTokens.Spacing.Lg))

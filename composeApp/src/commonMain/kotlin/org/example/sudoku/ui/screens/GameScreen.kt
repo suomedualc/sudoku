@@ -200,7 +200,8 @@ fun GameScreen(
                     // 顶部对齐并预留提示条高度：这样 Snackbar 弹出时不会压住棋盘最后一行
                     val side = minOf(
                         maxWidth,
-                        (maxHeight - DesignTokens.Sizes.SnackbarReserve).coerceAtLeast(160.dp),
+                        (maxHeight - DesignTokens.Sizes.SnackbarReserve)
+                            .coerceAtLeast(DesignTokens.Sizes.BoardMinSize),
                     )
                     BoardArea(
                         game = game,
@@ -305,7 +306,7 @@ private fun WinDrawer(
         InkText(
             text = "Enter 再来一局 · Esc 返回首页",
             modifier = Modifier.fillMaxWidth(),
-            style = Ink.style(11.sp, Ink.Light, letterSpacing = 1.sp),
+            style = Ink.Type.Meta.copy(color = Ink.Light),
             textAlign = TextAlign.Center,
         )
     }
@@ -319,8 +320,8 @@ private fun WinRow(label: String, value: String) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        InkText(text = label, style = Ink.style(14.sp, Ink.Grey, letterSpacing = 2.sp))
-        InkText(text = value, style = Ink.style(16.sp, Ink.Black))
+        InkText(text = label, style = Ink.Type.Caption.copy(color = Ink.Grey))
+        InkText(text = value, style = Ink.Type.Body)
     }
     Spacer(Modifier.height(DesignTokens.Spacing.Xs))
 }
@@ -367,16 +368,16 @@ private fun BoardArea(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.White),
+                    .background(Ink.PaperSheet),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                InkText(text = "已暂停", style = Ink.style(28.sp, Ink.Black, letterSpacing = 6.sp))
+                InkText(text = "已暂停", style = Ink.Type.Headline)
                 Spacer(Modifier.height(DesignTokens.Spacing.Lg))
                 InkButton(
                     text = "继续",
                     onClick = { onAction(GameAction.Resume) },
-                    modifier = Modifier.width(160.dp),
+                    modifier = Modifier.width(DesignTokens.Sizes.OverlayButtonWidth),
                     emphasized = true,
                     compact = true,
                 )
@@ -394,15 +395,15 @@ private fun StatusLine(game: Game, state: GameState, done: Int, total: Int) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Bottom,
         ) {
-            InkText(text = game.difficulty.label, style = Ink.style(15.sp, Ink.Grey, letterSpacing = 2.sp))
+            InkText(text = game.difficulty.label, style = Ink.Type.Body.copy(color = Ink.Grey))
             InkText(
                 text = if (state.paused) "已暂停" else Sudoku.formatDuration(state.elapsed),
-                style = Ink.style(18.sp, Ink.Black, letterSpacing = 1.sp),
+                style = Ink.Type.Body,
             )
             if (state.hintsCount > 0) {
-                InkText(text = "提示 ×${state.hintsCount}", style = Ink.style(14.sp, Ink.Grey))
+                InkText(text = "提示 ×${state.hintsCount}", style = Ink.Type.Caption.copy(color = Ink.Grey))
             }
-            InkText(text = "$done / $total", style = Ink.style(15.sp, Ink.Grey))
+            InkText(text = "$done / $total", style = Ink.Type.Body.copy(color = Ink.Grey))
         }
         Spacer(Modifier.height(DesignTokens.Spacing.Sm))
         InkDivider(seed = 5)
@@ -419,7 +420,7 @@ private fun PadPanel(game: Game, state: GameState, onAction: (GameAction) -> Uni
         InkText(
             text = if (state.noteMode) "笔记模式：点数字记候选" else "点数字填入选中格",
             modifier = Modifier.fillMaxWidth(),
-            style = Ink.style(12.sp, Ink.Light, letterSpacing = 1.sp),
+            style = Ink.Type.Meta.copy(color = Ink.Light),
         )
         Spacer(Modifier.height(DesignTokens.Spacing.Sm))
         val legalMask = if (state.noteMode || state.selected == null) {
@@ -470,7 +471,7 @@ private fun OptionsPanel(state: GameState, onAction: (GameAction) -> Unit) {
                 "开：在空格里显示可填数字（半透明灰）"
             },
             modifier = Modifier.fillMaxWidth().padding(bottom = DesignTokens.Spacing.Xs),
-            style = Ink.style(11.sp, Ink.Light, letterSpacing = 1.sp),
+            style = Ink.Type.Meta.copy(color = Ink.Light),
         )
         InkToggleRow(
             label = "严格模式",

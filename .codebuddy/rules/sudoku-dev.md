@@ -1,4 +1,4 @@
-# 数独（手写纸 · 简约油墨）开发纪律 · v1.9
+# 数独（手写纸 · 简约油墨）开发纪律 · v2.0
 
 > 本文件是"系统层"上下文（自动加载），既是**强制规则**，也是本工程的**开发思路 / 选型依据 / 模块说明 / 迭代计划**的简版。
 > 详细论证见 `docs/01-架构设计.md`、`docs/02-设计规范.md`、`docs/03-开发流程.md`、`docs/05-发展规划.md`。
@@ -44,6 +44,14 @@
 16. 应用图标是**生成资产**：只通过 `tools/make-icon.ps1` 产出（运行时 `composeApp/icons/` + 交付 `assets/icon/`），
     不手改二进制、不在构建期临时生成。构图必须是**九宫格 + 数字**（禁止落子/棋子形态，避免与五子棋混淆），
     规范见 `docs/06-应用图标设计.md`。
+17. **视觉常量必须来自令牌，不许在调用点写裸值**（铁律见 `docs/02` §9）：
+    字号只能取 `Ink.Type` 六档（`Meta/Caption/Body/Title/Headline/Display`，含字距与行高）；
+    颜色/透明度的纸只走 `Ink.Paper/PaperShade/PaperSheet`、墨只走 `Black/Grey/Light/Faint`；
+    线宽只走 `DesignTokens.Stroke`；动效时长只走 `DesignTokens.Motion`（退场快于进场）。
+    新增档位必须先加令牌并写清用途——"看起来差不多"不是加档的理由。
+18. **可读性硬线**：`Light` 及以上对三种纸底都要 ≥ 4.5:1（WCAG AA 小字），`Faint` 只能用于禁用态文字。
+    **改任何色值前先跑对比度量算**（算法与结论见 `docs/07` §5）；候选数字 `Alpha.Hint` 是唯一被允许低于 AA 的
+    信息色，理由是它为冗余通道（浮层与键盘都能拿到同一信息）。
     **打包图标与运行时图标必须同源**：jpackage 只把图标嵌进 exe；AWT 窗口默认仍显示 JDK 的 Java 图标，
     因此 `jvmMain/main.kt` 必须显式设置 `window.iconImages`（PNG 经 `jvmMain { resources.srcDir("icons") }` 进 jar）。
 

@@ -93,7 +93,7 @@ fun BoardCanvas(
         val selectedValue = selected?.let { game.current[it] } ?: 0
 
         // 0) 纸面（棋盘用纯白，和页面暖白纸形成极淡层次）
-        drawRect(color = Color.White, size = Size(cellPx * 9f, cellPx * 9f))
+        drawRect(color = Ink.PaperSheet, size = Size(cellPx * 9f, cellPx * 9f))
 
         fun cellRect(pos: Int) = Rect(
             left = (pos % 9) * cellPx,
@@ -120,7 +120,12 @@ fun BoardCanvas(
                     topLeft = Offset(r.left, r.top),
                     size = Size(r.width, r.height),
                 )
-                inkHatch(r, spacingPx = cellPx * 0.22f, widthPx = 1.1f, seed = pos * 7)
+                inkHatch(
+                    r,
+                    spacingPx = cellPx * 0.22f,
+                    widthPx = DesignTokens.Stroke.Hatch.toPx(),
+                    seed = pos * 7,
+                )
                 continue
             }
             val isPeer = selected != null && selected != pos &&
@@ -275,7 +280,7 @@ private data class InkTextKey(
  * 候选数字的墨色：**半透明灰**。
  * 与玩家笔记（[Ink.Light] 实墨）拉开层次——候选是"系统算出来的背景信息"，笔记是"自己写下的判断"。
  */
-private val CandidateColor = Ink.Grey.copy(alpha = 0.42f)
+private val CandidateColor = Ink.Grey.copy(alpha = Ink.Alpha.Hint)
 
 /** 带容量保护的跨帧文本测量缓存（连续拖拽缩放窗口时不会无限增长）。 */
 private fun MutableMap<InkTextKey, TextLayoutResult>.cached(

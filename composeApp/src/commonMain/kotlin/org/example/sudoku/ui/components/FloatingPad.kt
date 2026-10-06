@@ -155,7 +155,7 @@ fun FloatingInputPad(
             InkPanel(
                 padding = PaddingValues(DesignTokens.Sizes.PadPadding),
                 seed = 61,
-                paperAlpha = 0.94f,
+                paperAlpha = Ink.Alpha.Sheet,
                 doubleStroke = true,
             ) {
                 if (digits.isEmpty()) {
@@ -166,7 +166,7 @@ fun FloatingInputPad(
                             .height(DesignTokens.Sizes.PadKeySize),
                         contentAlignment = Alignment.Center,
                     ) {
-                        InkText(text = "本格无可填数字", style = Ink.style(12.sp, Ink.Light))
+                        InkText(text = "本格无可填数字", style = Ink.Type.Meta.copy(color = Ink.Light))
                     }
                 } else {
                     digits.chunked(FloatingPadPolicy.MAX_COLUMNS).forEachIndexed { rowIndex, rowDigits ->
@@ -184,7 +184,7 @@ fun FloatingInputPad(
                                     modifier = Modifier.width(DesignTokens.Sizes.PadKeySize),
                                     enabled = enabled,
                                     height = DesignTokens.Sizes.PadKeySize,
-                                    fontSize = 22.sp,
+                                    fontSize = Ink.Type.Title.fontSize,
                                     emphasis = true,
                                 )
                             }

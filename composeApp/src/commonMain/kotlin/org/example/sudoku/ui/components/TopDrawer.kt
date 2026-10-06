@@ -185,7 +185,9 @@ fun TopDrawer(
 ) {
     val progress by animateFloatAsState(
         targetValue = if (visible) 1f else 0f,
-        animationSpec = tween(durationMillis = if (visible) 240 else 180),
+        animationSpec = tween(
+            durationMillis = if (visible) DesignTokens.Motion.EnterMs else DesignTokens.Motion.ExitMs,
+        ),
         label = "topDrawer",
     )
     var sheetHeight by remember { mutableIntStateOf(0) }
@@ -244,7 +246,7 @@ private fun DrawerSheet(
                 // 上缘的两个圆角推出屏幕外，只留"下缘圆角"的纸边（抽屉贴住窗口顶边）
                 val rect = Rect(-2f, -radius - 2f, size.width + 2f, size.height - 2f)
                 drawRoundRect(
-                    color = Color.White,
+                    color = Ink.PaperSheet,
                     topLeft = Offset(rect.left, rect.top),
                     size = Size(rect.width, rect.height),
                     cornerRadius = CornerRadius(radius),
@@ -268,8 +270,8 @@ private fun DrawerSheet(
                 )
                 // 抓手段：一根短墨线，暗示"这是可以往下拉的一张纸"
                 inkLine(
-                    from = Offset(size.width / 2f - DesignTokens.Sizes.DrawerGripWidth.toPx() / 2f, 12.dp.toPx()),
-                    to = Offset(size.width / 2f + DesignTokens.Sizes.DrawerGripWidth.toPx() / 2f, 12.dp.toPx()),
+                    from = Offset(size.width / 2f - DesignTokens.Sizes.DrawerGripWidth.toPx() / 2f, DesignTokens.Sizes.DrawerGripOffset.toPx()),
+                    to = Offset(size.width / 2f + DesignTokens.Sizes.DrawerGripWidth.toPx() / 2f, DesignTokens.Sizes.DrawerGripOffset.toPx()),
                     widthPx = DesignTokens.Stroke.Bold.toPx(),
                     color = Ink.Black,
                     seed = 11,

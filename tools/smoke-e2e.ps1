@@ -50,7 +50,7 @@ public class WinE2E {
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
     [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
-    [DllImport("user32.dll")] public static extern uint GetCurrentThreadId();
+    [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
     [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint a, uint b, bool attach);
     [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
     [DllImport("user32.dll")] public static extern void mouse_event(uint f, int dx, int dy, uint d, IntPtr e);
@@ -76,14 +76,20 @@ function Pin($p) {
 function Assert-Foreground($p) {
     $h = $p.MainWindowHandle
     Pin $p
-    if ([WinE2E]::GetForegroundWindow() -ne $h) {
+    $me = [WinE2E]::GetCurrentThreadId()
+    for ($try = 0; $try -lt 3; $try++) {
+        if ([WinE2E]::GetForegroundWindow() -eq $h) { return }
         $pid2 = 0
-        $wtid = [WinE2E]::GetWindowThreadProcessId($h, [ref]$pid2)
-        [WinE2E]::AttachThreadInput([WinE2E]::GetCurrentThreadId(), $wtid, $true) | Out-Null
+        $targetTid = [WinE2E]::GetWindowThreadProcessId($h, [ref]$pid2)
+        # 抢焦点必须先把本线程挂到"当前前台线程"上，否则 SetForegroundWindow 会被系统静默拒绝
+        $fgTid = [WinE2E]::GetWindowThreadProcessId([WinE2E]::GetForegroundWindow(), [ref]$pid2)
+        if ($fgTid -ne 0) { [WinE2E]::AttachThreadInput($me, $fgTid, $true) | Out-Null }
+        [WinE2E]::AttachThreadInput($me, $targetTid, $true) | Out-Null
         [WinE2E]::BringWindowToTop($h) | Out-Null
         [WinE2E]::SetForegroundWindow($h) | Out-Null
-        [WinE2E]::AttachThreadInput([WinE2E]::GetCurrentThreadId(), $wtid, $false) | Out-Null
-        Start-Sleep -Milliseconds 250
+        [WinE2E]::AttachThreadInput($me, $targetTid, $false) | Out-Null
+        if ($fgTid -ne 0) { [WinE2E]::AttachThreadInput($me, $fgTid, $false) | Out-Null }
+        Start-Sleep -Milliseconds 400
     }
     if ([WinE2E]::GetForegroundWindow() -ne $h) {
         throw ('FOREGROUND LOST - aborting before injecting input (would hit another window)')

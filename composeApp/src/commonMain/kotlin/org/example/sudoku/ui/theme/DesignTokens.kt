@@ -1,6 +1,7 @@
 package org.example.sudoku.ui.theme
 
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 
 /**
@@ -22,6 +23,8 @@ object DesignTokens {
 
     /** 圆角：手绘方框的圆角，宁小勿大（过大就不像手画的了）。 */
     object Radius {
+        /** 勾选方框（比格子更小的方框，圆角必须更紧，否则像按钮）。 */
+        val Mark: Dp = 4.dp
         val Cell: Dp = 6.dp
         val Button: Dp = 12.dp
         val Panel: Dp = 16.dp
@@ -29,6 +32,12 @@ object DesignTokens {
 
     /** 关键尺寸。 */
     object Sizes {
+        /**
+         * 首次启动的窗口尺寸（也是验收主档）。
+         * 1180×900 是"宽屏双栏 + 棋盘 620"这一套比例成立的最小舒服尺寸。
+         */
+        val WindowDefault: DpSize = DpSize(1180.dp, 900.dp)
+
         /** 宽屏断点：宽度达到该值且宽 > 高时，对局页采用「棋盘左 + 控制右」双栏。 */
         val WideBreakpoint: Dp = 720.dp
 
@@ -70,6 +79,21 @@ object DesignTokens {
 
         /** 悬浮面板与格子的默认间距。 */
         val PadAnchorGap: Dp = 8.dp
+
+        /** 数字键高度（常驻键盘的方块键）。 */
+        val KeyHeight: Dp = 52.dp
+
+        /** 勾选方框的边长（开关行右侧的手绘勾框）。 */
+        val MarkBox: Dp = 24.dp
+
+        /** 棋盘最小边长（窗口再窄也不让格子挤到看不清数字）。 */
+        val BoardMinSize: Dp = 160.dp
+
+        /** 覆盖层里的定宽按钮（如暂停页的"继续"）。 */
+        val OverlayButtonWidth: Dp = 160.dp
+
+        /** 顶部抽屉抓手段距下缘的距离。 */
+        val DrawerGripOffset: Dp = 12.dp
     }
 
     /** 线宽（按 dp 换算，适配高 DPI）。 */
@@ -81,5 +105,22 @@ object DesignTokens {
         val Grid: Dp = 1.0.dp
         val GridBold: Dp = 2.0.dp
         val Selection: Dp = 2.4.dp
+        /** 冲突格排线的线宽（比网格线略细，密排时才不会糊成一块）。 */
+        val Hatch: Dp = 1.1.dp
+    }
+
+    /**
+     * 动效时长（毫秒）：全站只允许这三档。
+     *
+     * 手绘风格不适合"弹跳 / 过冲"这类机械感曲线，因此统一用 `tween` 的默认
+     * FastOutSlowIn 缓动；时长分三档即可：
+     * - [Press] 按压 / 底纹等**即时反馈**：必须快，慢了就像卡顿；
+     * - [Enter] 覆盖层进入：略慢，让"纸落下来"看得清；
+     * - [Exit] 覆盖层退出：**比进入快**——退场不该拖沓（iOS/ Material 通用惯例）。
+     */
+    object Motion {
+        const val PressMs: Int = 90
+        const val EnterMs: Int = 240
+        const val ExitMs: Int = 180
     }
 }

@@ -57,7 +57,7 @@ import org.example.sudoku.ui.theme.inkRoundRect
 fun InkText(
     text: String,
     modifier: Modifier = Modifier,
-    style: TextStyle = Ink.style(16.sp),
+    style: TextStyle = Ink.Type.Body,
     maxLines: Int = 1,
     textAlign: TextAlign = TextAlign.Unspecified,
 ) {
@@ -103,11 +103,20 @@ private fun InkSurface(
         pressed -> Ink.Alpha.WashStrong + 0.03f
         hovered -> Ink.Alpha.Wash
         focused -> Ink.Alpha.Wash * 0.7f
-        highlighted -> Ink.Alpha.Wash * 0.55f
+        // "当前项"与悬停同浓度：键盘走查时必须看得出焦点在哪一项（此前比悬停还淡，等于没有高亮）
+        highlighted -> Ink.Alpha.Wash
         else -> 0f
     }
-    val wash by animateFloatAsState(washTarget, animationSpec = tween(90), label = "inkWash")
-    val pressShift by animateFloatAsState(if (pressed && enabled) 1f else 0f, tween(90), label = "inkPress")
+    val wash by animateFloatAsState(
+        washTarget,
+        animationSpec = tween(DesignTokens.Motion.PressMs),
+        label = "inkWash",
+    )
+    val pressShift by animateFloatAsState(
+        if (pressed && enabled) 1f else 0f,
+        tween(DesignTokens.Motion.PressMs),
+        label = "inkPress",
+    )
 
     val lineAlpha = when {
         !enabled -> Ink.Alpha.Disabled
@@ -141,17 +150,18 @@ private fun InkSurface(
                         cornerRadius = CornerRadius(radiusPx),
                     )
                 }
+                // "当前项"与"重墨"同线宽：只靠一层淡底纹在整屏缩放下根本看不出选中项
                 inkRoundRect(
                     rect = rect,
                     radiusPx = radiusPx,
-                    widthPx = (if (emphasis) DesignTokens.Stroke.Bold else DesignTokens.Stroke.Thin).toPx(),
+                    widthPx = (if (emphasis || highlighted) DesignTokens.Stroke.Bold else DesignTokens.Stroke.Thin).toPx(),
                     color = Ink.Black,
                     seed = seed,
                     alpha = lineAlpha,
                     dashed = !enabled,
                 )
                 if ((focused || highlighted) && enabled) {
-                    val inset = 4.dp.toPx()
+                    val inset = DesignTokens.Spacing.Xs.toPx()
                     inkRoundRect(
                         rect = Rect(rect.left + inset, rect.top + inset, rect.right - inset, rect.bottom - inset),
                         radiusPx = radiusPx,
@@ -190,10 +200,8 @@ fun InkButton(
     ) {
         InkText(
             text = text,
-            style = Ink.style(
-                size = if (emphasized) 21.sp else if (compact) 15.sp else 18.sp,
-                color = if (enabled) Ink.Black else Ink.Light,
-            ),
+            style = (if (emphasized) Ink.Type.Title else if (compact) Ink.Type.Caption else Ink.Type.Body)
+                .copy(color = if (enabled) Ink.Black else Ink.Faint),
         )
     }
 }
@@ -207,8 +215,8 @@ fun InkKey(
     enabled: Boolean = true,
     emphasis: Boolean = false,
     soft: Boolean = false,
-    height: Dp = 52.dp,
-    fontSize: TextUnit = 21.sp,
+    height: Dp = DesignTokens.Sizes.KeyHeight,
+    fontSize: TextUnit = Ink.Type.Title.fontSize,
     /** 右上角小角标（数字键盘用它显示"该数字还剩几个"）。 */
     badge: String? = null,
 ) {
@@ -223,15 +231,15 @@ fun InkKey(
     ) {
         InkText(
             text = text,
-            style = Ink.style(fontSize, if (enabled) Ink.Black else Ink.Light),
+            style = Ink.Type.Title.copy(fontSize = fontSize, color = if (enabled) Ink.Black else Ink.Faint),
         )
         if (badge != null) {
             InkText(
                 text = badge,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(top = 3.dp, end = 7.dp),
-                style = Ink.style(10.sp, Ink.Light),
+                    .padding(top = DesignTokens.Spacing.Xs, end = DesignTokens.Spacing.Sm),
+                style = Ink.Type.Meta.copy(color = Ink.Light),
             )
         }
     }
@@ -253,16 +261,16 @@ fun InkToggleRow(
             .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        InkText(text = label, style = Ink.style(16.sp, Ink.Grey))
+        InkText(text = label, style = Ink.Type.Body.copy(color = Ink.Grey))
         Spacer(Modifier.width(DesignTokens.Spacing.Sm))
         Box(
             modifier = Modifier
-                .size(24.dp)
+                .size(DesignTokens.Sizes.MarkBox)
                 .drawBehind {
                     val rect = Rect(1.5f, 1.5f, size.width - 1.5f, size.height - 1.5f)
                     inkRoundRect(
                         rect = rect,
-                        radiusPx = 4.dp.toPx(),
+                        radiusPx = DesignTokens.Radius.Mark.toPx(),
                         widthPx = DesignTokens.Stroke.Thin.toPx(),
                         color = Ink.Black,
                         seed = seed,
@@ -321,7 +329,7 @@ fun InkPanel(
                     )
                 }
                 drawRoundRect(
-                    color = Color.White.copy(alpha = paperAlpha),
+                    color = Ink.PaperSheet.copy(alpha = paperAlpha),
                     topLeft = Offset(rect.left, rect.top),
                     size = Size(rect.width, rect.height),
                     cornerRadius = CornerRadius(radiusPx),
@@ -356,7 +364,7 @@ fun InkTitleFrame(
             .fillMaxWidth()
             .drawBehind {
                 val outer = Rect(2f, 2f, size.width - 2f, size.height - 2f)
-                val inset = 7.dp.toPx()
+                val inset = DesignTokens.Spacing.Sm.toPx()
                 inkRoundRect(
                     rect = outer,
                     radiusPx = DesignTokens.Radius.Panel.toPx(),
@@ -378,8 +386,8 @@ fun InkTitleFrame(
                     drawCircle(Ink.Black.copy(alpha = Ink.Alpha.LineSoft), radius = 2.2f, center = Offset(x, cy - 1f))
                     drawCircle(Ink.Black.copy(alpha = Ink.Alpha.Hair), radius = 3.4f, center = Offset(x, cy + 5f))
                     inkLine(
-                        from = Offset(x, cy - 10.dp.toPx()),
-                        to = Offset(x, cy + 12.dp.toPx()),
+                        from = Offset(x, cy - DesignTokens.Spacing.Sm.toPx()),
+                        to = Offset(x, cy + DesignTokens.Spacing.Md.toPx()),
                         widthPx = DesignTokens.Stroke.Hair.toPx(),
                         color = Ink.Black,
                         seed = seed + 20 + i,
@@ -387,17 +395,14 @@ fun InkTitleFrame(
                     )
                 }
             }
-            .padding(horizontal = 46.dp, vertical = 18.dp),
+            .padding(horizontal = DesignTokens.Spacing.Xxl, vertical = DesignTokens.Spacing.Md),
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            InkText(
-                text = title,
-                style = Ink.style(40.sp, Ink.Black, letterSpacing = 6.sp),
-            )
+            InkText(text = title, style = Ink.Type.Display)
             if (subtitle != null) {
                 Spacer(Modifier.height(DesignTokens.Spacing.Xs))
-                InkText(text = subtitle, style = Ink.style(13.sp, Ink.Light, letterSpacing = 3.sp))
+                InkText(text = subtitle, style = Ink.Type.Caption.copy(color = Ink.Light))
             }
         }
     }
@@ -409,7 +414,7 @@ fun InkDivider(modifier: Modifier = Modifier, seed: Int = 0) {
     Spacer(
         modifier = modifier
             .fillMaxWidth()
-            .height(1.2.dp)
+            .height(DesignTokens.Stroke.Thin)
             .drawBehind {
                 inkLine(
                     from = Offset(0f, size.height / 2f),
@@ -455,7 +460,7 @@ fun InkGridSketch(
             val dots = listOf(1 to 2, 3 to 5, 5 to 1, 6 to 7, 8 to 4)
             dots.forEachIndexed { i, (r, c) ->
                 drawCircle(
-                    color = Ink.Black.copy(alpha = 0.20f + 0.06f * (i % 3)),
+                    color = Ink.Black.copy(alpha = Ink.Alpha.Decor + Ink.Alpha.DecorStep * (i % 3)),
                     radius = cell * (0.20f + 0.03f * (i % 2)),
                     center = Offset(pad + (c + 0.5f) * cell, pad + (r + 0.5f) * cell),
                 )
