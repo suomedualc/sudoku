@@ -30,7 +30,7 @@ class GameViewModel(
     private val clock: () -> Long = monotonicClock(),
 ) {
     private val rng = seed?.let(::Random) ?: Random.Default
-    private val restored: SavedGame? = store.load()
+    private val restored: SaveFile? = store.load()
 
     var state: GameState by mutableStateOf(restored?.toState() ?: GameState())
         private set
@@ -42,7 +42,7 @@ class GameViewModel(
 
     /** 计时：锚点 + 累计值，`state.elapsed` 始终由真实时间推导，不再"每秒 +1"。 */
     private var anchorMs: Long? = null
-    private var accumulatedSeconds: Int = restored?.elapsed ?: 0
+    private var accumulatedSeconds: Int = restored?.game?.elapsed ?: 0
 
     fun dispatch(action: GameAction) {
         val reduction = GameReducer.reduce(state, action, rng)
@@ -112,13 +112,21 @@ class GameViewModel(
     private fun secondsSince(anchorMs: Long?): Int =
         anchorMs?.let { ((clock() - it) / 1000).toInt().coerceAtLeast(0) } ?: 0
 
+    /**
+     * 落盘：**设置总是写入**，对局只在"可继续"时写入。
+     *
+     * 结算（通关 / 看答案）后不再保留对局，但玩家选好的偏好会留着——
+     * 这正是把两者放进同一个 [SaveFile] 的原因。
+     */
     private fun persist() {
         val game = state.game
-        if (game == null || state.won || state.settled || state.revealed) {
-            store.clear()
-        } else {
-            store.save(SavedGame(game, state.notes, state.elapsed))
-        }
+        val resumable = game != null && !state.won && !state.settled && !state.revealed
+        store.save(
+            SaveFile(
+                settings = state.settings,
+                game = if (resumable) SavedGame(game, state.notes, state.elapsed) else null,
+            ),
+        )
     }
 
     private companion object {
@@ -134,10 +142,16 @@ private fun monotonicClock(): () -> Long {
     return { start.elapsedNow().inWholeMilliseconds }
 }
 
-/** 存档 → 初始状态：恢复盘面 / 笔记 / 计时，但仍然停在首页（由玩家点「继续游戏」进入）。 */
-private fun SavedGame.toState(): GameState = GameState(
+/**
+ * 存档 → 初始状态：恢复盘面 / 笔记 / 计时 / 设置，但仍然停在首页（由玩家点「继续游戏」进入）。
+ * 只有设置、没有对局时也能正常启动（`game == null` ⇒ 首页「继续游戏」置灰）。
+ */
+private fun SaveFile.toState(): GameState = GameState(
     screen = Screen.Menu,
-    game = game,
-    notes = notes,
-    elapsed = elapsed,
+    game = game?.game,
+    notes = game?.notes ?: IntArray(81),
+    elapsed = game?.elapsed ?: 0,
+    strictMode = settings.strictMode,
+    showNotes = settings.showNotes,
+    noteMode = settings.noteMode,
 )

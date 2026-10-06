@@ -1,4 +1,4 @@
-# 数独（手写纸 · 简约油墨）开发纪律 · v1.2
+# 数独（手写纸 · 简约油墨）开发纪律 · v1.3
 
 > 本文件是"系统层"上下文（自动加载），既是**强制规则**，也是本工程的**开发思路 / 选型依据 / 模块说明 / 迭代计划**的简版。
 > 详细论证见 `docs/01-架构设计.md`、`docs/02-设计规范.md`、`docs/03-开发流程.md`、`docs/05-发展规划.md`。
@@ -35,8 +35,11 @@
 12. 计时只允许"由注入的单调时钟算出秒数 + `SyncElapsed`"这一条路径；禁止在 reducer 里读时钟或累加 Tick。
 13. `archive/` 里的 TS / Rust 旧实现只作参考，**不得**当作当前实现引用或复制。
 14. 文档与代码必须同一次改动内保持一致。
+15. **打包标识必须是纯 ASCII、无空格**（`packageName` / `vendor`）；改 `nativeDistributions` 后必须真跑一次
+    `packageMsi` 验证，不能只看 `createDistributable` 通过就宣布打包没问题。
+16. 应用图标是**生成资产**：只通过 `tools/make-icon.ps1` 产出（`composeApp/icons/`），不手改二进制、不在构建期临时生成。
 
-**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 28 项）+ 肉眼验收四档窗口（§6）。
+**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 31 项）+ 肉眼验收四档窗口（§6）。
 
 ---
 
@@ -96,8 +99,9 @@
 
 `GameState` 关键字段：`screen`（**只有 Menu / Game**）、`game`、`selected`、`notes[81]`、
 `noteMode / strictMode / showNotes`、`elapsed / paused`、`hintUsed / hintsCount`、
-`revealed / settled / won`、`undoStack / redoStack`（快照栈，上限 300）、`message`（一次性提示）。
-派生属性 `interactive`：Game 屏 + 有对局 + 未暂停 + 未结算 + 未通关。
+`revealed / settled / won`、`undoStack / redoStack`（快照栈，上限 300）。
+派生属性：`interactive`（Game 屏 + 有对局 + 未暂停 + 未结算 + 未通关）、`settings`（三项偏好投影，供存档）。
+**一次性提示不在状态里**（第二轮已迁移）：`reduce` 返回 `Reduction(state, message)`。
 
 | 行为 | 规则 |
 |---|---|
@@ -108,17 +112,23 @@
 | 判胜 | `isSolved(current) && current == solution`（唯一解题目下等价，双保险） |
 | 撤销/重做 | 改盘前压栈（盘面 + 笔记 + `hintUsed` + `hintsCount` + `revealed`）；重做会重新推导 `settled` |
 | 提示 | 优先当前选中空格，否则第一个空格；标记 `hintUsed` 并累加 `hintsCount` |
-| 提示 | 不在状态里：`reduce` 返回 `Reduction(state, message)`，由 ViewModel 送进事件通道 |
+| 提示事件 | 不存在状态里：`reduce` 返回 `Reduction(state, message)`，由 ViewModel 送进事件通道 → Snackbar |
 | 计时 | 秒数由**单调时钟**算出（`SyncElapsed(seconds)`）；仅 Game 屏、未暂停、未结算时接受新值；暂停 / 离开界面 / 窗口最小化都会停表 |
+| 新局 | `NewGame` 重置对局字段（盘面 / 笔记 / 计时 / 提示 / 结算标记），但**继承三项偏好**（`strictMode / showNotes / noteMode`） |
 
-**存档**（`GameStore.kt`）：`SavedGame(game, notes, elapsed)`；`SaveCodec` 纯文本编解码（`v/difficulty/puzzle/current/solution/notes/elapsed`），
-解析失败一律返回 `null`（不抛异常）。`GameViewModel` 启动时 `load()` 恢复、动作后 `save()`（每 10 秒节流）、
-通关 / 结算后 `clear()`；`canResume` 供首页「继续游戏」使用。
-**注意：只保存对局，不保存玩法开关（`noteMode/strictMode/showNotes`）** —— 待做项，见 `docs/05` §5.1 第 7 条。
+**存档**（`GameStore.kt`，第三轮升级为 v2）：文件内容 = `SaveFile(settings, game)`——
+**设置常驻**（`GameSettings(strictMode, showNotes, noteMode)`），对局可选（`SavedGame(game, notes, elapsed)`）。
+`SaveCodec` 纯文本编解码，`v=2` 写出 `strict/showNotes/noteMode`（+ 有对局时写 `game=1` 与盘面块）；
+`decode` 接受 `v=1..2`，v1 无设置行则取默认值，**解析失败一律返回 `null`（不抛异常）**，读到旧文件下次落盘自动升级。
+`GameViewModel` 启动时 `load()` 恢复盘面 / 笔记 / 计时 / 设置、动作后 `save()`（每 10 秒节流）、
+结算后只把对局移出存档（**偏好保留**）；`canResume` 供首页「继续游戏」使用。
 
-已修复（第二轮，勿回退）：提示事件语义（`Reduction` + `Channel`）、`conflicts/progress` 记忆化（`derivedStateOf`）、
-计时漂移与后台走表（单调时钟 + 最小化暂停）、大师档挖不满 56 空（`generate` 重试至达标）。
-仍未做：`legalMask` 每次重组按盘面 `remember`（未下沉）、设置持久化、逐格无障碍、首页键盘导航。
+已修复（勿回退）：
+- 第二轮：提示事件语义（`Reduction` + `Channel`）、`conflicts/progress` 记忆化（`derivedStateOf`）、
+  计时漂移与后台走表（单调时钟 + 最小化暂停）、大师档挖不满 56 空（`generate` 重试至达标）。
+- 第三轮：设置持久化（`SaveCodec` v2 + v1 兼容）、通关墨框 + 再来一局、首页三入口键盘导航、
+  打包标识（ASCII `packageName`）与图标。
+仍未做：`legalMask` 是否下沉到状态层（目前按盘面 `remember`）、逐格无障碍语义。
 
 ### 3.3 `ui/`（表现层，唯一允许调用 Compose / miuix 的层）
 
@@ -130,8 +140,8 @@
 | `components/InkWidgets.kt` | 墨线控件库 | `InkSurface` 统一五态反馈；`InkText` 是唯一文本出口 |
 | `components/BoardCanvas.kt` | 棋盘墨线绘制 | 分层：纸面 → 墨洗 → 格线 → 数字/笔记 → 选中框；文本缓存 + `rememberUpdatedState` |
 | `components/NumberPad.kt` | 数字键盘 | `legalMask: Int?`：`null` = 不区分；非 null 时**线重**区分可填 / 不可填（不禁用） |
-| `screens/MenuScreen.kt` | 首页 | **只有三个入口**（开始 / 继续 / 退出）+ 难度遮罩 + 退出确认 + 底部草图 |
-| `screens/GameScreen.kt` | 对局页 | 宽屏双栏 / 窄屏滚动；暂停白纸遮题；`handleKeyEvent` 键盘映射 |
+| `screens/MenuScreen.kt` | 首页 | **只有三个入口**（开始 / 继续 / 退出）+ 难度遮罩 + 退出确认 + 底部草图；`MenuCursor` + `onPreviewKeyEvent` 提供 ↑↓ / Enter / Esc（跳过置灰项，鼠标点击同步高亮） |
+| `screens/GameScreen.kt` | 对局页 | 宽屏双栏 / 窄屏滚动；暂停白纸遮题；通关墨框（`WinOverlay` 复用 `InkOverlay`，不可点空白关闭）；`handleKeyEvent` 键盘映射（通关时 Enter 再来一局 / Esc 回首页） |
 | `App.kt` | 装配 | `MiuixTheme(lightColorScheme())` + `Scaffold` + 两页导航 + Snackbar；铺 `Ink.Paper`；无顶部栏 |
 
 ### 3.4 entrypoints
@@ -160,6 +170,7 @@
 | 加一个新屏幕 | ① `Screen` 枚举 ② `App.kt` 的 `when` 分支 ③ 新 Screen 用 `InkPanel` + `InkButton` 组织 ④ 更新 `docs/01` §2 与 `docs/02` §3 |
 | 加一个新平台 | 见 `docs/05` §3.1 / §3.2：确认 miuix 有该平台变体 → 加 target → 写 entrypoint → 实现 `GameStore` → 逐条过输入差异与屏幕档位 |
 | 换字体 | 改 `InkFonts.jvm.kt` 的候选列表（或改为打包字体资源），不动任何页面代码 |
+| 改打包标识 / 图标 | ① 视觉改动重跑 `tools/make-icon.ps1`（生成 `composeApp/icons/`）② 改 `nativeDistributions` 里的 `packageName`（**保持 ASCII**）/ `description` / `vendor` ③ 真跑 `packageMsi` 并核对产品名与图标 |
 
 ---
 
@@ -169,15 +180,17 @@
 - Android 落地：`sdkmanager "platforms;android-37" "build-tools;37.0.0"` → AGP + `androidTarget()` → `activity-compose` → 图标 → 模拟器验收（含返回键、边到边、`GameStore` 的 Android 实现）。
 - 构建环境固化：`JAVA_HOME` 指向 JDK 21（指向 JDK 25 会直接失败）。
 
-**P1（体验与状态机收口，对应 `docs/05` M1；✅ = 第二轮已完成，详见 `docs/05` §5.1）**
+**P1（体验与状态机收口，对应 `docs/05` M1 ✅ 已达成）**
 - ✅ 事件通道：`message` → `Reduction(state, message)` + `Channel<String>`，已删除状态字段与 `ConsumeMessage`。
 - ✅ 派生状态记忆化：`conflicts` / `progress` 改用 `derivedStateOf`。
 - ✅ 时钟注入 + 真实时间源：单调时钟 + `SyncElapsed`；窗口最小化 / 切后台自动暂停。
 - ✅ 出题达标：`generate` 重试至目标空格（测试断言 4 档达标）。
 - ✅ 体验项：数字键剩余计数角标、撤销 / 重做可用态。
-- ⏳ 设置持久化：`strictMode / showNotes / noteMode` 一并入档（当前只存对局）。
-- ⏳ 通关墨框 + 再来一局（复用现成 `InkOverlay`，无需新依赖）。
-- ⏳ 续局体验：首页「继续游戏」显示难度与进度摘要；首页三入口支持键盘 ↑↓ + Enter。
+- ✅ 设置持久化：`SaveCodec` v2 承载三项偏好、兼容 v1，且跨"再来一局"保留。
+- ✅ 通关墨框 + 再来一局（复用 `InkOverlay` + 落纸动画，未引入新依赖）。
+- ✅ 首页三入口键盘导航（↑↓ / Enter / Esc，含难度与退出确认面板）。
+- ✅ 打包收口：ASCII `packageName` + vendor/description/图标，`packageMsi` 实测产出安装包。
+- ⏳ 续局体验增强：首页「继续游戏」显示难度与进度摘要（当前只有置灰/可用两态）。
 - ⏳ `legalMask` 下沉到状态层（目前按盘面 `remember`，未进入派生状态）。
 
 **P2（产品化，对应 M3 / M4）**
@@ -194,10 +207,13 @@
 ## 5. 环境与构建备忘
 
 - **`JAVA_HOME` 必须是 JDK 17–24**（本项目用 21）。`jvmToolchain(21)` 复用该 JVM，**仓库内不写死本机路径**；
-  需要额外工具链路径时，在用户级 `~/.gradle/gradle.properties` 声明 `org.gradle.java.installations.paths`。
-  若报错只有一串版本号（如 `25.0.4.1`），先查 `JAVA_HOME`——这是 Gradle 8.12 遇到 JDK 25 的典型表现。
+  本机已在**用户级** `~/.gradle/gradle.properties` 同时声明 `org.gradle.java.home` 与 `org.gradle.java.installations.paths`，
+  因此即使 `JAVA_HOME` 被改错（如指向 JDK 25），守护进程仍按 JDK 21 启动——已实测 `BUILD SUCCESSFUL`，
+  报错只有一串版本号（如 `25.0.4.1`）是 Gradle 8.12 遇到 JDK 25 的典型表现。
 - 依赖已缓存，日常加 `--offline` 更快：`.\gradlew.bat :composeApp:jvmTest --offline`。
-- `build/` 与 `composeApp/build/` 属可再生产物，可随时清理（MSI 打包需联网重下 WiX 工具集）。
+- `build/` 与 `composeApp/build/` 属可再生产物，可随时清理（MSI 打包需联网重下 WiX 工具集约 99 MB）。
+- 打包：`.\gradlew.bat :composeApp:packageMsi` 产出 `composeApp/build/compose/binaries/main/msi/SudokuInk-2.0.0.msi`（约 60 MB）；
+  `createDistributable` 产出 `binaries/main/app/SudokuInk/`（自带 JRE）。图标由 `tools/make-icon.ps1` 生成。
 - 应用存档在 `~/.sudoku-ink/save.txt`（纯文本，可手动删除以清空续局）。
 - `archive/**/node_modules` 与 `archive/**/dist` 已在 `.gitignore` 中忽略，勿再入库。
 
@@ -209,7 +225,9 @@
 - **精准投喂**：先 `@folder composeApp/src/commonMain` 预热，再用 `@file` / `@code` 定位；方法见 `docs/04`。
 - **负面约束随需求一起给**：把本文件 §0 的相关红线直接写进需求里。
 - **提交前自检清单**：
-  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（28 项）；
+  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（31 项）；改过 `state/` 或 `core/` 时必须补/改用例；
   2. 无新增色相、无裸色值 / 魔法尺寸（§0 6–8）；
   3. 四档窗口肉眼验收：1180×900 / 800×600 / 500×1000 / 1024×768；
-  4. 受影响的文档已同步更新（`docs/01`–`05` 与 README 对应章节）。
+  4. 键盘路径可走通：首页 ↑↓ + Enter、对局内方向键 / 数字 / Ctrl+Z/Y、通关后 Enter / Esc；
+  5. 动过打包配置（`nativeDistributions`）→ 真跑一次 `packageMsi` 并核对产品名与图标；
+  6. 受影响的文档已同步更新（`docs/01`–`05` 与 README 对应章节）。

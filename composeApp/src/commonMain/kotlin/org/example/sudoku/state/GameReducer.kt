@@ -26,8 +26,15 @@ object GameReducer {
     private const val UNDO_LIMIT = 300
 
     fun reduce(state: GameState, action: GameAction, rng: Random): Reduction = when (action) {
+        // 新开一局：对局字段全部归零，但**偏好跨对局保留**（否则玩家每局都要重设开关）
         is GameAction.NewGame -> Reduction(
-            GameState(screen = Screen.Game, game = Sudoku.generate(action.difficulty, rng)),
+            GameState(
+                screen = Screen.Game,
+                game = Sudoku.generate(action.difficulty, rng),
+                strictMode = state.strictMode,
+                showNotes = state.showNotes,
+                noteMode = state.noteMode,
+            ),
         )
 
         is GameAction.Select ->

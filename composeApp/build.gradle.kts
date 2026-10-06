@@ -41,8 +41,17 @@ compose.desktop {
         mainClass = "org.example.sudoku.MainKt"
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "数独 Sudoku"
+            // 打包标识必须纯 ASCII、无空格：jpackage 会把它用作产品名 / 安装目录名 / MSI 标识，
+            // 中文与空格在 MSI、DMG 上会产生异常产品名甚至直接失败（旧值 "数独 Sudoku"）。
+            packageName = "SudokuInk"
             packageVersion = "2.0.0"
+            description = "Sudoku with hand-drawn ink style (Kotlin + Compose Multiplatform)"
+            vendor = "suomedualc"
+            copyright = "Copyright (c) 2026 suomedualc. MIT License."
+            // 图标由 tools/make-icon.ps1 生成（纸面 + 墨线九宫格），与界面同一套视觉语言；
+            // macOS 需要 .icns（用 iconutil 生成），未纳入本脚本，DMG 暂时使用 jpackage 默认图标。
+            windows { iconFile.set(project.file("icons/sudoku.ico")) }
+            linux { iconFile.set(project.file("icons/sudoku.png")) }
         }
     }
 }

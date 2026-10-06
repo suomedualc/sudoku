@@ -51,4 +51,11 @@ data class GameState(
     /** 是否接受棋盘输入。 */
     val interactive: Boolean
         get() = screen == Screen.Game && game != null && !paused && !settled && !won
+
+    /**
+     * 三项跨对局保留的偏好（`strictMode` / `showNotes` / `noteMode`）。
+     * 换局、重置、通关都不清空，并由 [GameViewModel] 随存档落盘。
+     */
+    val settings: GameSettings
+        get() = GameSettings(strictMode = strictMode, showNotes = showNotes, noteMode = noteMode)
 }

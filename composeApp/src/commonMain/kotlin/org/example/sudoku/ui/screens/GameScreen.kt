@@ -37,6 +37,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.example.sudoku.core.Game
@@ -47,8 +48,10 @@ import org.example.sudoku.state.Screen
 import org.example.sudoku.ui.components.BoardCanvas
 import org.example.sudoku.ui.components.InkButton
 import org.example.sudoku.ui.components.InkDivider
+import org.example.sudoku.ui.components.InkOverlay
 import org.example.sudoku.ui.components.InkPanel
 import org.example.sudoku.ui.components.InkText
+import org.example.sudoku.ui.components.InkTitleFrame
 import org.example.sudoku.ui.components.InkToggleRow
 import org.example.sudoku.ui.components.NumberPad
 import org.example.sudoku.ui.theme.DesignTokens
@@ -159,7 +162,63 @@ fun GameScreen(
                 Spacer(Modifier.height(DesignTokens.Spacing.Sm))
             }
         }
+
+        // 通关墨框：盖住整页，玩家必须明确选择「再来一局」或「返回首页」
+        if (state.won) {
+            WinOverlay(
+                difficultyLabel = game.difficulty.label,
+                elapsed = state.elapsed,
+                hintsCount = state.hintsCount,
+                onPlayAgain = { onAction(GameAction.NewGame(game.difficulty)) },
+                onBackToMenu = { onAction(GameAction.Navigate(Screen.Menu)) },
+            )
+        }
     }
+}
+
+/**
+ * 通关墨框：复用 [InkOverlay]（自带"墨迹落纸"入场动画），给出本局成绩并支持直接再来一局。
+ * 不可点空白关闭——避免"随手一点就丢了结算信息"。
+ */
+@Composable
+private fun WinOverlay(
+    difficultyLabel: String,
+    elapsed: Int,
+    hintsCount: Int,
+    onPlayAgain: () -> Unit,
+    onBackToMenu: () -> Unit,
+) {
+    InkOverlay(onDismiss = {}, dismissible = false) {
+        InkTitleFrame(title = "通关", subtitle = "本局用时 ${Sudoku.formatDuration(elapsed)}")
+        Spacer(Modifier.height(DesignTokens.Spacing.Md))
+        WinRow("难度", difficultyLabel)
+        WinRow("提示", if (hintsCount == 0) "未使用" else "×$hintsCount")
+        Spacer(Modifier.height(DesignTokens.Spacing.Lg))
+        InkButton("再来一局", onPlayAgain, emphasized = true, compact = true)
+        Spacer(Modifier.height(DesignTokens.Spacing.Sm))
+        InkButton("返回首页", onBackToMenu, compact = true)
+        Spacer(Modifier.height(DesignTokens.Spacing.Sm))
+        InkText(
+            text = "Enter 再来一局 · Esc 返回首页",
+            modifier = Modifier.fillMaxWidth(),
+            style = Ink.style(11.sp, Ink.Light, letterSpacing = 1.sp),
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+/** 通关墨框里的一行"标签 —— 值"。 */
+@Composable
+private fun WinRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        InkText(text = label, style = Ink.style(14.sp, Ink.Grey, letterSpacing = 2.sp))
+        InkText(text = value, style = Ink.style(16.sp, Ink.Black))
+    }
+    Spacer(Modifier.height(DesignTokens.Spacing.Xs))
 }
 
 /** 棋盘区域：棋盘 + 暂停遮挡（暂停时用白纸盖住题面，不能继续读题）。 */
@@ -345,6 +404,21 @@ private fun handleKeyEvent(
     if (event.isCtrlPressed && event.key == Key.Y) {
         onAction(GameAction.Redo)
         return true
+    }
+    // 通关墨框：Enter / 空格 再来一局，Esc 返回首页（棋盘已锁定，其余按键不再响应）
+    if (state.won) {
+        val difficulty = state.game?.difficulty
+        return when (event.key) {
+            Key.Enter, Key.NumPadEnter, Key.Spacebar -> {
+                if (difficulty != null) onAction(GameAction.NewGame(difficulty))
+                true
+            }
+            Key.Escape -> {
+                onAction(GameAction.Navigate(Screen.Menu))
+                true
+            }
+            else -> false
+        }
     }
     if (!state.interactive) {
         if (event.key == Key.Escape || event.key == Key.Spacebar) {
