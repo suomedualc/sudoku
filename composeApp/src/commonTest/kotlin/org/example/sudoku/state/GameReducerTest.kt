@@ -104,6 +104,27 @@ class GameReducerTest {
     }
 
     @Test
+    fun hintCandidatesToggleSelectsFirstEmptyAndSurvivesNewGame() {
+        val fresh = newGame()
+        assertFalse(fresh.hintCandidates, "候选提示默认关闭（是否要看推演结果由玩家决定）")
+        assertNull(fresh.selected)
+
+        // 打开时顺手选中第一个空格：否则"开关亮了但棋盘毫无变化"，玩家会以为没生效
+        val on = reduce(fresh, GameAction.ToggleHintCandidates)
+        assertTrue(on.hintCandidates)
+        assertEquals(firstEmpty(fresh), on.selected)
+        assertNotNull(reduction(on, GameAction.ToggleHintCandidates).message, "切换应有文案反馈")
+
+        // 已经有了选中格就不再改动它
+        val positioned = reduce(on.copy(selected = firstGiven(on)), GameAction.ToggleHintCandidates)
+        assertEquals(firstGiven(on), positioned.selected)
+
+        // 换一局：偏好保留（与另三项开关同一约定）
+        val next = reduce(on, GameAction.NewGame(Difficulty.Normal))
+        assertTrue(next.hintCandidates, "新开一局应继承候选提示开关")
+    }
+
+    @Test
     fun strictModeRejectsDigitAlreadyInSameRow() {
         val game = newGame().game!!
         val given = firstGiven(newGame())

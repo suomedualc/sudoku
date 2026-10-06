@@ -1,4 +1,4 @@
-# 数独（手写纸 · 简约油墨）开发纪律 · v1.3
+# 数独（手写纸 · 简约油墨）开发纪律 · v1.4
 
 > 本文件是"系统层"上下文（自动加载），既是**强制规则**，也是本工程的**开发思路 / 选型依据 / 模块说明 / 迭代计划**的简版。
 > 详细论证见 `docs/01-架构设计.md`、`docs/02-设计规范.md`、`docs/03-开发流程.md`、`docs/05-发展规划.md`。
@@ -39,7 +39,7 @@
     `packageMsi` 验证，不能只看 `createDistributable` 通过就宣布打包没问题。
 16. 应用图标是**生成资产**：只通过 `tools/make-icon.ps1` 产出（`composeApp/icons/`），不手改二进制、不在构建期临时生成。
 
-**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 31 项）+ 肉眼验收四档窗口（§6）。
+**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 39 项）+ 肉眼验收四档窗口（§6）。
 
 ---
 
@@ -98,9 +98,10 @@
 ### 3.2 `state/`（应用层，纯状态机 + 存档端口）
 
 `GameState` 关键字段：`screen`（**只有 Menu / Game**）、`game`、`selected`、`notes[81]`、
-`noteMode / strictMode / showNotes`、`elapsed / paused`、`hintUsed / hintsCount`、
+`noteMode / strictMode / showNotes / hintCandidates`、`elapsed / paused`、`hintUsed / hintsCount`、
 `revealed / settled / won`、`undoStack / redoStack`（快照栈，上限 300）。
-派生属性：`interactive`（Game 屏 + 有对局 + 未暂停 + 未结算 + 未通关）、`settings`（三项偏好投影，供存档）。
+派生属性：`interactive`（Game 屏 + 有对局 + 未暂停 + 未结算 + 未通关）、`settings`（四项偏好投影，供存档）。
+**纯 UI 状态不进 GameState**：例如"悬浮输入面板此刻锚在哪一格"由 `GameScreen` 的 `remember` 持有。
 **一次性提示不在状态里**（第二轮已迁移）：`reduce` 返回 `Reduction(state, message)`。
 
 | 行为 | 规则 |
@@ -112,13 +113,14 @@
 | 判胜 | `isSolved(current) && current == solution`（唯一解题目下等价，双保险） |
 | 撤销/重做 | 改盘前压栈（盘面 + 笔记 + `hintUsed` + `hintsCount` + `revealed`）；重做会重新推导 `settled` |
 | 提示 | 优先当前选中空格，否则第一个空格；标记 `hintUsed` 并累加 `hintsCount` |
+| 候选提示 | 切换 `hintCandidates`（默认关）；**打开且无选中格时自动选中第一个空格**——否则开关看不出效果。渲染在 `ui`：选中格画 `legalMask` 的**空心**数字，玩家笔记优先 |
 | 提示事件 | 不存在状态里：`reduce` 返回 `Reduction(state, message)`，由 ViewModel 送进事件通道 → Snackbar |
 | 计时 | 秒数由**单调时钟**算出（`SyncElapsed(seconds)`）；仅 Game 屏、未暂停、未结算时接受新值；暂停 / 离开界面 / 窗口最小化都会停表 |
 | 新局 | `NewGame` 重置对局字段（盘面 / 笔记 / 计时 / 提示 / 结算标记），但**继承三项偏好**（`strictMode / showNotes / noteMode`） |
 
-**存档**（`GameStore.kt`，第三轮升级为 v2）：文件内容 = `SaveFile(settings, game)`——
-**设置常驻**（`GameSettings(strictMode, showNotes, noteMode)`），对局可选（`SavedGame(game, notes, elapsed)`）。
-`SaveCodec` 纯文本编解码，`v=2` 写出 `strict/showNotes/noteMode`（+ 有对局时写 `game=1` 与盘面块）；
+**存档**（`GameStore.kt`，v2）：文件内容 = `SaveFile(settings, game)`——
+**设置常驻**（`GameSettings(strictMode, showNotes, noteMode, hintCandidates)`），对局可选（`SavedGame(game, notes, elapsed)`）。
+`SaveCodec` 纯文本编解码，`v=2` 写出四项设置（+ 有对局时写 `game=1` 与盘面块）；
 `decode` 接受 `v=1..2`，v1 无设置行则取默认值，**解析失败一律返回 `null`（不抛异常）**，读到旧文件下次落盘自动升级。
 `GameViewModel` 启动时 `load()` 恢复盘面 / 笔记 / 计时 / 设置、动作后 `save()`（每 10 秒节流）、
 结算后只把对局移出存档（**偏好保留**）；`canResume` 供首页「继续游戏」使用。
@@ -128,7 +130,10 @@
   计时漂移与后台走表（单调时钟 + 最小化暂停）、大师档挖不满 56 空（`generate` 重试至达标）。
 - 第三轮：设置持久化（`SaveCodec` v2 + v1 兼容）、通关墨框 + 再来一局、首页三入口键盘导航、
   打包标识（ASCII `packageName`）与图标。
-仍未做：`legalMask` 是否下沉到状态层（目前按盘面 `remember`）、逐格无障碍语义。
+- 第四轮：候选提示（空心数字 + 第 4 项设置）、鼠标/触控笔点空格弹**半透明悬浮输入面板**、
+  触屏方案定型（手指不弹浮层，走常驻键盘）。
+仍未做：`legalMask` 是否下沉到状态层（目前按盘面 `remember`）、逐格无障碍语义、
+移动端命中区放大与候选预览条（M2）。
 
 ### 3.3 `ui/`（表现层，唯一允许调用 Compose / miuix 的层）
 
@@ -140,8 +145,9 @@
 | `components/InkWidgets.kt` | 墨线控件库 | `InkSurface` 统一五态反馈；`InkText` 是唯一文本出口 |
 | `components/BoardCanvas.kt` | 棋盘墨线绘制 | 分层：纸面 → 墨洗 → 格线 → 数字/笔记 → 选中框；文本缓存 + `rememberUpdatedState` |
 | `components/NumberPad.kt` | 数字键盘 | `legalMask: Int?`：`null` = 不区分；非 null 时**线重**区分可填 / 不可填（不禁用） |
+| `components/FloatingPad.kt` | 半透明悬浮输入面板 + `FloatingPadPolicy`（位置 / 开合纯逻辑） | 只用 `PointerType` 判定"精确指针"；**不接管焦点**；开合判据与位置算法必须是纯函数并有单测 |
 | `screens/MenuScreen.kt` | 首页 | **只有三个入口**（开始 / 继续 / 退出）+ 难度遮罩 + 退出确认 + 底部草图；`MenuCursor` + `onPreviewKeyEvent` 提供 ↑↓ / Enter / Esc（跳过置灰项，鼠标点击同步高亮） |
-| `screens/GameScreen.kt` | 对局页 | 宽屏双栏 / 窄屏滚动；暂停白纸遮题；通关墨框（`WinOverlay` 复用 `InkOverlay`，不可点空白关闭）；`handleKeyEvent` 键盘映射（通关时 Enter 再来一局 / Esc 回首页） |
+| `screens/GameScreen.kt` | 对局页 | 宽屏双栏 / 窄屏滚动；暂停白纸遮题；通关墨框（`WinOverlay` 复用 `InkOverlay`，不可点空白关闭）；悬浮面板的锚点格与统一出口 `dispatch`（除选格 / 换格 / 心跳外任何动作都收面板）；`handleKeyEvent` 键盘映射（`Esc` 先收面板，通关时 Enter 再来一局 / Esc 回首页） |
 | `App.kt` | 装配 | `MiuixTheme(lightColorScheme())` + `Scaffold` + 两页导航 + Snackbar；铺 `Ink.Paper`；无顶部栏 |
 
 ### 3.4 entrypoints
@@ -151,7 +157,7 @@
 | `jvmMain` | `main.kt`（1180×900 / 最小 940×720）· `platform/FileGameStore.kt`（`~/.sudoku-ink/save.txt`）· `ui/theme/InkFonts.jvm.kt` | ✅ 已启用 |
 | `androidMain` | `MainActivity` + `AndroidManifest`（主题已改系统内置） | ⏸ 未参与编译：缺 `androidTarget()` 与 `compileSdk 37`（`docs/05` §3.1） |
 
-### 3.5 五个容易踩的坑
+### 3.5 六个容易踩的坑
 
 1. `GameState` / `Game` 里是 `IntArray`，`data class` 的 `equals` 对数组是**引用比较**——不要用 `==` 做业务判断。
 2. `Snapshot` 必须覆盖"所有会被改的字段"（漏一个就会出现 `hintUsed` 回退而 `hintsCount` 不回退这类矛盾）。
@@ -159,6 +165,9 @@
    棋盘若作为第一个子节点且不设上限，会把后面的数字键盘压成 0 高度（已修：棋盘放 weight 区 + 顶部对齐 + 预留提示条）。
 4. 手绘抖动若用 `Random()`，每次重绘线条都会变（界面"抖"）；必须用由内容派生的种子。
 5. `DrawScope` 的 `size` 是**像素**；`(px).sp` 会再乘 density —— 字号必须 `toSp()`。
+6. 做"点空白处关闭浮层"时，**别把 tap 检测挂在包含棋盘的容器上**：父容器收不到已被子节点消费的点击（等于失效），
+   而靠 `consume()` 抢事件又会连带禁掉棋盘上的拖动滚动。正确做法是挂在**不含棋盘的容器**（控制栏 / 面板区），
+   并让所有动作走同一个出口（`dispatch`）来收浮层；棋盘自己的点击由 `BoardCanvas` 回传。
 
 ### 3.6 常见改动指引
 
@@ -190,6 +199,9 @@
 - ✅ 通关墨框 + 再来一局（复用 `InkOverlay` + 落纸动画，未引入新依赖）。
 - ✅ 首页三入口键盘导航（↑↓ / Enter / Esc，含难度与退出确认面板）。
 - ✅ 打包收口：ASCII `packageName` + vendor/description/图标，`packageMsi` 实测产出安装包。
+- ✅ 候选提示开关：选中格用**空心**数字显示规则允许的候选（第 4 项设置，默认关闭，打开时自动选中首空格）。
+- ✅ 悬浮输入面板：鼠标 / 触控笔点空格就地弹出（位置与开合是纯函数 + 单测；手指不弹）。
+- ✅ 触屏方案定型：常驻底部键盘 + 同一套空心候选；命中区放大与候选预览条留到 M2。
 - ⏳ 续局体验增强：首页「继续游戏」显示难度与进度摘要（当前只有置灰/可用两态）。
 - ⏳ `legalMask` 下沉到状态层（目前按盘面 `remember`，未进入派生状态）。
 
@@ -225,9 +237,10 @@
 - **精准投喂**：先 `@folder composeApp/src/commonMain` 预热，再用 `@file` / `@code` 定位；方法见 `docs/04`。
 - **负面约束随需求一起给**：把本文件 §0 的相关红线直接写进需求里。
 - **提交前自检清单**：
-  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（31 项）；改过 `state/` 或 `core/` 时必须补/改用例；
+  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（39 项）；改过 `state/` 或 `core/` 时必须补/改用例；
   2. 无新增色相、无裸色值 / 魔法尺寸（§0 6–8）；
   3. 四档窗口肉眼验收：1180×900 / 800×600 / 500×1000 / 1024×768；
-  4. 键盘路径可走通：首页 ↑↓ + Enter、对局内方向键 / 数字 / Ctrl+Z/Y、通关后 Enter / Esc；
-  5. 动过打包配置（`nativeDistributions`）→ 真跑一次 `packageMsi` 并核对产品名与图标；
-  6. 受影响的文档已同步更新（`docs/01`–`05` 与 README 对应章节）。
+  4. 键盘路径可走通：首页 ↑↓ + Enter、对局内方向键 / 数字 / Ctrl+Z/Y、`Esc` 收浮层、通关后 Enter / Esc；
+  5. 鼠标路径可走通：点空格弹悬浮面板 → 点键填数 → 面板消失；开关切换后棋盘立刻有反馈；
+  6. 动过打包配置（`nativeDistributions`）→ 真跑一次 `packageMsi` 并核对产品名与图标；
+  7. 受影响的文档已同步更新（`docs/01`–`05` 与 README 对应章节）。

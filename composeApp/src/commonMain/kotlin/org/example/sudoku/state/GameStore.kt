@@ -4,7 +4,7 @@ import org.example.sudoku.core.Difficulty
 import org.example.sudoku.core.Game
 
 /**
- * 三项**跨对局保留**的偏好：严格模式 / 显示笔记 / 笔记模式。
+ * **跨对局保留**的偏好：严格模式 / 显示笔记 / 笔记模式 / 候选提示。
  *
  * 它们是"设置"而不是"对局状态"——换一局、重置、通关都不应该把它们清回默认值，
  * 因此随存档一起落盘（[SaveCodec] v2），并在新开一局时由 reducer 显式继承。
@@ -13,6 +13,7 @@ data class GameSettings(
     val strictMode: Boolean = false,
     val showNotes: Boolean = true,
     val noteMode: Boolean = false,
+    val hintCandidates: Boolean = false,
 )
 
 /** 存档中的一局对弈：题面 / 当前盘 / 答案由 [Game] 承载，外加笔记与已用时。 */
@@ -64,6 +65,7 @@ object NoopGameStore : GameStore {
  * strict=1
  * showNotes=1
  * noteMode=0
+ * hintCandidates=0
  * game=1                       ← 仅当有未完成对局时出现，随后 6 行一并出现
  * difficulty=Easy
  * puzzle=<81 位数字，0 表示空格>
@@ -73,9 +75,9 @@ object NoopGameStore : GameStore {
  * elapsed=<秒>
  * ```
  *
- * **v1 向后兼容**：v1 文件没有设置行，[decode] 会按默认设置读入，并按"v1 必定带对局"解析；
- * `v` 仍是必填字段且必须落在 `1..VERSION`，因此不会把无关文本误判成存档。
- * 读到的旧文件会在下一次落盘时自动升级为 v2。
+ * **向后兼容**：v1 文件没有设置行、v2 早期文件没有 `hintCandidates` 行，[decode] 都对缺失项取默认值，
+ * 并按"v1 必定带对局"解析；`v` 仍是必填字段且必须落在 `1..VERSION`，因此不会把无关文本误判成存档。
+ * 读到的旧文件会在下一次落盘时自动补全并升级。
  */
 object SaveCodec {
     /** 当前写入版本。 */
@@ -89,6 +91,7 @@ object SaveCodec {
         appendLine("strict=${file.settings.strictMode.flag()}")
         appendLine("showNotes=${file.settings.showNotes.flag()}")
         appendLine("noteMode=${file.settings.noteMode.flag()}")
+        appendLine("hintCandidates=${file.settings.hintCandidates.flag()}")
 
         val saved = file.game ?: return@buildString
         val game = saved.game
@@ -113,6 +116,8 @@ object SaveCodec {
             strictMode = fields["strict"].toFlag(default = false),
             showNotes = fields["showNotes"].toFlag(default = true),
             noteMode = fields["noteMode"].toFlag(default = false),
+            // v1 文件、以及 v2 早期文件都没有这一行 → 取默认值（关闭）
+            hintCandidates = fields["hintCandidates"].toFlag(default = false),
         )
         // v1 一定带对局；v2 由 game=1 显式标记（缺失即"只有设置"）
         val hasGame = if (version == MIN_VERSION) true else fields["game"] == "1"

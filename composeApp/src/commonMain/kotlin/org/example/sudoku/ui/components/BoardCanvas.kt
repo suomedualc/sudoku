@@ -1,7 +1,9 @@
 package org.example.sudoku.ui.components
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
@@ -14,6 +16,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.drawText
@@ -33,9 +36,14 @@ import org.example.sudoku.ui.theme.inkRoundRect
  * 墨线表达（全部不依赖颜色）：
  * - 单元格层级：冲突（斜排线）> 选中（淡墨 + 手绘双框）> 同值（淡墨）> 同行列宫（极淡墨）
  * - 数字：题目给定 = 实墨；玩家填入 = 淡墨；冲突数字再套一个手绘圈
- * - 笔记：更小的淡墨数字，3×3 排布
+ * - 笔记：更小的淡墨**实心**数字，3×3 排布
+ * - 候选提示：选中格用更小的**空心**数字（描边不填充）——同一套排布，靠"实心 / 空心"区分
+ *   "自己记的"与"系统算的"（[hintCandidates] 开启且该格没有自己的笔记时才画）
  * - 选中框：常规模式实线、笔记模式虚线（用线型而不是颜色区分模式）
  * - 尺寸：调用方决定（宽屏取可用高宽的正方形，窄屏占满宽度），本组件保证 1:1
+ *
+ * @param onCellClick 点击格子：回传格子下标与**是否精确指针**（鼠标 / 触控笔为真，手指为假）。
+ *   调用方据此决定要不要弹"悬浮数字面板"——手指会挡住面板，触屏走常驻数字键盘（见 `docs/02` §6）。
  */
 @Composable
 fun BoardCanvas(
@@ -45,8 +53,9 @@ fun BoardCanvas(
     conflicts: BooleanArray,
     noteMode: Boolean,
     showNotes: Boolean = true,
+    hintCandidates: Boolean = false,
     modifier: Modifier = Modifier.fillMaxWidth(),
-    onCellClick: (Int) -> Unit,
+    onCellClick: (cell: Int, precisePointer: Boolean) -> Unit,
 ) {
     val textMeasurer = rememberTextMeasurer()
     val onClick by rememberUpdatedState(onCellClick)
@@ -59,12 +68,19 @@ fun BoardCanvas(
         modifier = modifier
             .aspectRatio(1f)
             .pointerInput(Unit) {
-                detectTapGestures { offset ->
+                // 自己实现"点击"而不是用 detectTapGestures：需要知道**指针类型**——
+                // 鼠标 / 触控笔是精确指针（可以弹悬浮输入面板），手指不是（面板会被手指挡住）。
+                // awaitEachGesture + waitForUpOrCancellation 与 detectTapGestures 同源：
+                // 移动超出触摸阈值、或被其它手势消费时会返回 null（即不算点击）。
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val precise = down.type != PointerType.Touch
+                    val up = waitForUpOrCancellation() ?: return@awaitEachGesture
                     val side = minOf(size.width, size.height).toFloat()
                     val cellPx = side / 9f
-                    val col = (offset.x / cellPx).toInt().coerceIn(0, 8)
-                    val row = (offset.y / cellPx).toInt().coerceIn(0, 8)
-                    onClick(row * 9 + col)
+                    val col = (up.position.x / cellPx).toInt().coerceIn(0, 8)
+                    val row = (up.position.y / cellPx).toInt().coerceIn(0, 8)
+                    onClick(row * 9 + col, precise)
                 }
             },
     ) {
@@ -80,6 +96,15 @@ fun BoardCanvas(
             right = (pos % 9 + 1) * cellPx,
             bottom = (pos / 9 + 1) * cellPx,
         )
+
+        /** 3×3 小字的落点（笔记与候选提示共用同一套排布）。 */
+        fun miniTopLeft(r: Rect, digit: Int): Offset {
+            val idx = digit - 1
+            return Offset(
+                r.left + cellPx * (0.17f + (idx % 3) * 0.29f),
+                r.top + cellPx * (0.15f + (idx / 3) * 0.29f),
+            )
+        }
 
         // 1) 单元格墨色层次
         for (pos in 0..80) {
@@ -141,7 +166,7 @@ fun BoardCanvas(
                 val isGiven = Sudoku.isGiven(game, pos)
                 val color = if (isGiven) Ink.Black else Ink.Grey
                 val fontSizePx = cellPx * 0.52f
-                val layout = valueCache.cached(InkTextKey(value, color.value, fontSizePx.toInt(), isGiven)) {
+                val layout = valueCache.cached(InkTextKey(value, color.value, fontSizePx.toInt(), isGiven, hollow = false)) {
                     textMeasurer.measure(
                         value.toString(),
                         Ink.style(fontSizePx.toSp(), color, if (isGiven) FontWeight.Medium else FontWeight.Normal),
@@ -171,21 +196,37 @@ fun BoardCanvas(
 
             if (showNotes) {
                 val mask = notes[pos]
-                if (mask != 0) {
-                    for (digit in 1..9) {
-                        if ((mask and (1 shl (digit - 1))) == 0) continue
-                        val idx = digit - 1
-                        val fontSizePx = cellPx * 0.24f
-                        val layout = noteCache.cached(InkTextKey(digit, Ink.Light.value, fontSizePx.toInt(), false)) {
-                            textMeasurer.measure(digit.toString(), Ink.style(fontSizePx.toSp(), Ink.Light))
+                when {
+                    // 玩家自己的笔记优先：那是他写下的判断，不能被系统候选盖住
+                    mask != 0 -> {
+                        for (digit in 1..9) {
+                            if ((mask and (1 shl (digit - 1))) == 0) continue
+                            val fontSizePx = cellPx * 0.24f
+                            val layout = noteCache.cached(InkTextKey(digit, Ink.Light.value, fontSizePx.toInt(), false, hollow = false)) {
+                                textMeasurer.measure(digit.toString(), Ink.style(fontSizePx.toSp(), Ink.Light))
+                            }
+                            drawText(layout, topLeft = miniTopLeft(r, digit))
                         }
-                        drawText(
-                            layout,
-                            topLeft = Offset(
-                                r.left + cellPx * (0.17f + (idx % 3) * 0.29f),
-                                r.top + cellPx * (0.15f + (idx / 3) * 0.29f),
-                            ),
-                        )
+                    }
+                    // 候选提示：只画在选中格上（当作"看一下这格能填什么"的一次窥视，不整盘泄题）
+                    hintCandidates && pos == selected -> {
+                        val legal = Sudoku.legalMask(game.current, pos)
+                        if (legal != 0) {
+                            for (digit in 1..9) {
+                                if ((legal and (1 shl (digit - 1))) == 0) continue
+                                val fontSizePx = cellPx * 0.24f
+                                val layout = noteCache.cached(InkTextKey(digit, Ink.Grey.value, fontSizePx.toInt(), false, hollow = true)) {
+                                    textMeasurer.measure(
+                                        digit.toString(),
+                                        Ink.style(fontSizePx.toSp(), Ink.Grey).copy(
+                                            // 空心：只描边不填充，与"实心笔记"一眼可分
+                                            drawStyle = Stroke(width = (fontSizePx * 0.10f).coerceAtLeast(0.8f)),
+                                        ),
+                                    )
+                                }
+                                drawText(layout, topLeft = miniTopLeft(r, digit))
+                            }
+                        }
                     }
                 }
             }
@@ -224,12 +265,13 @@ fun BoardCanvas(
     }
 }
 
-/** 文本缓存键：数字 + 颜色 + 字号(px) + 是否加粗。 */
+/** 文本缓存键：数字 + 颜色 + 字号(px) + 是否加粗 + 是否空心（候选提示）。 */
 private data class InkTextKey(
     val digit: Int,
     val color: ULong,
     val sizePx: Int,
     val bold: Boolean,
+    val hollow: Boolean,
 )
 
 /** 带容量保护的跨帧文本测量缓存（连续拖拽缩放窗口时不会无限增长）。 */

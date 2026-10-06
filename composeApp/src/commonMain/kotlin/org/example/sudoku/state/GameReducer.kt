@@ -1,5 +1,6 @@
 package org.example.sudoku.state
 
+import org.example.sudoku.core.Game
 import org.example.sudoku.core.Sudoku
 import kotlin.random.Random
 
@@ -34,6 +35,7 @@ object GameReducer {
                 strictMode = state.strictMode,
                 showNotes = state.showNotes,
                 noteMode = state.noteMode,
+                hintCandidates = state.hintCandidates,
             ),
         )
 
@@ -46,6 +48,7 @@ object GameReducer {
         GameAction.ToggleNoteMode -> Reduction(state.copy(noteMode = !state.noteMode))
         is GameAction.ToggleStrict -> Reduction(state.copy(strictMode = action.enabled))
         GameAction.ToggleShowNotes -> Reduction(state.copy(showNotes = !state.showNotes))
+        GameAction.ToggleHintCandidates -> toggleHintCandidates(state)
 
         GameAction.Hint -> hint(state)
         GameAction.Reveal -> reveal(state)
@@ -142,11 +145,33 @@ object GameReducer {
         return Reduction(state.copy(selected = pos))
     }
 
+    /**
+     * 候选提示开关。打开时若还没有选中格，就顺手选中第一个空格——
+     * 否则开关"亮了"但棋盘上看不到任何变化，玩家会以为没生效（切换反馈要求）。
+     */
+    private fun toggleHintCandidates(state: GameState): Reduction {
+        val enabled = !state.hintCandidates
+        val fallback = if (enabled && state.selected == null) {
+            state.game?.let(::firstEmpty)
+        } else {
+            null
+        }
+        return Reduction(
+            state.copy(
+                hintCandidates = enabled,
+                selected = fallback ?: state.selected,
+            ),
+            if (enabled) "候选提示：开（选中格显示可填数字）" else "候选提示：关",
+        )
+    }
+
+    /** 第一个空格（没有则返回 null）。提示与候选提示共用，保证"选中格优先"的语义一致。 */
+    private fun firstEmpty(game: Game): Int? = (0..80).firstOrNull { game.current[it] == 0 }
+
     private fun hint(state: GameState): Reduction {
         if (!state.interactive) return Reduction(state)
         val game = state.game ?: return Reduction(state)
-        val target = state.selected?.takeIf { game.current[it] == 0 }
-            ?: (0..80).firstOrNull { game.current[it] == 0 }
+        val target = state.selected?.takeIf { game.current[it] == 0 } ?: firstEmpty(game)
         if (target == null) return Reduction(state, "已无可提示的空格")
 
         val notes = state.notes.copyOf()

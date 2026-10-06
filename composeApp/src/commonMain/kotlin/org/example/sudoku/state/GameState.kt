@@ -38,6 +38,13 @@ data class GameState(
     val noteMode: Boolean = false,
     val strictMode: Boolean = false,
     val showNotes: Boolean = true,
+    /**
+     * 候选提示：**选中格**里显示"按规则仍可填"的数字。
+     *
+     * 默认关闭——它会直接给出推演结果（属于辅助），是否要看由玩家自己决定；
+     * 与 [noteMode] / [strictMode] / [showNotes] 一样跨对局保留并随存档落盘。
+     */
+    val hintCandidates: Boolean = false,
     val elapsed: Int = 0,
     val paused: Boolean = false,
     val hintUsed: Boolean = false,
@@ -53,9 +60,14 @@ data class GameState(
         get() = screen == Screen.Game && game != null && !paused && !settled && !won
 
     /**
-     * 三项跨对局保留的偏好（`strictMode` / `showNotes` / `noteMode`）。
+     * 跨对局保留的偏好（`strictMode` / `showNotes` / `noteMode` / `hintCandidates`）。
      * 换局、重置、通关都不清空，并由 [GameViewModel] 随存档落盘。
      */
     val settings: GameSettings
-        get() = GameSettings(strictMode = strictMode, showNotes = showNotes, noteMode = noteMode)
+        get() = GameSettings(
+            strictMode = strictMode,
+            showNotes = showNotes,
+            noteMode = noteMode,
+            hintCandidates = hintCandidates,
+        )
 }

@@ -154,4 +154,5 @@ private fun SaveFile.toState(): GameState = GameState(
     strictMode = settings.strictMode,
     showNotes = settings.showNotes,
     noteMode = settings.noteMode,
+    hintCandidates = settings.hintCandidates,
 )

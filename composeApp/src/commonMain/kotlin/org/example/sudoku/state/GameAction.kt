@@ -13,6 +13,9 @@ sealed interface GameAction {
     data class ToggleStrict(val enabled: Boolean) : GameAction
     data object ToggleShowNotes : GameAction
 
+    /** 候选提示开关：选中格里显示规则允许的数字（见 [GameState.hintCandidates]）。 */
+    data object ToggleHintCandidates : GameAction
+
     data object Hint : GameAction
     data object Reveal : GameAction
     data object Reset : GameAction

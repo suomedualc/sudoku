@@ -2,6 +2,7 @@ package org.example.sudoku.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -21,11 +22,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
@@ -46,6 +51,8 @@ import org.example.sudoku.state.GameAction
 import org.example.sudoku.state.GameState
 import org.example.sudoku.state.Screen
 import org.example.sudoku.ui.components.BoardCanvas
+import org.example.sudoku.ui.components.FloatingInputPad
+import org.example.sudoku.ui.components.FloatingPadPolicy
 import org.example.sudoku.ui.components.InkButton
 import org.example.sudoku.ui.components.InkDivider
 import org.example.sudoku.ui.components.InkOverlay
@@ -65,8 +72,11 @@ import org.example.sudoku.ui.theme.Ink
  * - **窄屏**：纵向排布并整体可滚动，棋盘占满宽度。
  * 两种形态都保证"数字键盘与棋盘同屏可见"，空间不足时宁可滚动也不压缩键盘。
  *
- * 输入方式：鼠标 / 触屏点选；桌面键盘由 [handleKeyEvent] 处理
- * （1–9 填数、0/Delete 擦除、方向键选格并跳过给定格、N 笔记、H 提示、P/空格 暂停、Esc 继续、Ctrl+Z/Y 撤销重做）。
+ * 输入方式：
+ * - 鼠标 / 触屏点选；**鼠标 / 触控笔点空格**会就地弹出半透明悬浮数字面板（[FloatingInputPad]），
+ *   手指不弹（会被手指挡住），触屏走常驻数字键盘；
+ * - 桌面键盘由 [handleKeyEvent] 处理（1–9 填数、0/Delete 擦除、方向键选格并跳过给定格、N 笔记、
+ *   H 提示、P/空格 暂停、Esc 继续 / 收面板、Ctrl+Z/Y 撤销重做）。
  */
 @Composable
 fun GameScreen(
@@ -83,11 +93,37 @@ fun GameScreen(
 
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
-    val boardDescription = remember(game, state.selected, state.paused, done, total) {
+    // 悬浮数字面板：记录"面板锚在哪个格子"。属于纯 UI 细节，因此不进 GameState。
+    var padCell by remember { mutableStateOf<Int?>(null) }
+
+    // 选格变化（点棋盘 / 方向键换格）→ 面板跟着走；不关，让"键鼠混用"不中断
+    LaunchedEffect(state.selected) {
+        val open = padCell
+        if (open != null && state.selected != open) padCell = state.selected
+    }
+    // 暂停 / 通关 / 结算 / 回首页 → 面板立刻收掉（棋盘已不可交互）
+    LaunchedEffect(state.interactive) {
+        if (!state.interactive) padCell = null
+    }
+
+    // 统一出口：除"选格 / 换格 / 计时心跳"外的任何动作都收起面板
+    // （否则填完数、撤销后，面板还悬在已经变了的盘面上）
+    val dispatch: (GameAction) -> Unit = { action ->
+        if (!FloatingPadPolicy.keepsOpen(action)) padCell = null
+        onAction(action)
+    }
+
+    val onCellClick: (Int, Boolean) -> Unit = { cell, precisePointer ->
+        padCell = if (FloatingPadPolicy.shouldOpen(state, cell, precisePointer)) cell else null
+        onAction(GameAction.Select(cell))
+    }
+
+    val boardDescription = remember(game, state.selected, state.paused, state.hintCandidates, done, total) {
         buildString {
             append("数独棋盘，难度 ${game.difficulty.label}，已填 $done / $total")
             if (state.paused) append("，已暂停")
             if (state.noteMode) append("，笔记模式")
+            if (state.hintCandidates) append("，候选提示开启")
             state.selected?.let {
                 append("，当前选中第 ${Sudoku.rowOf(it) + 1} 行第 ${Sudoku.colOf(it) + 1} 列")
             }
@@ -98,7 +134,15 @@ fun GameScreen(
         modifier = modifier
             .fillMaxSize()
             .focusRequester(focusRequester)
-            .onPreviewKeyEvent { handleKeyEvent(it, state, onAction) }
+            .onPreviewKeyEvent { event ->
+                // Esc 优先收面板：第一次 Esc 只关浮层，再按才走"暂停 / 继续"
+                if (event.type == KeyEventType.KeyDown && event.key == Key.Escape && padCell != null) {
+                    padCell = null
+                    true
+                } else {
+                    handleKeyEvent(event, state, dispatch)
+                }
+            }
             .focusable(),
     ) {
         val wide = maxWidth >= DesignTokens.Sizes.WideBreakpoint && maxWidth > maxHeight
@@ -121,7 +165,9 @@ fun GameScreen(
                         state = state,
                         conflicts = conflicts,
                         description = boardDescription,
-                        onAction = onAction,
+                        padCell = padCell,
+                        onAction = dispatch,
+                        onCellClick = onCellClick,
                         modifier = Modifier.align(Alignment.TopCenter).size(side),
                     )
                 }
@@ -129,13 +175,15 @@ fun GameScreen(
                     modifier = Modifier
                         .width(DesignTokens.Sizes.ControlPanel)
                         .fillMaxHeight()
-                        .verticalScroll(rememberScrollState()),
+                        .verticalScroll(rememberScrollState())
+                        // 点控制栏的空白处也收面板（点到开关 / 按钮时由 dispatch 收）
+                        .pointerInput(Unit) { detectTapGestures { padCell = null } },
                 ) {
                     StatusLine(game, state, done, total)
                     Spacer(Modifier.height(DesignTokens.Spacing.Md))
-                    PadPanel(game, state, onAction)
+                    PadPanel(game, state, dispatch)
                     Spacer(Modifier.height(DesignTokens.Spacing.Md))
-                    OptionsPanel(state, onAction)
+                    OptionsPanel(state, dispatch)
                 }
             }
         } else {
@@ -152,13 +200,19 @@ fun GameScreen(
                     state = state,
                     conflicts = conflicts,
                     description = boardDescription,
-                    onAction = onAction,
+                    padCell = padCell,
+                    onAction = dispatch,
+                    onCellClick = onCellClick,
                     modifier = Modifier.fillMaxWidth().aspectRatio(1f),
                 )
                 Spacer(Modifier.height(DesignTokens.Spacing.Md))
-                PadPanel(game, state, onAction)
-                Spacer(Modifier.height(DesignTokens.Spacing.Md))
-                OptionsPanel(state, onAction)
+                // 只在"面板区"收浮层：这里不含棋盘，不会与棋盘的点击手势抢事件，
+                // 也不会挡住棋盘上的拖动滚动（窄屏需要靠拖动棋盘来滚页面）。
+                Column(modifier = Modifier.pointerInput(Unit) { detectTapGestures { padCell = null } }) {
+                    PadPanel(game, state, dispatch)
+                    Spacer(Modifier.height(DesignTokens.Spacing.Md))
+                    OptionsPanel(state, dispatch)
+                }
                 Spacer(Modifier.height(DesignTokens.Spacing.Sm))
             }
         }
@@ -169,8 +223,8 @@ fun GameScreen(
                 difficultyLabel = game.difficulty.label,
                 elapsed = state.elapsed,
                 hintsCount = state.hintsCount,
-                onPlayAgain = { onAction(GameAction.NewGame(game.difficulty)) },
-                onBackToMenu = { onAction(GameAction.Navigate(Screen.Menu)) },
+                onPlayAgain = { dispatch(GameAction.NewGame(game.difficulty)) },
+                onBackToMenu = { dispatch(GameAction.Navigate(Screen.Menu)) },
             )
         }
     }
@@ -221,14 +275,21 @@ private fun WinRow(label: String, value: String) {
     Spacer(Modifier.height(DesignTokens.Spacing.Xs))
 }
 
-/** 棋盘区域：棋盘 + 暂停遮挡（暂停时用白纸盖住题面，不能继续读题）。 */
+/**
+ * 棋盘区域：棋盘 + 悬浮数字面板 + 暂停遮挡（暂停时用白纸盖住题面，不能继续读题）。
+ *
+ * 悬浮面板与棋盘放在同一个 Box 里，因此**共用同一套 9×9 像素坐标**，
+ * 面板定位不需要额外的坐标换算（窄屏滚动时也会跟着棋盘一起移动）。
+ */
 @Composable
 private fun BoardArea(
     game: Game,
     state: GameState,
     conflicts: BooleanArray,
     description: String,
+    padCell: Int?,
     onAction: (GameAction) -> Unit,
+    onCellClick: (Int, Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier) {
@@ -239,9 +300,20 @@ private fun BoardArea(
             conflicts = conflicts,
             noteMode = state.noteMode,
             showNotes = state.showNotes,
+            hintCandidates = state.hintCandidates,
             modifier = Modifier.fillMaxSize().semantics { contentDescription = description },
-            onCellClick = { onAction(GameAction.Select(it)) },
+            onCellClick = onCellClick,
         )
+        if (padCell != null && state.interactive) {
+            FloatingInputPad(
+                cell = padCell,
+                enabled = state.interactive,
+                // 笔记模式不区分可填性（笔记本就不受同行列宫限制），与常驻数字键盘同一套语义
+                legalMask = if (state.noteMode) null else Sudoku.legalMask(game.current, padCell),
+                onDigit = { onAction(GameAction.Digit(it)) },
+                onErase = { onAction(GameAction.Digit(0)) },
+            )
+        }
         if (state.paused) {
             Column(
                 modifier = Modifier
@@ -336,6 +408,20 @@ private fun OptionsPanel(state: GameState, onAction: (GameAction) -> Unit) {
             label = "显示笔记",
             checked = state.showNotes,
             onCheckedChange = { onAction(GameAction.ToggleShowNotes) },
+        )
+        InkToggleRow(
+            label = "候选提示",
+            checked = state.hintCandidates,
+            onCheckedChange = { onAction(GameAction.ToggleHintCandidates) },
+        )
+        InkText(
+            text = if (state.hintCandidates) {
+                "选中格：空心数字 = 规则允许的候选"
+            } else {
+                "开：选中格显示可填数字（空心）"
+            },
+            modifier = Modifier.fillMaxWidth().padding(bottom = DesignTokens.Spacing.Xs),
+            style = Ink.style(11.sp, Ink.Light, letterSpacing = 1.sp),
         )
         InkToggleRow(
             label = "严格模式",

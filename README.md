@@ -22,6 +22,10 @@
   给定数字实墨、玩家填入淡墨、候选数小号淡墨。
 - **数字输入**：选格后点数字键填入；`擦除` 清空；笔记模式记候选（落子自动清理同行列宫候选）；
   数字键右上角显示"还剩几个"，用完转淡墨框。
+- **候选提示**（开关，默认关闭）：打开后**选中格**用**空心**数字显示"按规则仍可填"的候选；
+  自己记的笔记是实心数字，两者一眼可分——不靠颜色。打开时若还没选格，会自动选中第一个空格让你立刻看到效果。
+- **鼠标就近输入**（桌面）：鼠标或触控笔点**空格**，就在该格旁弹出**半透明墨框面板**（3×3 数字键 + 擦除），
+  点键即填、填完自动收起；方向键换格时面板跟着走，`Esc` 收起。指针无需在棋盘与右侧键盘之间往返。
 - **难度与唯一解**：出题先校验唯一解，再按难度挖洞；挖不满目标空格时自动换挖洞顺序 / 终盘重试至达标。
 - **对局辅助**：撤销 / 重做（上限 300 步，栈空时按钮转虚线框）、提示（状态行显示「提示 ×N」）、
   重置、暂停（白纸遮题，不泄题）、严格模式。
@@ -35,10 +39,19 @@
 | 场景 | 按键 |
 |---|---|
 | 首页 | `↑` / `↓` 在三个入口间移动（自动跳过置灰项）、`Enter` / 空格 确认；面板内 `Esc` 返回 |
-| 对局 | `1–9` 填数、`0` / `Delete` / `Backspace` 擦除、方向键选格（自动跳过给定格）、`N` 笔记、`H` 提示、`P` / 空格 暂停、`Esc` 继续、`Ctrl+Z` 撤销、`Ctrl+Y`（或 `Ctrl+Shift+Z`）重做 |
+| 对局 | `1–9` 填数、`0` / `Delete` / `Backspace` 擦除、方向键选格（自动跳过给定格）、`N` 笔记、`H` 提示、`P` / 空格 暂停、`Esc` 继续（先收悬浮面板）、`Ctrl+Z` 撤销、`Ctrl+Y`（或 `Ctrl+Shift+Z`）重做 |
 | 通关墨框 | `Enter` 再来一局、`Esc` 返回首页 |
 
-鼠标点击会把键盘高亮同步到被点的项，两种输入方式互不打架。
+鼠标点击会把键盘高亮同步到被点的项，两种输入方式互不打架；悬浮面板不接管焦点，键盘操作始终可用。
+
+## 鼠标与触屏
+
+| 设备 | 数字输入 | 候选数字展示 |
+|---|---|---|
+| 鼠标 / 触控笔（桌面） | 点空格 → **悬浮面板**（就近）；右侧常驻键盘同样可用 | 选中格空心数字（候选提示开启）、常驻键盘与悬浮面板的非法数字转淡墨 |
+| 触屏（移动端） | 点格只选中，用**常驻底部数字键盘**输入——不等同于桌面方案：手指会遮住落点附近，浮层只能放到手指以外，收益不如直接用底部键盘 | 与桌面**同一套**空心候选渲染（`core` / `state` 零差异）；M2 追加命中区放大与候选预览条 |
+
+详细规定（面板位置 / 样式 / 消失时机 / 键盘兼容逻辑）见 `docs/02-设计规范.md` §4.1 与 §6.1。
 
 ## 技术栈与版本
 
@@ -61,7 +74,7 @@ org.example.sudoku
 │                 + GameViewModel（状态容器）· GameStore / SaveCodec（存档端口与编解码）
 ├── ui/
 │   ├── theme/    Ink.kt（纸墨配色 + 手写体 + 手绘原语）· DesignTokens.kt（尺寸）
-│   ├── components/  InkWidgets.kt（墨线控件库）· BoardCanvas.kt · NumberPad.kt
+│   ├── components/  InkWidgets.kt（墨线控件库）· BoardCanvas.kt · NumberPad.kt · FloatingPad.kt（就近输入）
 │   ├── screens/  MenuScreen（三入口 + 键盘导航）· GameScreen（双形态 + 通关墨框 + 键盘）
 │   └── App.kt    MiuixTheme + Scaffold + 两页导航 + Snackbar
 └── entrypoints
@@ -77,7 +90,7 @@ org.example.sudoku
 
 ```powershell
 .\gradlew.bat :composeApp:run                  # 桌面直接运行
-.\gradlew.bat :composeApp:jvmTest --offline    # 单元测试（31 项）
+.\gradlew.bat :composeApp:jvmTest --offline    # 单元测试（39 项）
 .\gradlew.bat :composeApp:createDistributable  # 自带 JRE 的分发目录（binaries/main/app/SudokuInk）
 .\gradlew.bat :composeApp:packageMsi           # Windows 安装包（首次需联网下载 WiX）
 ```

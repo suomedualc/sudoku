@@ -293,12 +293,19 @@ fun InkToggleRow(
     }
 }
 
-/** 墨线面板：白纸面 + 手绘边框（替代 Material 风格卡片）。 */
+/**
+ * 墨线面板：白纸面 + 手绘边框（替代 Material 风格卡片）。
+ *
+ * - [paperAlpha] < 1 时纸面半透明：用于**悬浮数字面板**，让底下的网格隐约可见（读作"浮着的一层薄纸"）；
+ * - [doubleStroke] 为真时再叠一圈错位淡墨描边，用**线**表达"浮起"（墨线语言里没有阴影）。
+ */
 @Composable
 fun InkPanel(
     modifier: Modifier = Modifier,
     padding: PaddingValues = PaddingValues(DesignTokens.Spacing.Lg),
     seed: Int = 1,
+    paperAlpha: Float = 1f,
+    doubleStroke: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(
@@ -307,8 +314,18 @@ fun InkPanel(
             .drawBehind {
                 val rect = Rect(2f, 2f, size.width - 2f, size.height - 2f)
                 val radiusPx = DesignTokens.Radius.Panel.toPx()
+                if (doubleStroke) {
+                    inkRoundRect(
+                        rect = Rect(rect.left - 2.5f, rect.top - 2.5f, rect.right - 0.5f, rect.bottom - 0.5f),
+                        radiusPx = radiusPx + 1.5f,
+                        widthPx = DesignTokens.Stroke.Hair.toPx(),
+                        color = Ink.Black,
+                        seed = seed + 3,
+                        alpha = Ink.Alpha.Hair,
+                    )
+                }
                 drawRoundRect(
-                    color = Color.White,
+                    color = Color.White.copy(alpha = paperAlpha),
                     topLeft = Offset(rect.left, rect.top),
                     size = Size(rect.width, rect.height),
                     cornerRadius = CornerRadius(radiusPx),

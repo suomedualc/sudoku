@@ -25,7 +25,12 @@ class GameStoreTest {
     fun codecRoundTripsGameAndSettings() {
         val game = sampleGame()
         val notes = IntArray(81) { if (it % 7 == 0) 0b101010 else 0 }
-        val settings = GameSettings(strictMode = true, showNotes = false, noteMode = true)
+        val settings = GameSettings(
+            strictMode = true,
+            showNotes = false,
+            noteMode = true,
+            hintCandidates = true,
+        )
 
         val decoded = SaveCodec.decode(SaveCodec.encode(SaveFile(settings, SavedGame(game, notes, 123))))
 
@@ -43,15 +48,33 @@ class GameStoreTest {
 
     @Test
     fun codecKeepsSettingsWhenThereIsNoGame() {
-        val text = SaveCodec.encode(SaveFile(GameSettings(strictMode = true, showNotes = false)))
+        val text = SaveCodec.encode(
+            SaveFile(GameSettings(strictMode = true, showNotes = false, hintCandidates = true)),
+        )
 
         val decoded = SaveCodec.decode(text)
 
         assertNotNull(decoded, "只有设置的存档也应可读")
         assertTrue(decoded.settings.strictMode)
         assertFalse(decoded.settings.showNotes)
+        assertTrue(decoded.settings.hintCandidates)
         assertNull(decoded.game, "没有 game 块时应判为无对局")
         assertFalse(text.contains("game=1"), "无对局时不应写 game 块")
+    }
+
+    /** 更早的 v2 文件没有 `hintCandidates` 行：应取默认值（关闭），不能因此判为坏档。 */
+    @Test
+    fun codecDefaultsHintCandidatesWhenLineIsMissing() {
+        val old = SaveCodec.encode(SaveFile(game = SavedGame(sampleGame(), IntArray(81), 0)))
+            .lineSequence()
+            .filterNot { it.startsWith("hintCandidates=") }
+            .joinToString("\n")
+
+        val decoded = SaveCodec.decode(old)
+
+        assertNotNull(decoded, "缺少候选提示设置的旧文件仍应可读")
+        assertFalse(decoded.settings.hintCandidates, "缺行取默认：关闭")
+        assertNotNull(decoded.game)
     }
 
     /** v1 存档没有设置行，应能读出来并取默认设置（老用户的存档不能因为升级而作废）。 */
@@ -104,16 +127,19 @@ class GameStoreTest {
         assertFalse(first.state.strictMode, "默认严格模式关闭")
         first.dispatch(GameAction.ToggleStrict(true))
         first.dispatch(GameAction.ToggleShowNotes)
+        first.dispatch(GameAction.ToggleHintCandidates)
 
         // 模拟重启
         val second = GameViewModel(seed = 9, store = store)
         assertTrue(second.state.strictMode, "严格模式应随存档保留")
         assertFalse(second.state.showNotes, "显示笔记应随存档保留")
+        assertTrue(second.state.hintCandidates, "候选提示应随存档保留")
 
         // 新开一局不应把偏好重置回默认值
         second.dispatch(GameAction.NewGame(Difficulty.Easy))
         assertTrue(second.state.strictMode, "新开一局应继承偏好")
         assertFalse(second.state.showNotes, "新开一局应继承偏好")
+        assertTrue(second.state.hintCandidates, "新开一局应继承偏好")
         assertNotNull(store.load()?.settings, "偏好应继续落盘")
     }
 
