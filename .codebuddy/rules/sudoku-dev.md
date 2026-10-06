@@ -1,4 +1,4 @@
-# 数独（手写纸 · 简约油墨）开发纪律 · v1.5
+# 数独（手写纸 · 简约油墨）开发纪律 · v1.6
 
 > 本文件是"系统层"上下文（自动加载），既是**强制规则**，也是本工程的**开发思路 / 选型依据 / 模块说明 / 迭代计划**的简版。
 > 详细论证见 `docs/01-架构设计.md`、`docs/02-设计规范.md`、`docs/03-开发流程.md`、`docs/05-发展规划.md`。
@@ -38,6 +38,8 @@
 15. **打包标识必须是纯 ASCII、无空格**（`packageName` / `vendor`）；改 `nativeDistributions` 后必须真跑一次
     `packageMsi` 验证，不能只看 `createDistributable` 通过就宣布打包没问题。
 16. 应用图标是**生成资产**：只通过 `tools/make-icon.ps1` 产出（`composeApp/icons/`），不手改二进制、不在构建期临时生成。
+    **打包图标与运行时图标必须同源**：jpackage 只把图标嵌进 exe；AWT 窗口默认仍显示 JDK 的 Java 图标，
+    因此 `jvmMain/main.kt` 必须显式设置 `window.iconImages`（PNG 经 `jvmMain { resources.srcDir("icons") }` 进 jar）。
 
 **自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 40 项）+ **实机试玩**（§6 第 4–5 条）+ 肉眼验收四档窗口。
 
@@ -157,7 +159,7 @@
 | `jvmMain` | `main.kt`（1180×900 / 最小 940×720）· `platform/FileGameStore.kt`（`~/.sudoku-ink/save.txt`）· `ui/theme/InkFonts.jvm.kt` | ✅ 已启用 |
 | `androidMain` | `MainActivity` + `AndroidManifest`（主题已改系统内置） | ⏸ 未参与编译：缺 `androidTarget()` 与 `compileSdk 37`（`docs/05` §3.1） |
 
-### 3.5 六个容易踩的坑
+### 3.5 七个容易踩的坑
 
 1. `GameState` / `Game` 里是 `IntArray`，`data class` 的 `equals` 对数组是**引用比较**——不要用 `==` 做业务判断。
 2. `Snapshot` 必须覆盖"所有会被改的字段"（漏一个就会出现 `hintUsed` 回退而 `hintsCount` 不回退这类矛盾）。
@@ -168,6 +170,10 @@
 6. 做"点空白处关闭浮层"时，**别把 tap 检测挂在包含棋盘的容器上**：父容器收不到已被子节点消费的点击（等于失效），
    而靠 `consume()` 抢事件又会连带禁掉棋盘上的拖动滚动。正确做法是挂在**不含棋盘的容器**（控制栏 / 面板区），
    并让所有动作走同一个出口（`dispatch`）来收浮层；棋盘自己的点击由 `BoardCanvas` 回传。
+7. **图标只嵌进 exe 是不够的**：jpackage 改的是**文件**图标，AWT 创建的窗口仍会用 JDK 的 Java 图标
+   （标题栏与任务栏都是它）。必须在 `main.kt` 里设置 `window.iconImages`；而且读资源要用
+   `Class.getResourceAsStream("/sudoku-32.png")`——`ClassLoader.getResourceAsStream` **不接受前导 `/`**，
+   会静默返回 null，于是"设了图标却没生效"。
 
 ### 3.6 常见改动指引
 
@@ -225,7 +231,9 @@
 - 依赖已缓存，日常加 `--offline` 更快：`.\gradlew.bat :composeApp:jvmTest --offline`。
 - `build/` 与 `composeApp/build/` 属可再生产物，可随时清理（MSI 打包需联网重下 WiX 工具集约 99 MB）。
 - 打包：`.\gradlew.bat :composeApp:packageMsi` 产出 `composeApp/build/compose/binaries/main/msi/SudokuInk-2.0.0.msi`（约 60 MB）；
-  `createDistributable` 产出 `binaries/main/app/SudokuInk/`（自带 JRE）。图标由 `tools/make-icon.ps1` 生成。
+  `createDistributable` 产出 `binaries/main/app/SudokuInk/`（自带 JRE）。
+- 图标**一处生成、两处使用**：`composeApp/icons/`（`tools/make-icon.ps1` 产出）既是 jpackage 的 `iconFile` 来源，
+  也作为 jvmMain 资源打进 jar，供 `main.kt` 设置运行时窗口 / 任务栏图标。改图标只需重跑脚本 + 重新打包。
 - 应用存档在 `~/.sudoku-ink/save.txt`（纯文本，可手动删除以清空续局）。
 - `archive/**/node_modules` 与 `archive/**/dist` 已在 `.gitignore` 中忽略，勿再入库。
 

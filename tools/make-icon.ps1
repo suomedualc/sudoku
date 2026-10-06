@@ -11,8 +11,12 @@
     圆角与四周透明边让它在深色/浅色任务栏、开始菜单、Alt+Tab 里都不糊边。
 
     产物：
-      composeApp/icons/sudoku.ico  多尺寸（16/24/32/48/64/128/256），Windows MSI / app-image 用
-      composeApp/icons/sudoku.png  256×256，Linux deb 用
+      composeApp/icons/sudoku.ico      多尺寸（16/24/32/48/64/128/256），Windows MSI / app-image 用
+      composeApp/icons/sudoku.png      256×256，Linux deb 用
+      composeApp/icons/sudoku-NN.png   16/24/32/48/64/128 各一份 —— **运行时窗口 / 任务栏图标**用。
+        为什么要单独存各尺寸：jpackage 只把图标嵌进 exe，AWT 窗口仍会用 JDK 的 Java 图标，
+        必须在代码里显式设置（`main.kt` 的 `window.iconImages`）；按尺寸各取一份比缩放一份更清晰。
+        这些 PNG 通过 `build.gradle.kts` 的 `jvmMain { resources.srcDir("icons") }` 打进 jar。
       预览图默认写到 %TEMP%（用于人工校验，不入库）
     macOS 的 .icns 需要 iconutil（仅 macOS 提供），未纳入本脚本。
 
@@ -133,7 +137,11 @@ foreach ($s in $sizes) {
     $bmp.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)
     [void]$pngs.Add($ms.ToArray())
     if ($s -eq 256) {
+        # Linux deb 的图标（jpackage 需要一张 png）
         $bmp.Save((Join-Path $OutDir 'sudoku.png'), [System.Drawing.Imaging.ImageFormat]::Png)
+    } else {
+        # 运行时窗口 / 任务栏图标：各尺寸各存一份，代码里按名单加载，避免缩放发虚
+        $bmp.Save((Join-Path $OutDir ('sudoku-' + $s + '.png')), [System.Drawing.Imaging.ImageFormat]::Png)
     }
     $ms.Dispose()
     $bmp.Dispose()
@@ -168,6 +176,11 @@ Write-Output ("生成 " + $icoPath + "  (" + (Get-Item $icoPath).Length + " 字�
 
 $pngPath = Join-Path $OutDir 'sudoku.png'
 Write-Output ("生成 " + $pngPath + "  (" + (Get-Item $pngPath).Length + " 字节)")
+foreach ($s in $sizes) {
+    if ($s -eq 256) { continue }
+    $p = Join-Path $OutDir ('sudoku-' + $s + '.png')
+    Write-Output ("生成 " + $p + "  (" + (Get-Item $p).Length + " 字节)")
+}
 
 # --- 预览图：上排原始尺寸、下排把小尺寸放大 6 倍，便于人工判断清晰度 ---
 $gap = 16

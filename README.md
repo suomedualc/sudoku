@@ -98,7 +98,8 @@ org.example.sudoku
 
 首次构建需联网拉取依赖，依赖缓存就绪后可加 `--offline`。仓库已含 Gradle wrapper，无需本机安装 Gradle；
 启动 Gradle 的 `JAVA_HOME` 指向 JDK 17–24 即可（`jvmToolchain(21)` 会复用该 JVM，仓库内不写死任何本机路径）。
-应用图标由 `tools/make-icon.ps1` 生成到 `composeApp/icons/`，打包时按平台接入。
+应用图标由 `tools/make-icon.ps1` 生成到 `composeApp/icons/`：**同一份生成资产**既供打包（`iconFile`，写进 exe / MSI），
+也打进 jar 供运行时设置窗口与任务栏图标（jpackage 不负责后者）。
 
 ## 跨平台
 

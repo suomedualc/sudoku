@@ -30,6 +30,13 @@ kotlin {
             implementation(kotlin("test"))
         }
 
+        jvmMain {
+            // 把生成的应用图标（tools/make-icon.ps1 的产物）打进 jar：
+            // jpackage 只把图标**嵌入 exe**，AWT 窗口默认仍显示 JDK 的 Java 图标，
+            // 所以运行时要在 main.kt 里用这些资源设置 window.iconImages（与打包图标同源）。
+            resources.srcDir("icons")
+        }
+
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
         }
