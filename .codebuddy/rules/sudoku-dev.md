@@ -1,0 +1,206 @@
+# 数独（手写纸 · 简约油墨）开发纪律 · v1.2
+
+> 本文件是"系统层"上下文（自动加载），既是**强制规则**，也是本工程的**开发思路 / 选型依据 / 模块说明 / 迭代计划**的简版。
+> 详细论证见 `docs/01-架构设计.md`、`docs/02-设计规范.md`、`docs/03-开发流程.md`、`docs/05-发展规划.md`。
+> 读法：**红线在 §0（每次改代码都要过一遍）**；不确定"为什么这样设计"看 §1–§2；动手改具体模块看 §3.6；排期看 §4。
+> 与代码冲突时以本文为准；要违反红线必须先说明理由并取得同意。
+
+---
+
+## 0. 红线（违反前必须说明并获得同意）
+
+**分层与状态**
+
+1. `core/` 只允许 Kotlin 标准库与 `kotlin.random.Random`：**禁止** IO / 时钟 / UI / 平台 API。
+2. `state/` **禁止** Compose / 平台 API；`GameReducer` 必须是纯函数（同一 state + action + rng ⇒ 同一结果）。
+3. 改 `core/` 算法必须同步补 `commonTest` 用例；改 `state/` 行为必须补 `GameReducerTest` / `GameStoreTest` 用例（固定种子）。
+4. 改 `state` 对外类型 / Action / `Screen` 必须同步更新 `docs/01-架构设计.md` §5。
+5. 新增依赖或升级版本，必须先在 `gradle/libs.versions.toml` 对齐并登记理由（Kotlin / CMP / miuix 三者强绑定）。
+
+**视觉（手写纸 · 简约油墨）**
+
+6. **只有纸与墨**：任何新组件都不得引入色相（不得出现红/绿/蓝语义色，也不得使用 miuix 的彩色语义色）；
+   层次只能用墨的浓淡（`Ink.Alpha.*`）、线重（`DesignTokens.Stroke.*`）、线型（实线 / 虚线 / 排线）表达。
+7. **颜色与字体只在 `ui/theme/Ink.kt`，尺寸只在 `ui/theme/DesignTokens.kt`**；组件里禁止裸色值与魔法尺寸。
+8. **所有可见控件走自绘墨线组件**（`InkSurface` 家族：`InkButton` / `InkKey` / `InkToggleRow` / `InkPanel` / `InkOverlay`）；
+   引入 miuix 的 `Button / Card / Switch / TopAppBar` 等**外观型组件**属于回退，需先说明理由。
+9. 手绘线条必须使用 `inkLine / inkRoundRect / inkHatch`，且抖动的种子必须由内容派生（纯函数）——
+   **禁止** `Random()` 之类每次重绘都会变的抖动源（会让界面"抖"）。
+10. 绘制尺寸一律用 dp / `toSp()`，**禁止**把 `DrawScope` 的像素值直接当 dp / sp 用。
+
+**工程**
+
+11. 一次性提示统一走 `state.message` → Snackbar，不新增弹窗式反馈。
+12. `archive/` 里的 TS / Rust 旧实现只作参考，**不得**当作当前实现引用或复制。
+13. 文档与代码必须同一次改动内保持一致。
+
+**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 22 项）+ 肉眼验收四档窗口（§6）。
+
+---
+
+## 1. 开发思路（为什么这样写代码）
+
+| # | 原则 | 在本仓的体现 | 反例（不要这样写） |
+|---|---|---|---|
+| 1 | **状态是唯一真相**，UI 只是渲染函数 | 所有界面内容都从 `GameState` 派生，UI 不缓存副本 | 在 Composable 里 `remember` 一份"当前数字"再自行修改 |
+| 2 | **单向数据流**（Elm 式） | `输入 → GameAction → GameReducer.reduce → GameState → 重组` | 直接从 UI 修改状态字段、或把业务分支写进屏幕 |
+| 3 | **纯函数优先**，可回放可测试 | reducer 不读时钟、不取随机数（rng 注入）；固定种子 ⇒ 同一盘面 | 在 reducer 里 `Random.Default` / `System.currentTimeMillis()` |
+| 4 | **规则与表现分离** | 规则只在 `core`；`BoardCanvas` 只负责"把状态画成图" | 在 Canvas 里判断"这一步合不合法" |
+| 5 | **单一出口**：颜色字体走 `Ink`、尺寸走 `DesignTokens` | 全站只有一个改为墨色/手写体的地方 | 在组件里写 `Color(0xFF...)` / `16.dp` |
+| 6 | **副作用外提** | 提示 → Snackbar；计时 → UI 心跳；存档 → `GameStore` 端口；随机源 → 注入 | reducer 里直接弹窗 / 写文件 |
+| 7 | **视觉可复现**：手绘感必须确定 | 抖动由 seed 纯函数生成，重绘不闪动；文本测量跨帧缓存 | 用 `Random` 抖动、每次重组重算文本布局 |
+| 8 | **小步可验证** | 每次改动都要能"编译 + 测试 + 四档窗口肉眼验收" | 一次性大改，无法定位回归 |
+
+> 当前认知的诚实标注：第 6 条只做到"外提"，尚未做到"可观测的 Effect 模型"——提示仍是 `message` 字段、
+> 计时仍由心跳累加（真实时间源与事件通道见 §4 P1）。这是已知短板，不是设计目标。
+
+---
+
+## 2. 技术选型依据（选了什么，为什么不选替代）
+
+| 领域 | 选择 | 备选 | 理由 | 代价 / 风险 | 何时应改选 |
+|---|---|---|---|---|---|
+| 语言/框架 | Kotlin + Compose Multiplatform | Flutter / Tauri+Web / 原生双写 | 一份 UI 跨端；`core/state` 零平台依赖可 100% 复用 | 生态小于 Flutter；iOS 构建需 macOS 主机 | 若必须覆盖 iOS 且无 Mac，评估 Flutter（会丢掉现有栈） |
+| 骨架与提示 | miuix（`MiuixTheme` / `Scaffold` / `SnackbarHost`） | 纯 Compose 自建骨架 | 主题上下文、安全区内边距、Snackbar 生命期与无障碍都已成熟 | miuix 标注 experimental，签名可能变 | 若 miuix 长期不更新或被迫升 compileSdk，可改为自建骨架（`Box` + `WindowInsets` + 自绘提示条） |
+| 视觉组件 | **自绘墨线组件**（`InkWidgets.kt`） | miuix `Button/Card/Switch` | 手写纸风格与填充色块 / Material 圆角的观感冲突；自绘才能做到"折线微弯 + 叠墨 + 五态一致" | 需要自己维护交互态（悬停/按压/焦点/禁用）与无障碍语义 | 若将来要"回到 miuix 观感"，只需替换 `InkWidgets` 一层，页面代码不动（组件边界已隔离） |
+| 字体 | 系统手写体 + 回退衬线体 | 打包字体资源 | 不增加仓库体积、不涉及字体再分发授权；本机已有硬笔楷书 | 各端字形可能不一致；Android 可能取不到手写体 | 需要多端统一字形时，改为 `composeResources/font` 打包（需重新引入 `compose.components.resources`） |
+| 棋盘渲染 | Compose `Canvas` 自绘 | 81 个 Composable / 图片贴图 | 81 格一次绘制远轻于 81 个节点；完全控制墨色分层与手绘线条 | 需自己处理测量、字号、缓存与无障碍 | 要做逐格无障碍节点时，改为"语义网格 + Canvas"混合（§4 P2） |
+| 状态管理 | 自写纯 reducer + `GameViewModel` | ViewModel + Flow / MVI 框架 | 规模小、可单测、可回放、零框架依赖 | 需自己补生命周期、事件通道、派生缓存 | 出现多数据源（战绩 + 每日题）与复杂副作用时，引入 Effect 模型 + Repository（`docs/05` 阶段 D） |
+| 存档 | 端口 + 注入（`GameStore` / `SaveCodec`） | `expect/actual` / DataStore / SQLDelight | `state` 保持零平台依赖；桌面写单文件、测试用内存实现；编解码纯文本可单测 | 需为每个平台写实现；只存对局不存设置 | 需要结构化查询（战绩统计）时换 SQLDelight / DataStore（换实现即可，不动状态机） |
+| 求解 / 出题 | 位掩码 + MRV 回溯 + 贪心挖洞 + 唯一解校验 | 朴素回溯 / 题库资源 | 候选判断 O(1)，出题实测 1–4 ms | 空格数只是上限（大师档实测 22/25 达标） | 做"技巧难度"时新增技巧求解器，出题改为"技巧可解性"驱动 |
+| 计时 | UI 心跳 `delay(1000)` 累加 | `TimeSource.Monotonic` 差值 | 实现最简单、无平台依赖 | 有累积漂移；窗口最小化仍走表；不可测 | **应当改**（§4 P1）：真实时间源 + 时钟注入 |
+| 提示反馈 | `state.message` → `SnackbarHost` | 事件 `Channel` / 自绘墨条 | 复用 miuix 的通知通道，零额外依赖 | 相同文案会被吞；事件挂在状态上 | **应当改**（§4 P1）：`Channel<UiMessage>` |
+| 测试 | `kotlin.test` + 固定种子 | 断言库 / 属性测试 | 零依赖、跨端同一套用例 | 无 UI 自动化 | UI 复杂化后引入 CMP UI 测试（需加依赖并验证可行性） |
+
+---
+
+## 3. 模块设计说明
+
+### 3.1 `core/`（领域内核，零平台依赖）
+
+| 内容 | 说明 / 契约 |
+|---|---|
+| `typealias Board = IntArray` | 约定：长度 81，取值 0–9（0 = 空格）。**API 目前不做校验**（已知短板，勿传非法数据） |
+| `Difficulty` | 4 档 + `label` + `targetBlanks`（40/46/52/56）。注意它是**上限**而非保证值 |
+| `Game` | `puzzle` / `current` / `solution` / `difficulty`，三者各自持有独立数组 |
+| `Solver` | 行列宫三个 9 位掩码；`pick()` 返回 `Solved / Dead / Choose(pos, mask)`（MRV + 空候选剪枝） |
+| `solve` / `countSolutions(board, limit)` | 带回溯早退；判唯一解只需 `limit = 2` |
+| `generate(difficulty, rng)` | 随机终盘 → 随机顺序挖洞 → 每挖一格校验唯一解；**rng 必须由调用方注入** |
+| `conflictFlags(board)` | 行 / 列 / 宫三组扫描，返回 81 布尔；内部 `counts[10]` 依赖取值 ≤ 9 |
+| `isSolved(board)` / `legalMask(board, pos)` | 判胜；候选掩码（**包含该格自身值**，"再按同数字=清除"依赖这一点） |
+| `formatDuration(seconds)` | `MM:SS` / `H:MM:SS`，手写拼接避免平台格式化 API |
+
+### 3.2 `state/`（应用层，纯状态机 + 存档端口）
+
+`GameState` 关键字段：`screen`（**只有 Menu / Game**）、`game`、`selected`、`notes[81]`、
+`noteMode / strictMode / showNotes`、`elapsed / paused`、`hintUsed / hintsCount`、
+`revealed / settled / won`、`undoStack / redoStack`（快照栈，上限 300）、`message`（一次性提示）。
+派生属性 `interactive`：Game 屏 + 有对局 + 未暂停 + 未结算 + 未通关。
+
+| 行为 | 规则 |
+|---|---|
+| 落子 | 给定格拒绝；笔记模式只作用于空格；同数字再按 = 清除；**无变化的输入不写历史** |
+| 移动 | 方向键沿方向逐格前进并**跳过给定格**，仅在本行 / 列内环绕 |
+| 冲突 | 落子后重算 `conflictFlags`（棋盘排线 + Snackbar 文案），并清理同行列宫候选 |
+| 严格模式 | 目标数字与同行列宫冲突时拒绝落子并提示 |
+| 判胜 | `isSolved(current) && current == solution`（唯一解题目下等价，双保险） |
+| 撤销/重做 | 改盘前压栈（盘面 + 笔记 + `hintUsed` + `hintsCount` + `revealed`）；重做会重新推导 `settled` |
+| 提示 | 优先当前选中空格，否则第一个空格；标记 `hintUsed` 并累加 `hintsCount` |
+| 计时 | 仅 Game 屏、未暂停、未结算时 `Tick` 累加 |
+
+**存档**（`GameStore.kt`）：`SavedGame(game, notes, elapsed)`；`SaveCodec` 纯文本编解码（`v/difficulty/puzzle/current/solution/notes/elapsed`），
+解析失败一律返回 `null`（不抛异常）。`GameViewModel` 启动时 `load()` 恢复、动作后 `save()`（`Tick` 每 10 秒节流）、
+通关 / 结算后 `clear()`；`canResume` 供首页「继续游戏」使用。
+**注意：只保存对局，不保存玩法开关（`noteMode/strictMode/showNotes`）** —— 这是已知取舍（§4 P1）。
+
+已知短板（先别在上面叠新功能）：`message` 事件语义、`conflicts/progress/legalMask` 每次重组重算、计时漂移与后台计时。
+
+### 3.3 `ui/`（表现层，唯一允许调用 Compose / miuix 的层）
+
+| 文件 | 职责 | 关键约定 |
+|---|---|---|
+| `theme/Ink.kt` | 纸墨配色、手写体、绘制原语 | **颜色与字体的唯一出口**；`inkLine/inkRoundRect/inkHatch` 抖动用纯函数种子 |
+| `theme/InkFonts.jvm.kt`（jvmMain） | 系统手写体探测 | 按候选路径列表探测，失败返回 null（回退衬线体） |
+| `theme/DesignTokens.kt` | 间距 / 圆角 / 断点 / 线宽 | **尺寸的唯一出口**，不含颜色 |
+| `components/InkWidgets.kt` | 墨线控件库 | `InkSurface` 统一五态反馈；`InkText` 是唯一文本出口 |
+| `components/BoardCanvas.kt` | 棋盘墨线绘制 | 分层：纸面 → 墨洗 → 格线 → 数字/笔记 → 选中框；文本缓存 + `rememberUpdatedState` |
+| `components/NumberPad.kt` | 数字键盘 | `legalMask: Int?`：`null` = 不区分；非 null 时**线重**区分可填 / 不可填（不禁用） |
+| `screens/MenuScreen.kt` | 首页 | **只有三个入口**（开始 / 继续 / 退出）+ 难度遮罩 + 退出确认 + 底部草图 |
+| `screens/GameScreen.kt` | 对局页 | 宽屏双栏 / 窄屏滚动；暂停白纸遮题；`handleKeyEvent` 键盘映射 |
+| `App.kt` | 装配 | `MiuixTheme(lightColorScheme())` + `Scaffold` + 两页导航 + Snackbar；铺 `Ink.Paper`；无顶部栏 |
+
+### 3.4 entrypoints
+
+| 源集 | 内容 | 状态 |
+|---|---|---|
+| `jvmMain` | `main.kt`（1180×900 / 最小 940×720）· `platform/FileGameStore.kt`（`~/.sudoku-ink/save.txt`）· `ui/theme/InkFonts.jvm.kt` | ✅ 已启用 |
+| `androidMain` | `MainActivity` + `AndroidManifest`（主题已改系统内置） | ⏸ 未参与编译：缺 `androidTarget()` 与 `compileSdk 37`（`docs/05` §3.1） |
+
+### 3.5 五个容易踩的坑
+
+1. `GameState` / `Game` 里是 `IntArray`，`data class` 的 `equals` 对数组是**引用比较**——不要用 `==` 做业务判断。
+2. `Snapshot` 必须覆盖"所有会被改的字段"（漏一个就会出现 `hintUsed` 回退而 `hintsCount` 不回退这类矛盾）。
+3. `aspectRatio(1f)` 在高度不足时**以高度为准**，而 `Column` 给非 weight 子节点的高度约束是"剩余空间"——
+   棋盘若作为第一个子节点且不设上限，会把后面的数字键盘压成 0 高度（已修：棋盘放 weight 区 + 顶部对齐 + 预留提示条）。
+4. 手绘抖动若用 `Random()`，每次重绘线条都会变（界面"抖"）；必须用由内容派生的种子。
+5. `DrawScope` 的 `size` 是**像素**；`(px).sp` 会再乘 density —— 字号必须 `toSp()`。
+
+### 3.6 常见改动指引
+
+| 想做的事 | 步骤 |
+|---|---|
+| 改配色 / 线宽 | 只改 `Ink`（颜色墨阶）或 `DesignTokens.Stroke`（线宽），不要在组件里写死；改完过一遍四档窗口 |
+| 加一个玩法开关 | ① `GameState` 加字段 ② `GameAction` 加 `Toggle*` ③ reducer 处理 ④ `GameScreen.OptionsPanel` 加一行 `InkToggleRow` ⑤ 若影响规则，加测试 ⑥ 若要落盘，同步 `SaveCodec` |
+| 加一个难度 | ① `Difficulty` 加值 ② （若要求达标）改 `generate` 的重试策略 ③ `MenuScreen` 难度遮罩自动出现（遍历 entries）④ 测试断言实际空格数 |
+| 加一个新屏幕 | ① `Screen` 枚举 ② `App.kt` 的 `when` 分支 ③ 新 Screen 用 `InkPanel` + `InkButton` 组织 ④ 更新 `docs/01` §2 与 `docs/02` §3 |
+| 加一个新平台 | 见 `docs/05` §3.1 / §3.2：确认 miuix 有该平台变体 → 加 target → 写 entrypoint → 实现 `GameStore` → 逐条过输入差异与屏幕档位 |
+| 换字体 | 改 `InkFonts.jvm.kt` 的候选列表（或改为打包字体资源），不动任何页面代码 |
+
+---
+
+## 4. 后续迭代计划（与 `docs/05` §5 里程碑对齐）
+
+**P0（阻塞跨平台）**
+- Android 落地：`sdkmanager "platforms;android-37" "build-tools;37.0.0"` → AGP + `androidTarget()` → `activity-compose` → 图标 → 模拟器验收（含返回键、边到边、`GameStore` 的 Android 实现）。
+- 构建环境固化：`JAVA_HOME` 指向 JDK 21（指向 JDK 25 会直接失败）。
+
+**P1（体验与状态机收口，对应 `docs/05` M1）**
+- 事件通道：`message` → `Channel<UiMessage>`，删掉 `ConsumeMessage`。
+- 派生状态下沉 / 记忆化：冲突、进度、legalMask。
+- 时钟注入 + 真实时间源：消除漂移；切后台 / 最小化自动暂停。
+- 出题达标：重试或返回实际空格数，保证难度名与实际一致。
+- 设置持久化：`strictMode / showNotes / noteMode` 一并入档（当前只存对局）。
+- 续局体验：首页「继续游戏」显示难度与进度摘要；首页三入口支持键盘 ↑↓ + Enter。
+
+**P2（产品化，对应 M3 / M4）**
+- 战绩数据（不再做占位页）：按难度的最佳 / 平均用时、通关率；记录页需按墨线风格重新设计后接入。
+- 「夜墨」反色主题（深底 + 浅墨）与设置页。
+- 第二平台（Web / iOS）+ 逐格无障碍语义。
+- 难度模型升级为技巧等级（`docs/05` §4 Tier 2）。
+
+**不做**（详见 `docs/05` §6）：不引 DI / 导航 / ORM 框架、不为跨平台提前拆模块、不混用第二套 UI 组件库、
+不做必须联网的核心玩法、不恢复对弈 / 联网 / 社交入口。
+
+---
+
+## 5. 环境与构建备忘
+
+- **`JAVA_HOME` 必须是 JDK 17–24**（本项目用 21：`D:\env\_SDK\versions\jdk_versions\jdk-21.0.12.0_10`）。
+  若报错只有一串版本号（如 `25.0.4.1`），先查 `JAVA_HOME`——这是 Gradle 8.12 遇到 JDK 25 的典型表现。
+- 依赖已缓存，日常加 `--offline` 更快：`.\gradlew.bat :composeApp:jvmTest --offline`。
+- `build/` 与 `composeApp/build/` 属可再生产物，可随时清理（MSI 打包需联网重下 WiX 工具集）。
+- 应用存档在 `~/.sudoku-ink/save.txt`（纯文本，可手动删除以清空续局）。
+- `archive/**/node_modules` 与 `archive/**/dist` 已在 `.gitignore` 中忽略，勿再入库。
+
+---
+
+## 6. AI 协作与提交自检
+
+- **单任务单会话**：一个任务一个主题；跨目标（桌面 / Android）改动拆开。
+- **精准投喂**：先 `@folder composeApp/src/commonMain` 预热，再用 `@file` / `@code` 定位；方法见 `docs/04`。
+- **负面约束随需求一起给**：把本文件 §0 的相关红线直接写进需求里。
+- **提交前自检清单**：
+  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（22 项）；
+  2. 无新增色相、无裸色值 / 魔法尺寸（§0 6–8）；
+  3. 四档窗口肉眼验收：1180×900 / 800×600 / 500×1000 / 1024×768；
+  4. 受影响的文档已同步更新（`docs/01`–`05` 与 README 对应章节）。

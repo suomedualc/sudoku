@@ -1,0 +1,28 @@
+# Gradle
+.gradle/
+build/
+
+# Kotlin
+.kotlin/
+
+# 本机环境（含 SDK 路径，不入库）
+local.properties
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 旧版工程
+/target
+
+# archive/ 只保留源码与 zip：依赖与前端构建产物不入库
+archive/**/node_modules/
+archive/**/dist/
+
+# 归档不公开
+archive/
