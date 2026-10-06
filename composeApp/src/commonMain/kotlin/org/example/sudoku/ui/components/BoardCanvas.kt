@@ -4,7 +4,11 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -18,6 +22,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
@@ -57,6 +63,41 @@ fun BoardCanvas(
     modifier: Modifier = Modifier.fillMaxWidth(),
     onCellClick: (cell: Int, precisePointer: Boolean) -> Unit,
 ) {
+    Box(modifier = modifier.aspectRatio(1f)) {
+        BoardCanvasDrawing(
+            game = game,
+            selected = selected,
+            notes = notes,
+            conflicts = conflicts,
+            noteMode = noteMode,
+            showNotes = showNotes,
+            hintCandidates = hintCandidates,
+            modifier = Modifier.matchParentSize(),
+            onCellClick = onCellClick,
+        )
+        // 格子级无障碍：81 个语义节点，读屏可逐格朗读「行列 + 状态 + 值 / 笔记」
+        BoardCellSemantics(
+            game = game,
+            notes = notes,
+            conflicts = conflicts,
+            selected = selected,
+            modifier = Modifier.matchParentSize(),
+        )
+    }
+}
+
+@Composable
+private fun BoardCanvasDrawing(
+    game: Game,
+    selected: Int?,
+    notes: IntArray,
+    conflicts: BooleanArray,
+    noteMode: Boolean,
+    showNotes: Boolean = true,
+    hintCandidates: Boolean = false,
+    modifier: Modifier = Modifier.fillMaxWidth(),
+    onCellClick: (cell: Int, precisePointer: Boolean) -> Unit,
+) {
     val textMeasurer = rememberTextMeasurer()
     val onClick by rememberUpdatedState(onCellClick)
 
@@ -71,7 +112,6 @@ fun BoardCanvas(
 
     Canvas(
         modifier = modifier
-            .aspectRatio(1f)
             .pointerInput(Unit) {
                 // 自己实现"点击"而不是用 detectTapGestures：需要知道**指针类型**——
                 // 鼠标 / 触控笔是精确指针（可以弹悬浮输入面板），手指不是（面板会被手指挡住）。
@@ -268,6 +308,77 @@ fun BoardCanvas(
     }
 }
 
+/**
+ * 格子级语义：9×9 = 81 个语义节点，读屏可逐格朗读「行列 + 状态 + 值 / 笔记」。
+ *
+ * 两个刻意的取舍：
+ * - **不做成可 Tab 聚焦**：81 个 Tab 停靠点会毁掉键盘体验（本作的键盘模型是方向键移动选中格）；
+ *   而读屏用户用"朗读下一项"即可遍历——语义节点不需要 `focusable()` 也能被 TalkBack / NVDA 到达；
+ * - **不朗读系统候选**（`hintCandidates`）：候选是冗余通道（悬浮面板与键盘都能拿到），
+ *   逐格念 9 个候选会把行列与值淹没。玩家**自己记的笔记**要念——那是他的判断。
+ */
+@Composable
+private fun BoardCellSemantics(
+    game: Game,
+    notes: IntArray,
+    conflicts: BooleanArray,
+    selected: Int?,
+    modifier: Modifier = Modifier,
+) {
+    // 用 fillMax*(1/9) 而不是 weight：语义层不需要测量，等分即可，也少一个对 Row/Column 作用域的依赖
+    Column(modifier = modifier) {
+        for (row in 0..8) {
+            Row(modifier = Modifier.fillMaxHeight(CELL_FRACTION)) {
+                for (col in 0..8) {
+                    val pos = row * 9 + col
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(CELL_FRACTION)
+                            .fillMaxHeight()
+                            .semantics {
+                                contentDescription = cellA11yLabel(game, pos, notes, conflicts, selected)
+                            },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 单格的读屏文案（**纯函数**，便于单测）。
+ *
+ * 结构：`第 R 行第 C 列` + 选中状态 + 内容（给定 / 填入 / 空 + 笔记）+ 冲突。
+ * 例：`第 1 行第 1 列，已选中，给定 5`、`第 3 行第 5 列，空，笔记 1、3`、`第 4 行第 2 列，填入 7，与同行列宫重复`。
+ */
+internal fun cellA11yLabel(
+    game: Game,
+    pos: Int,
+    notes: IntArray,
+    conflicts: BooleanArray,
+    selected: Int?,
+): String {
+    val head = "第 ${Sudoku.rowOf(pos) + 1} 行第 ${Sudoku.colOf(pos) + 1} 列"
+    val selectedText = if (pos == selected) "，已选中" else ""
+    val value = game.current[pos]
+    val body = when {
+        value == 0 -> {
+            val noteText = notesText(notes[pos])
+            if (noteText.isEmpty()) "，空" else "，空，笔记 $noteText"
+        }
+        Sudoku.isGiven(game, pos) -> "，给定 $value"
+        else -> "，填入 $value"
+    }
+    val conflictText = if (conflicts[pos]) "，与同行列宫重复" else ""
+    return head + selectedText + body + conflictText
+}
+
+/** 笔记数字串：`1、3、9`（无笔记时为空串）。 */
+private fun notesText(mask: Int): String {
+    val digits = (1..9).filter { digit -> (mask and (1 shl (digit - 1))) != 0 }
+    return digits.joinToString("、")
+}
+
 /** 文本缓存键：数字 + 颜色 + 字号(px) + 是否加粗。 */
 private data class InkTextKey(
     val digit: Int,
@@ -292,3 +403,6 @@ private fun MutableMap<InkTextKey, TextLayoutResult>.cached(
 }
 
 private const val MAX_CACHE_ENTRIES = 256
+
+/** 语义层把棋盘等分的系数（1/9）。 */
+private const val CELL_FRACTION = 1f / 9f

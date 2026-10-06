@@ -51,6 +51,7 @@ import org.example.sudoku.ui.theme.DesignTokens
 import org.example.sudoku.ui.theme.Ink
 import org.example.sudoku.ui.theme.inkLine
 import org.example.sudoku.ui.theme.inkRoundRect
+import org.example.sudoku.ui.theme.motionDurationMs
 
 /** 墨字：唯一允许的文本出口，保证全站字体与墨色一致。 */
 @Composable
@@ -109,12 +110,12 @@ private fun InkSurface(
     }
     val wash by animateFloatAsState(
         washTarget,
-        animationSpec = tween(DesignTokens.Motion.PressMs),
+        animationSpec = tween(motionDurationMs(DesignTokens.Motion.PressMs)),
         label = "inkWash",
     )
     val pressShift by animateFloatAsState(
         if (pressed && enabled) 1f else 0f,
-        tween(DesignTokens.Motion.PressMs),
+        tween(motionDurationMs(DesignTokens.Motion.PressMs)),
         label = "inkPress",
     )
 

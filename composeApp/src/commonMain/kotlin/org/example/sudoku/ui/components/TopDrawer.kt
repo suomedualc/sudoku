@@ -41,6 +41,7 @@ import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import org.example.sudoku.ui.theme.DesignTokens
+import org.example.sudoku.ui.theme.motionDurationMs
 import org.example.sudoku.ui.theme.Ink
 import org.example.sudoku.ui.theme.inkLine
 import org.example.sudoku.ui.theme.inkRoundRect
@@ -185,8 +186,11 @@ fun TopDrawer(
 ) {
     val progress by animateFloatAsState(
         targetValue = if (visible) 1f else 0f,
+        // 减少动效时时长为 0：抽屉瞬时出现，不做"半速滑动"
         animationSpec = tween(
-            durationMillis = if (visible) DesignTokens.Motion.EnterMs else DesignTokens.Motion.ExitMs,
+            durationMillis = motionDurationMs(
+                if (visible) DesignTokens.Motion.EnterMs else DesignTokens.Motion.ExitMs,
+            ),
         ),
         label = "topDrawer",
     )

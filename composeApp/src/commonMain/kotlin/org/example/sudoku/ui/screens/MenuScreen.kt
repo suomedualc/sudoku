@@ -194,7 +194,7 @@ fun MenuScreen(
 
             InkTitleFrame(
                 title = "数独",
-                subtitle = "SUDOKU · 手写纸",
+                subtitle = "SUDOKU",
                 modifier = Modifier.widthIn(max = DesignTokens.Sizes.MenuMaxWidth),
             )
 

@@ -17,6 +17,9 @@ local.properties
 .DS_Store
 Thumbs.db
 
+# 本机快捷方式（指向 build/ 下的便携版，路径随机器而变，不入库）
+*.lnk
+
 # 旧版工程
 /target
 

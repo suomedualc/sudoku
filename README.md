@@ -51,6 +51,16 @@
 鼠标点击会把键盘高亮同步到被点的项，两种输入方式互不打架；悬浮面板不接管焦点，键盘操作始终可用。
 **抽屉是模态的**：打开期间未处理的按键一律被抽屉吞掉，不会穿透到下面的菜单或棋盘（`TopDrawerKeys` 统一裁决）。
 
+## 无障碍
+
+- **格子级语义**：棋盘暴露 9×9 = 81 个语义节点，读屏可逐格朗读「第 R 行第 C 列 + 选中 + 给定/填入/空+笔记 + 冲突」；
+  整盘另有汇总节点（难度 / 进度 / 是否暂停 / 是否笔记模式）。格子刻意不进 Tab 序（键盘模型是方向键选格），
+  也刻意不朗读系统候选（冗余通道，会把行列与值淹没）。
+- **对比度**：墨四级都保证小字可当正文用（对三种纸底实测，主墨 15.97:1、次墨 8.35:1、三级墨 5.31:1，均达 WCAG AA 以上）。
+- **减少动态效果**：系统开关打开时动画时长一律为 0（瞬时就位，不做半速）；
+  也可用 `SUDOKU_REDUCE_MOTION=true` 或 `-Dsudoku.reduceMotion=true` 强制开启。
+- 详见 `docs/02-设计规范.md` §7 / §9。
+
 ## 鼠标与触屏
 
 | 设备 | 数字输入 | 候选数字展示 |
@@ -100,6 +110,8 @@ org.example.sudoku
 .\gradlew.bat :composeApp:jvmTest --offline    # 单元测试 + UI 测试（53 项）
 .\gradlew.bat :composeApp:createDistributable --offline   # 便携版（build/compose/binaries/main/app）
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1   # 实机冒烟（置顶 + 固定坐标，自动截图）
+# 根目录 SudokuInk.lnk 指向上面的便携版，双击即可预览（本机快捷方式，不入库）
+# 想体验"减少动态效果"：以 SUDOKU_REDUCE_MOTION=true 启动，或用 -Dsudoku.reduceMotion=true
 .\gradlew.bat :composeApp:createDistributable  # 自带 JRE 的分发目录（binaries/main/app/SudokuInk）
 .\gradlew.bat :composeApp:packageMsi           # Windows 安装包（首次需联网下载 WiX）
 ```
