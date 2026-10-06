@@ -81,8 +81,19 @@ object Ink {
 
     // 线宽不在此处定义——统一走 DesignTokens.Stroke（dp 令牌，可适配高 DPI）。
 
-    /** 手写体：优先系统硬笔楷书，取不到则回退衬线体。 */
-    val InkFont: FontFamily get() = systemInkFontFamily() ?: FontFamily.Serif
+    /**
+     * 全站**唯一的字形出口**：中西混排。
+     *
+     * - 汉字：**霞鹜文楷**（LXGW WenKai，OFL 1.1）——硬笔楷书的骨架 + 屏幕优化版（Screen 变种），
+     *   手写感来自笔画本身，不需要额外的"手写风格变形"；
+     * - 拉丁字与**数字**：**Source Serif**（Adobe，OFL 1.1）——低对比的人文书卷衬线，
+     *   开放字口（小字号不糊）、笔画轻重与文楷同一档、`tnum` 等宽数字齐全。
+     *   为什么不给汉字配数字：数独里 81 个格子是主信息，认得出第一位；
+     *   比较两个大家"搭不搭"的关键其实是**笔画粗细与字重**相同，而不是同一个出品方。
+     * - 两者都**随包分发**（不再是"取本机已装的字体"），跨平台字形完全一致。
+     * - 平台全部取不到时回退衬线体，绝不因缺字体而崩。
+     */
+    val InkFont: FontFamily get() = platformInkFontFamily() ?: FontFamily.Serif
 
     /** 墨字：默认字距略放宽，模拟手写呼吸感。 */
     fun style(
@@ -133,8 +144,16 @@ object Ink {
     }
 }
 
-/** 由平台提供手写体（桌面尝试系统中文字体文件；后续平台可改为打包字体）。 */
-expect fun systemInkFontFamily(): FontFamily?
+/**
+ * 数字专用：**等宽数字**（tnum）。
+ *
+ * 计时、进度、统计每跳一秒都在变——比例数字的 `1` 比 `0` 窄，
+ * 数字一变整串宽度就抖；开了 tnum 之后字宽一致，视觉上钉住不动。
+ */
+fun TextStyle.tabular(): TextStyle = copy(fontFeatureSettings = "tnum")
+
+/** 由平台提供字形（桌面端优先读随包字体，见各平台 `ui/theme/InkFonts`）。 */
+expect fun platformInkFontFamily(): FontFamily?
 
 /**
  * 稳定伪随机：同一 seed 永远返回同一值，范围 [-0.5, 0.5)。

@@ -10,7 +10,9 @@
   禁用用「虚线框」，可填性用「线重」，模式用「线型」。
 - **手绘而非几何**：所有边框、网格、勾选、排线都由 `inkLine / inkRoundRect / inkHatch` 绘制（折线微弯 + 叠一遍淡墨），
   抖动由纯函数种子生成，重绘时线条静止不闪动。
-- **手写体**：取本机系统中文字写体（方正硬笔楷书 → 霞鹜文楷 → 楷体 → 华文楷体 → …），取不到时回退衬线体；字体不随包分发。
+- **中西混排、字形随包分发**：汉字用**霞鹜文楷**（LXGW WenKai Screen，OFL 1.1，硬笔楷书骨架 + 屏幕优化），
+  数字与拉丁字用 **Source Serif**（Adobe，OFL 1.1，低对比人文衬线、`tnum` 等宽数字齐全）——两者笔画粗细同档，
+  跨平台字形一致（不再"取本机已装的字体"）；取不到时回退衬线体。计时等跳变数字走 `tnum`，读数不左右抖。
 - **留白优先**：间距节奏比 Material 更疏（16 / 24 / 32 / 48 dp），不靠装饰块分区。
 - **排版阶梯只有六档**（`Ink.Type`：12 / 14 / 16 / 20 / 28 / 40，各带字距与行高）；层级靠"字号 + 字距 + 墨的浓淡"，
   不用字重（系统手写体没有真 Bold，合成粗体会发虚）。
@@ -90,7 +92,7 @@ org.example.sudoku
 ├── state/        应用层：GameState / GameAction / GameReducer（纯状态机）
 │                 + GameViewModel（状态容器）· GameStore / SaveCodec（存档端口与编解码）
 ├── ui/
-│   ├── theme/    Ink.kt（纸墨配色 + 手写体 + 手绘原语）· DesignTokens.kt（尺寸）
+│   ├── theme/    Ink.kt（纸墨配色 + 混排版式 + 手绘原语）· DesignTokens.kt（尺寸）· InkFonts（随包字体）
 │   ├── components/  InkWidgets.kt（墨线控件库）· BoardCanvas.kt · NumberPad.kt · FloatingPad.kt（就近输入）
 │   ├── screens/  MenuScreen（三入口 + 键盘导航）· GameScreen（双形态 + 通关抽屉 + 键盘）
 │   └── App.kt    MiuixTheme + Scaffold + 两页导航 + Snackbar

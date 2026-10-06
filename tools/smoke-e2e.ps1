@@ -1,14 +1,16 @@
 # smoke-e2e.ps1 -- real-app smoke test for the packaged desktop build.
 #
-# Why this exists: automated verification that injects keys/clicks through the OS
-# (SendKeys / keybd_event / PostMessage / SetCursorPos) only works when the app
-# really owns the foreground. On a desktop with other windows open the app can
-# lose focus mid-run, and the injected input lands on somebody else's window.
-# The fix used here:
-#   1. pin the app window with HWND_TOPMOST at a fixed rect (default 100,100 1180x900),
-#   2. assert GetForegroundWindow() == app window before EVERY injected key/click,
-#      abort the run if it is not (never blind-fire input),
-#   3. screenshot by window rect, so the capture is always the app.
+# Injection strategy (learned the hard way):
+#   * KEYBOARD goes straight to the app window with PostMessage(WM_KEYDOWN/WM_KEYUP).
+#     It needs no foreground, cannot hit another window, and - verified - still works
+#     while the workstation is locked (GetForegroundWindow() is NULL then, so the old
+#     keybd_event approach died with "FOREGROUND LOST").
+#   * MOUSE still needs the real foreground (SetCursorPos + mouse_event are global),
+#     so clicks keep the assert-and-abort guard.
+#   * the window is pinned HWND_TOPMOST at a fixed rect (default 100,100 1180x900) so
+#     screenshots by window rect always frame the app.
+#   * screenshots are captured by window rect; if the frame looks like a lock screen
+#     (very dark), the run reports that the shots are unusable instead of pretending.
 #
 # Covered flows:
 #   menu    -- difficulty drawer: Enter opens, Down x2 highlights Hard, Enter starts Hard
@@ -56,11 +58,16 @@ public class WinE2E {
     [DllImport("user32.dll")] public static extern void mouse_event(uint f, int dx, int dy, uint d, IntPtr e);
     [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint f, IntPtr e);
     [DllImport("user32.dll")] public static extern uint MapVirtualKey(uint c, uint m);
+    [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
 }
 '@
 
+$script:WM_KEYDOWN = 0x0100
+$script:WM_KEYUP = 0x0101
+
 $script:HWND_TOPMOST = [IntPtr](-1)
 $script:shot = 0
+$script:shotsSuspect = $false   # 只要有任意一帧不像应用（锁屏 / 被遮挡），收尾就报警
 $script:VK = @{
     Enter = 0x0D; Escape = 0x1B; Space = 0x20; Hint = 0x48
     Down = 0x28; Up = 0x26; Left = 0x27; Right = 0x25
@@ -96,6 +103,23 @@ function Assert-Foreground($p) {
     }
 }
 
+function Test-ShotLooksLikeTheApp($bmp) {
+    # 纸墨风格：整屏大面积是纸白。锁屏或被别的窗口盖住时整帧偏暗，
+    # 这种截图没有验收价值——与其事后发现，不如当场报出来。
+    $sum = 0.0
+    $n = 0
+    for ($i = 0; $i -lt 10; $i++) {
+        for ($j = 0; $j -lt 10; $j++) {
+            $x = [int]($bmp.Width * ($i + 0.5) / 10)
+            $y = [int]($bmp.Height * ($j + 0.5) / 10)
+            $c = $bmp.GetPixel($x, $y)
+            $sum += (0.299 * $c.R + 0.587 * $c.G + 0.114 * $c.B)
+            $n++
+        }
+    }
+    return (($sum / $n) -ge 90)
+}
+
 function Save-Shot($p, [string]$name) {
     $script:shot = $script:shot + 1
     $idx = $script:shot
@@ -109,18 +133,28 @@ function Save-Shot($p, [string]$name) {
     $g.Dispose()
     $file = Join-Path $OutDir ("smoke_$idx" + "_$name.png")
     $bmp.Save($file, [System.Drawing.Imaging.ImageFormat]::Png)
+    if (-not (Test-ShotLooksLikeTheApp $bmp)) {
+        $script:shotsSuspect = $true
+        Write-Host ("shot -> $file  WARN: frame is dark (locked screen / occluded?)")
+    } else {
+        Write-Host ("shot -> $file")
+    }
     $bmp.Dispose()
-    Write-Host ("shot -> $file")
 }
 
 function Send-Key($p, [string]$key, [int]$flags = 0, [int]$waitMs = 550) {
-    Assert-Foreground $p
+    $h = $p.MainWindowHandle
+    Pin $p
     $vk = $script:VK[$key]
     if ($null -eq $vk) { throw ("unknown key name: " + $key) }
-    $scan = [byte][WinE2E]::MapVirtualKey([uint32]$vk, 0)
-    [WinE2E]::keybd_event([byte]$vk, $scan, [uint32]$flags, [IntPtr]0)
+    $scan = [WinE2E]::MapVirtualKey([uint32]$vk, 0)
+    # lParam layout: repeat(0) | scancode(16) | extended(24) ; key-up adds 0x80000000|0x40000000
+    $down = 1 -bor ([int]$scan -shl 16)
+    if (($flags -band $script:KeyExtended) -ne 0) { $down = $down -bor 0x01000000 }
+    $up = $down -bor 0x80000000 -bor 0x40000000
+    [WinE2E]::PostMessage($h, $script:WM_KEYDOWN, [IntPtr]$vk, [IntPtr]$down) | Out-Null
     Start-Sleep -Milliseconds 70
-    [WinE2E]::keybd_event([byte]$vk, $scan, [uint32]($flags -bor 2), [IntPtr]0)
+    [WinE2E]::PostMessage($h, $script:WM_KEYUP, [IntPtr]$vk, [IntPtr]$up) | Out-Null
     Start-Sleep -Milliseconds $waitMs
 }
 
@@ -228,6 +262,12 @@ try {
     if ([System.IO.File]::Exists($saveFile)) { [System.IO.File]::Delete($saveFile) }
     if ([System.IO.File]::Exists($saveBackup)) { [System.IO.File]::Move($saveBackup, $saveFile) }
     Get-Process SudokuInk -ErrorAction SilentlyContinue | Stop-Process -Force
+    if ($exitCode -eq 0 -and $script:shotsSuspect) {
+        # 按键是投给窗口句柄的，锁屏也能生效；但屏幕捕捉拿不到应用画面。
+        # 这时"流程跑通"不等于"画面验收过"，必须明说，不能拿锁屏图当证据。
+        Write-Host 'SMOKE WARN: keys reached the app, but some frames do not look like it (locked screen or occluded window) - shots are NOT usable for review'
+        $exitCode = 2
+    }
     Write-Host ('save restored, screenshots in ' + $OutDir)
 }
 exit $exitCode

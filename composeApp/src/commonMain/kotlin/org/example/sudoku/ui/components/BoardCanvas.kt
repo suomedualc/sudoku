@@ -1,5 +1,8 @@
 package org.example.sudoku.ui.components
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateTo
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -11,6 +14,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -32,9 +36,11 @@ import org.example.sudoku.core.Game
 import org.example.sudoku.core.Sudoku
 import org.example.sudoku.ui.theme.DesignTokens
 import org.example.sudoku.ui.theme.Ink
+import org.example.sudoku.ui.theme.LocalReduceMotion
 import org.example.sudoku.ui.theme.inkHatch
 import org.example.sudoku.ui.theme.inkLine
 import org.example.sudoku.ui.theme.inkRoundRect
+import org.example.sudoku.ui.theme.motionDurationMs
 
 /**
  * 棋盘绘制（手写纸 · 油墨版）：只做「从状态画成图」，不含规则。
@@ -100,6 +106,18 @@ private fun BoardCanvasDrawing(
 ) {
     val textMeasurer = rememberTextMeasurer()
     val onClick by rememberUpdatedState(onCellClick)
+
+    // 「落笔成局」：开局时局面像被一气写出来——按左上到右下逐格由淡转浓。
+    // 减少动效时直接就位（0ms）；换一局重置动画（key 用 game）。
+    val reduceMotion = LocalReduceMotion.current
+    val reveal = remember(game) { Animatable(if (reduceMotion) 1f else 0f) }
+    LaunchedEffect(game, reduceMotion) {
+        if (reduceMotion) {
+            reveal.snapTo(1f)
+        } else {
+            reveal.animateTo(1f, tween(motionDurationMs(DesignTokens.Motion.RevealMs, reduceMotion)))
+        }
+    }
 
     // 跨帧缓存文本测量：键含数字、颜色、字号(px)、字重
     val valueCache = remember { mutableMapOf<InkTextKey, TextLayoutResult>() }
@@ -213,6 +231,9 @@ private fun BoardCanvasDrawing(
             val r = cellRect(pos)
             val value = game.current[pos]
             if (value != 0) {
+                // 开局显影：这一格还没"写到"时先不画（笔记 / 候选不参与，玩家填的数字即时可见）
+                val ink = revealAlpha(reveal.value, pos)
+                if (ink <= RevealVisible) continue
                 val isGiven = Sudoku.isGiven(game, pos)
                 val color = if (isGiven) Ink.Black else Ink.Grey
                 val fontSizePx = cellPx * 0.52f
@@ -226,16 +247,21 @@ private fun BoardCanvasDrawing(
                     r.left + (cellPx - layout.size.width) / 2f,
                     r.top + (cellPx - layout.size.height) / 2f,
                 )
-                drawText(layout, topLeft = topLeft)
+                drawText(layout, topLeft = topLeft, alpha = ink)
 
                 // 冲突数字套手绘圈（不靠颜色也能看出来）
                 if (conflicts[pos]) {
                     val center = Offset(r.left + cellPx / 2f, r.top + cellPx / 2f)
                     val radius = cellPx * 0.34f
                     val w = DesignTokens.Stroke.Bold.toPx()
-                    drawCircle(Ink.Black.copy(alpha = Ink.Alpha.Line), radius, center, style = Stroke(width = w))
                     drawCircle(
-                        Ink.Black.copy(alpha = Ink.Alpha.LineSoft),
+                        Ink.Black.copy(alpha = Ink.Alpha.Line * ink),
+                        radius,
+                        center,
+                        style = Stroke(width = w),
+                    )
+                    drawCircle(
+                        Ink.Black.copy(alpha = Ink.Alpha.LineSoft * ink),
                         radius + 0.8f,
                         Offset(center.x + 0.6f, center.y - 0.4f),
                         style = Stroke(width = w * 0.5f),
@@ -378,6 +404,24 @@ private fun notesText(mask: Int): String {
     val digits = (1..9).filter { digit -> (mask and (1 shl (digit - 1))) != 0 }
     return digits.joinToString("、")
 }
+
+/**
+ * 开局显影（**纯函数**，便于单测）：给定总进度 [progress]（0→1），返回第 [pos] 格的墨浓度。
+ *
+ * 前 [RevealStagger] 那段用来"从左上写到右下"——把 `(行 + 列)` 映射成起笔延迟，越靠右下的格子
+ * 写得越晚；剩下的段落是所有格子统一的由淡转浓。160ms 里既有书写感，最后一格也不会迟到太多。
+ */
+internal fun revealAlpha(progress: Float, pos: Int): Float {
+    if (progress >= 1f) return 1f
+    val delay = (pos / 9 + pos % 9) / 16f * RevealStagger
+    return ((progress - delay) / (1f - RevealStagger)).coerceIn(0f, 1f)
+}
+
+/** 低于这个浓度就直接不画（省一笔看不见的绘制）。 */
+private const val RevealVisible = 0.01f
+
+/** 显影总时长中有多少比例用于"逐格错峰"起笔。 */
+private const val RevealStagger = 0.55f
 
 /** 文本缓存键：数字 + 颜色 + 字号(px) + 是否加粗。 */
 private data class InkTextKey(
