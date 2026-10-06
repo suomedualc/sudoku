@@ -98,8 +98,9 @@ org.example.sudoku
 
 首次构建需联网拉取依赖，依赖缓存就绪后可加 `--offline`。仓库已含 Gradle wrapper，无需本机安装 Gradle；
 启动 Gradle 的 `JAVA_HOME` 指向 JDK 17–24 即可（`jvmToolchain(21)` 会复用该 JVM，仓库内不写死任何本机路径）。
-应用图标由 `tools/make-icon.ps1` 生成到 `composeApp/icons/`：**同一份生成资产**既供打包（`iconFile`，写进 exe / MSI），
-也打进 jar 供运行时设置窗口与任务栏图标（jpackage 不负责后者）。
+应用图标是**九宫格 + 数字**的纸墨风格（`5 / 3 / 4 / 9 / 7` 部分填、部分空），由 `tools/make-icon.ps1` 一次生成：
+`composeApp/icons/` 供打包（`iconFile`，写进 exe / MSI）与运行时窗口图标（打进 jar，jpackage 不负责后者），
+`assets/icon/` 输出桌面 / Android / iOS / Web 各平台规格与矢量源文件。设计与规格见 `docs/06-应用图标设计.md`。
 
 ## 跨平台
 
@@ -122,6 +123,7 @@ org.example.sudoku
 | `docs/03-开发流程.md` | 环境准备、版本对齐、构建打包、目录约定、测试与验收 |
 | `docs/04-AI辅助开发规范.md` | 上下文管理方法（四层上下文、@ 引用、分层投喂、负面约束） |
 | `docs/05-发展规划.md` | 现状快照、架构演进、跨平台矩阵、功能分层、里程碑与执行清单 |
+| `docs/06-应用图标设计.md` | 应用图标的设计说明、比例规范、细节层级与各平台产物清单 |
 | `.codebuddy/rules/sudoku-dev.md` | 强制纪律：红线、开发思路、选型依据、模块说明、迭代计划 |
 
 ## 许可证

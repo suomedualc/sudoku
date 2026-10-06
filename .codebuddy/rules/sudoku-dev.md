@@ -1,4 +1,4 @@
-# 数独（手写纸 · 简约油墨）开发纪律 · v1.6
+# 数独（手写纸 · 简约油墨）开发纪律 · v1.7
 
 > 本文件是"系统层"上下文（自动加载），既是**强制规则**，也是本工程的**开发思路 / 选型依据 / 模块说明 / 迭代计划**的简版。
 > 详细论证见 `docs/01-架构设计.md`、`docs/02-设计规范.md`、`docs/03-开发流程.md`、`docs/05-发展规划.md`。
@@ -37,7 +37,9 @@
 14. 文档与代码必须同一次改动内保持一致。
 15. **打包标识必须是纯 ASCII、无空格**（`packageName` / `vendor`）；改 `nativeDistributions` 后必须真跑一次
     `packageMsi` 验证，不能只看 `createDistributable` 通过就宣布打包没问题。
-16. 应用图标是**生成资产**：只通过 `tools/make-icon.ps1` 产出（`composeApp/icons/`），不手改二进制、不在构建期临时生成。
+16. 应用图标是**生成资产**：只通过 `tools/make-icon.ps1` 产出（运行时 `composeApp/icons/` + 交付 `assets/icon/`），
+    不手改二进制、不在构建期临时生成。构图必须是**九宫格 + 数字**（禁止落子/棋子形态，避免与五子棋混淆），
+    规范见 `docs/06-应用图标设计.md`。
     **打包图标与运行时图标必须同源**：jpackage 只把图标嵌进 exe；AWT 窗口默认仍显示 JDK 的 Java 图标，
     因此 `jvmMain/main.kt` 必须显式设置 `window.iconImages`（PNG 经 `jvmMain { resources.srcDir("icons") }` 进 jar）。
 
@@ -232,8 +234,11 @@
 - `build/` 与 `composeApp/build/` 属可再生产物，可随时清理（MSI 打包需联网重下 WiX 工具集约 99 MB）。
 - 打包：`.\gradlew.bat :composeApp:packageMsi` 产出 `composeApp/build/compose/binaries/main/msi/SudokuInk-2.0.0.msi`（约 60 MB）；
   `createDistributable` 产出 `binaries/main/app/SudokuInk/`（自带 JRE）。
-- 图标**一处生成、两处使用**：`composeApp/icons/`（`tools/make-icon.ps1` 产出）既是 jpackage 的 `iconFile` 来源，
-  也作为 jvmMain 资源打进 jar，供 `main.kt` 设置运行时窗口 / 任务栏图标。改图标只需重跑脚本 + 重新打包。
+- 图标**一处生成、三处使用**：`tools/make-icon.ps1` 同时产出
+  ① 打包图标（`composeApp/icons/sudoku.ico` / `sudoku.png` → jpackage `iconFile`）、
+  ② 运行时窗口图标（`composeApp/icons/sudoku-NN.png` 作为 jvmMain 资源进 jar，`main.kt` 设置）、
+  ③ 对外交付（`assets/icon/` 各平台规格 + `source/sudoku.svg` 矢量源）。
+  改图标只需重跑脚本 + 重新打包；设计与尺寸规范见 `docs/06-应用图标设计.md`。
 - 应用存档在 `~/.sudoku-ink/save.txt`（纯文本，可手动删除以清空续局）。
 - `archive/**/node_modules` 与 `archive/**/dist` 已在 `.gitignore` 中忽略，勿再入库。
 

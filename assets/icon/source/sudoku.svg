@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>数独 Sudoku · 手写纸（应用图标）</title>
+  <rect x="56.32" y="56.32" width="911.36" height="911.36" rx="189.44" fill="#F7F5F0" stroke="#1B1A17" stroke-opacity="0.59" stroke-width="14.63"/>
+  <g stroke="#1B1A17" fill="none">
+    <rect x="194.56" y="194.56" width="194.56" height="194.56" stroke-width="634.88"/>
+    <path d="M 406.19 194.56 V 829.44 M 617.81 194.56 V 829.44 M 194.56 406.19 H 829.44 M 194.56 617.81 H 829.44" stroke-width="20.48"/>
+  </g>
+  <g font-family="Segoe UI, Microsoft YaHei UI, Arial, sans-serif" font-weight="700" text-anchor="middle" font-size="131.21">
+    <text x="300.37" y="347.61" fill="#1B1A17">5</text>
+    <text x="723.63" y="347.61" fill="#1B1A17">3</text>
+    <text x="300.37" y="770.86" fill="#1B1A17">9</text>
+    <text x="723.63" y="770.86" fill="#1B1A17">7</text>
+    <text x="512" y="559.24" fill="#4B4843" fill-opacity="0.67">4</text>
+  </g>
+</svg>
+
