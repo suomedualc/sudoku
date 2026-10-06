@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
@@ -19,18 +21,41 @@ import androidx.compose.ui.unit.sp
 import org.example.sudoku.state.GameAction
 import org.example.sudoku.state.GameState
 import org.example.sudoku.ui.theme.DesignTokens
+import org.example.sudoku.ui.theme.Ink
 import kotlin.math.roundToInt
 
 /** 悬浮面板落点（像素，相对棋盘左上角）。 */
 data class PadPlacement(val x: Float, val y: Float)
 
 /**
- * 悬浮数字面板的**纯逻辑**：位置计算、开合判据。
+ * 悬浮数字面板的**纯逻辑**：位置计算、尺寸、开合判据。
  *
- * 单独抽出来是为了能直接单测——"面板会不会跑到棋盘外""按了撤销面板还留着吗"这类问题
+ * 单独抽出来是为了能直接单测——"面板会不会跑到棋盘外""还该不该留在屏幕上"这类问题
  * 用肉眼验收成本太高，用断言几行就能覆盖（见 `commonTest/.../ui/FloatingPadPolicyTest.kt`）。
  */
 object FloatingPadPolicy {
+
+    /** 面板最多三列（候选数字一排最多放三个）。 */
+    const val MAX_COLUMNS = 3
+
+    /** 列数按**候选个数**自适应：1 个候选时面板只有一键宽。 */
+    fun columns(digitCount: Int): Int = digitCount.coerceIn(1, MAX_COLUMNS)
+
+    /** 行数（候选为 0 时留一行放"无可填数字"提示）。 */
+    fun rows(digitCount: Int): Int {
+        val columns = columns(digitCount)
+        return ((digitCount + columns - 1) / columns).coerceAtLeast(1)
+    }
+
+    fun padWidth(digitCount: Int, keySize: Float, gap: Float, padding: Float): Float {
+        val columns = columns(digitCount)
+        return padding * 2f + columns * keySize + (columns - 1) * gap
+    }
+
+    fun padHeight(digitCount: Int, keySize: Float, gap: Float, padding: Float): Float {
+        val rows = rows(digitCount)
+        return padding * 2f + rows * keySize + (rows - 1) * gap
+    }
 
     /**
      * 面板贴在选中格**右侧**并与该格垂直居中；右侧放不下就翻到左侧；
@@ -74,7 +99,7 @@ object FloatingPadPolicy {
     /**
      * 点击某格时是否应弹出面板：**精确指针**（鼠标 / 触控笔）+ 棋盘可交互 + 目标是非给定格。
      *
-     * 手指（触屏）不弹面板：面板就出现在手指下面，会被完全挡住——触屏走常驻数字键盘（`docs/02` §6）。
+     * 手指（触屏）不弹面板：面板就出现在手指下面，会被完全挡住——触屏走常驻数字键盘（`docs/02` §6.1）。
      */
     fun shouldOpen(state: GameState, cell: Int, precisePointer: Boolean): Boolean {
         if (!precisePointer || !state.interactive) return false
@@ -84,77 +109,91 @@ object FloatingPadPolicy {
 }
 
 /**
- * 半透明悬浮数字面板（墨线版）。
+ * 半透明悬浮数字面板（墨线版）：**只列出这一格当前可填的数字**。
  *
- * - **位置**：由 [FloatingPadPolicy.placement] 计算，锚在被点格旁，越界自动翻转 / 贴边；
+ * - **为什么只列可填的**：数独一格往往只有 2–4 个候选，列全 1–9 既占地方又把键挤小；
+ *   只列候选 → 键可以做到 48dp（比原来大 26%）、面板整体更小、更贴近手指/指针的落点。
+ *   想记"不可能的数字"或擦除，用右侧常驻键盘（它始终在）。
+ * - **位置**：`FloatingPadPolicy.placement` 计算，锚在被点格旁，越界自动翻转 / 贴边；
  * - **样式**：纸面 94% 不透明（能透出底下的网格）+ 双层错位描边表达"浮起"，不用阴影；
- *   与常驻数字键盘同一套按键语言（重墨=可填、淡墨=不可填、禁用=虚线框）；
- * - **不做**：不显示剩余计数角标（132dp 的窄面板里会挤）、不接管焦点（键盘照常工作）。
+ * - **不接管焦点**：键盘操作全程可用（见 `docs/02` §4.1）。
  *
- * 生命周期（何时出现 / 何时消失）由调用方 [org.example.sudoku.ui.screens.GameScreen] 持有，
- * 这里只负责画。
+ * 生命周期（何时出现 / 何时消失）由 `GameScreen` 持有，这里只负责画。
  */
 @Composable
 fun FloatingInputPad(
     cell: Int,
     enabled: Boolean,
-    legalMask: Int?,
+    legalMask: Int,
     onDigit: (Int) -> Unit,
-    onErase: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val digits = remember(legalMask) { (1..9).filter { (legalMask shr (it - 1)) and 1 == 1 } }
+
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val density = LocalDensity.current
-        val side = minOf(maxWidth, maxHeight)
-        val boardPx = with(density) { side.toPx() }
+        val boardPx = with(density) { minOf(maxWidth, maxHeight).toPx() }
+        val keyPx = with(density) { DesignTokens.Sizes.PadKeySize.toPx() }
+        val gapPx = with(density) { DesignTokens.Sizes.PadGap.toPx() }
+        val paddingPx = with(density) { DesignTokens.Sizes.PadPadding.toPx() }
+        val widthPx = FloatingPadPolicy.padWidth(digits.size, keyPx, gapPx, paddingPx)
+        val heightPx = FloatingPadPolicy.padHeight(digits.size, keyPx, gapPx, paddingPx)
         val placement = FloatingPadPolicy.placement(
             cell = cell,
             cellSide = boardPx / 9f,
-            padWidth = with(density) { DesignTokens.Sizes.PadWidth.toPx() },
-            padHeight = with(density) { DesignTokens.Sizes.PadHeight.toPx() },
+            padWidth = widthPx,
+            padHeight = heightPx,
             boardSide = boardPx,
             gap = with(density) { DesignTokens.Sizes.PadAnchorGap.toPx() },
         )
 
-        Box(modifier = Modifier.offset { IntOffset(placement.x.roundToInt(), placement.y.roundToInt()) }) {
+        Box(
+            modifier = Modifier
+                .offset { IntOffset(placement.x.roundToInt(), placement.y.roundToInt()) }
+                .width(with(density) { widthPx.toDp() }),
+        ) {
             InkPanel(
-                modifier = Modifier.width(DesignTokens.Sizes.PadWidth),
                 padding = PaddingValues(DesignTokens.Sizes.PadPadding),
                 seed = 61,
                 paperAlpha = 0.94f,
                 doubleStroke = true,
             ) {
-                repeat(3) { rowIndex ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(DesignTokens.Sizes.PadGap),
+                if (digits.isEmpty()) {
+                    // 极端情况（同一行列宫把 9 个数字都占了）：明说"没有可填"，别让人以为点了没反应
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(DesignTokens.Sizes.PadKeySize),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        repeat(3) { colIndex ->
-                            val digit = rowIndex * 3 + colIndex + 1
-                            val legal = legalMask == null || (legalMask and (1 shl (digit - 1))) != 0
-                            InkKey(
-                                text = digit.toString(),
-                                onClick = { onDigit(digit) },
-                                modifier = Modifier.weight(1f),
-                                enabled = enabled,
-                                height = DesignTokens.Sizes.PadKeyHeight,
-                                fontSize = 17.sp,
-                                emphasis = legalMask != null && legal,
-                                soft = legalMask != null && !legal,
-                            )
+                        InkText(text = "本格无可填数字", style = Ink.style(12.sp, Ink.Light))
+                    }
+                } else {
+                    digits.chunked(FloatingPadPolicy.MAX_COLUMNS).forEachIndexed { rowIndex, rowDigits ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(
+                                DesignTokens.Sizes.PadGap,
+                                Alignment.CenterHorizontally,
+                            ),
+                        ) {
+                            rowDigits.forEach { digit ->
+                                InkKey(
+                                    text = digit.toString(),
+                                    onClick = { onDigit(digit) },
+                                    modifier = Modifier.width(DesignTokens.Sizes.PadKeySize),
+                                    enabled = enabled,
+                                    height = DesignTokens.Sizes.PadKeySize,
+                                    fontSize = 22.sp,
+                                    emphasis = true,
+                                )
+                            }
+                        }
+                        if (rowIndex < FloatingPadPolicy.rows(digits.size) - 1) {
+                            Spacer(Modifier.height(DesignTokens.Sizes.PadGap))
                         }
                     }
-                    if (rowIndex < 2) Spacer(Modifier.height(DesignTokens.Sizes.PadGap))
                 }
-                Spacer(Modifier.height(DesignTokens.Sizes.PadGap))
-                InkKey(
-                    text = "擦除",
-                    onClick = onErase,
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = enabled,
-                    height = DesignTokens.Sizes.PadEraseHeight,
-                    fontSize = 14.sp,
-                )
             }
         }
     }

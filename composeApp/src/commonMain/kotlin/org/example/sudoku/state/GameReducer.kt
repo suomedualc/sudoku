@@ -146,22 +146,14 @@ object GameReducer {
     }
 
     /**
-     * 候选提示开关。打开时若还没有选中格，就顺手选中第一个空格——
-     * 否则开关"亮了"但棋盘上看不到任何变化，玩家会以为没生效（切换反馈要求）。
+     * 候选提示开关。效果直接体现在**所有空格的候选数字**上，因此不做任何选中格改动——
+     * 设置类开关不该顺手移动玩家选中的格子。
      */
     private fun toggleHintCandidates(state: GameState): Reduction {
         val enabled = !state.hintCandidates
-        val fallback = if (enabled && state.selected == null) {
-            state.game?.let(::firstEmpty)
-        } else {
-            null
-        }
         return Reduction(
-            state.copy(
-                hintCandidates = enabled,
-                selected = fallback ?: state.selected,
-            ),
-            if (enabled) "候选提示：开（选中格显示可填数字）" else "候选提示：关",
+            state.copy(hintCandidates = enabled),
+            if (enabled) "候选提示：开（空格显示可填数字）" else "候选提示：关",
         )
     }
 

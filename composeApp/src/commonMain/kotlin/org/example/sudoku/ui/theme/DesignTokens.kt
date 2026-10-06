@@ -53,22 +53,14 @@ object DesignTokens {
         /** 选择框 / 棋盘外框的内缩。 */
         val BoardInset: Dp = 4.dp
 
-        /** 悬浮数字面板（鼠标 / 触控笔点空格时出现）宽度。 */
-        val PadWidth: Dp = 132.dp
-
-        /** 悬浮面板里数字键的高度。 */
-        val PadKeyHeight: Dp = 38.dp
-
-        /** 悬浮面板里「擦除」条的高度。 */
-        val PadEraseHeight: Dp = 32.dp
-
-        /** 悬浮面板的内边距与键间隔。 */
+        /**
+         * 悬浮数字面板（鼠标 / 触控笔点空格时出现）：键尺寸 / 内边距 / 键间隔。
+         * **面板整体尺寸不固定**——只列出该格"当前可填"的数字，候选越少面板越小、键越大越好按
+         * （尺寸由 `FloatingPadPolicy.padWidth/padHeight` 按候选个数算出）。
+         */
+        val PadKeySize: Dp = 48.dp
         val PadPadding: Dp = 10.dp
         val PadGap: Dp = 6.dp
-
-        /** 悬浮面板总高（3 行数字键 + 间隔 + 擦除条 + 上下内边距）；位置计算要用到它。 */
-        val PadHeight: Dp =
-            PadPadding * 2 + PadKeyHeight * 3 + PadGap * 3 + PadEraseHeight
 
         /** 悬浮面板与格子的默认间距。 */
         val PadAnchorGap: Dp = 8.dp

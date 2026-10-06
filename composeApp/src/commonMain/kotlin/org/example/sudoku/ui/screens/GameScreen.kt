@@ -308,10 +308,9 @@ private fun BoardArea(
             FloatingInputPad(
                 cell = padCell,
                 enabled = state.interactive,
-                // 笔记模式不区分可填性（笔记本就不受同行列宫限制），与常驻数字键盘同一套语义
-                legalMask = if (state.noteMode) null else Sudoku.legalMask(game.current, padCell),
+                // 只列这一格当前可填的数字（笔记模式下也用这份候选——想记"不可能的数字"就用右侧常驻键盘）
+                legalMask = Sudoku.legalMask(game.current, padCell),
                 onDigit = { onAction(GameAction.Digit(it)) },
-                onErase = { onAction(GameAction.Digit(0)) },
             )
         }
         if (state.paused) {
@@ -416,9 +415,9 @@ private fun OptionsPanel(state: GameState, onAction: (GameAction) -> Unit) {
         )
         InkText(
             text = if (state.hintCandidates) {
-                "选中格：空心数字 = 规则允许的候选"
+                "空格里的半透明灰数字 = 规则允许的候选"
             } else {
-                "开：选中格显示可填数字（空心）"
+                "开：在空格里显示可填数字（半透明灰）"
             },
             modifier = Modifier.fillMaxWidth().padding(bottom = DesignTokens.Spacing.Xs),
             style = Ink.style(11.sp, Ink.Light, letterSpacing = 1.sp),

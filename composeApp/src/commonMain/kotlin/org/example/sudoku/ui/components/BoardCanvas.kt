@@ -36,9 +36,9 @@ import org.example.sudoku.ui.theme.inkRoundRect
  * 墨线表达（全部不依赖颜色）：
  * - 单元格层级：冲突（斜排线）> 选中（淡墨 + 手绘双框）> 同值（淡墨）> 同行列宫（极淡墨）
  * - 数字：题目给定 = 实墨；玩家填入 = 淡墨；冲突数字再套一个手绘圈
- * - 笔记：更小的淡墨**实心**数字，3×3 排布
- * - 候选提示：选中格用更小的**空心**数字（描边不填充）——同一套排布，靠"实心 / 空心"区分
- *   "自己记的"与"系统算的"（[hintCandidates] 开启且该格没有自己的笔记时才画）
+ * - 笔记：更小的淡墨实心数字，3×3 排布（玩家自己记的）
+ * - 候选提示（[hintCandidates] 开启时）：**所有空格**都用更小的**半透明灰**数字直接画出规则允许的候选；
+ *   已有笔记的格子显示笔记（那是玩家自己的判断）。同一套 3×3 排布，靠**墨色深浅**区分来源
  * - 选中框：常规模式实线、笔记模式虚线（用线型而不是颜色区分模式）
  * - 尺寸：调用方决定（宽屏取可用高宽的正方形，窄屏占满宽度），本组件保证 1:1
  *
@@ -63,6 +63,11 @@ fun BoardCanvas(
     // 跨帧缓存文本测量：键含数字、颜色、字号(px)、字重
     val valueCache = remember { mutableMapOf<InkTextKey, TextLayoutResult>() }
     val noteCache = remember { mutableMapOf<InkTextKey, TextLayoutResult>() }
+
+    // 候选提示：整盘一次算好，只在**盘面变化**时重算（换格 / 选中不动盘面时复用）
+    val candidateMasks = remember(game.current) {
+        IntArray(81) { pos -> if (game.current[pos] == 0) Sudoku.legalMask(game.current, pos) else 0 }
+    }
 
     Canvas(
         modifier = modifier
@@ -166,7 +171,7 @@ fun BoardCanvas(
                 val isGiven = Sudoku.isGiven(game, pos)
                 val color = if (isGiven) Ink.Black else Ink.Grey
                 val fontSizePx = cellPx * 0.52f
-                val layout = valueCache.cached(InkTextKey(value, color.value, fontSizePx.toInt(), isGiven, hollow = false)) {
+                val layout = valueCache.cached(InkTextKey(value, color.value, fontSizePx.toInt(), isGiven)) {
                     textMeasurer.measure(
                         value.toString(),
                         Ink.style(fontSizePx.toSp(), color, if (isGiven) FontWeight.Medium else FontWeight.Normal),
@@ -196,36 +201,29 @@ fun BoardCanvas(
 
             if (showNotes) {
                 val mask = notes[pos]
-                when {
-                    // 玩家自己的笔记优先：那是他写下的判断，不能被系统候选盖住
-                    mask != 0 -> {
+                val fontSizePx = cellPx * 0.24f
+                if (mask != 0) {
+                    // 玩家自己的笔记优先：那是他写下的判断，不该被系统候选盖住
+                    for (digit in 1..9) {
+                        if ((mask and (1 shl (digit - 1))) == 0) continue
+                        val layout = noteCache.cached(InkTextKey(digit, Ink.Light.value, fontSizePx.toInt(), false)) {
+                            textMeasurer.measure(digit.toString(), Ink.style(fontSizePx.toSp(), Ink.Light))
+                        }
+                        drawText(layout, topLeft = miniTopLeft(r, digit))
+                    }
+                } else if (hintCandidates) {
+                    // 候选提示：所有空格直接写出规则允许的数字，用半透明灰（比笔记更淡，读作"背景信息"）
+                    val legal = candidateMasks[pos]
+                    if (legal != 0) {
                         for (digit in 1..9) {
-                            if ((mask and (1 shl (digit - 1))) == 0) continue
-                            val fontSizePx = cellPx * 0.24f
-                            val layout = noteCache.cached(InkTextKey(digit, Ink.Light.value, fontSizePx.toInt(), false, hollow = false)) {
-                                textMeasurer.measure(digit.toString(), Ink.style(fontSizePx.toSp(), Ink.Light))
+                            if ((legal and (1 shl (digit - 1))) == 0) continue
+                            val layout = noteCache.cached(InkTextKey(digit, CandidateColor.value, fontSizePx.toInt(), false)) {
+                                textMeasurer.measure(
+                                    digit.toString(),
+                                    Ink.style(fontSizePx.toSp(), CandidateColor),
+                                )
                             }
                             drawText(layout, topLeft = miniTopLeft(r, digit))
-                        }
-                    }
-                    // 候选提示：只画在选中格上（当作"看一下这格能填什么"的一次窥视，不整盘泄题）
-                    hintCandidates && pos == selected -> {
-                        val legal = Sudoku.legalMask(game.current, pos)
-                        if (legal != 0) {
-                            for (digit in 1..9) {
-                                if ((legal and (1 shl (digit - 1))) == 0) continue
-                                val fontSizePx = cellPx * 0.24f
-                                val layout = noteCache.cached(InkTextKey(digit, Ink.Grey.value, fontSizePx.toInt(), false, hollow = true)) {
-                                    textMeasurer.measure(
-                                        digit.toString(),
-                                        Ink.style(fontSizePx.toSp(), Ink.Grey).copy(
-                                            // 空心：只描边不填充，与"实心笔记"一眼可分
-                                            drawStyle = Stroke(width = (fontSizePx * 0.10f).coerceAtLeast(0.8f)),
-                                        ),
-                                    )
-                                }
-                                drawText(layout, topLeft = miniTopLeft(r, digit))
-                            }
                         }
                     }
                 }
@@ -265,14 +263,19 @@ fun BoardCanvas(
     }
 }
 
-/** 文本缓存键：数字 + 颜色 + 字号(px) + 是否加粗 + 是否空心（候选提示）。 */
+/** 文本缓存键：数字 + 颜色 + 字号(px) + 是否加粗。 */
 private data class InkTextKey(
     val digit: Int,
     val color: ULong,
     val sizePx: Int,
     val bold: Boolean,
-    val hollow: Boolean,
 )
+
+/**
+ * 候选数字的墨色：**半透明灰**。
+ * 与玩家笔记（[Ink.Light] 实墨）拉开层次——候选是"系统算出来的背景信息"，笔记是"自己写下的判断"。
+ */
+private val CandidateColor = Ink.Grey.copy(alpha = 0.42f)
 
 /** 带容量保护的跨帧文本测量缓存（连续拖拽缩放窗口时不会无限增长）。 */
 private fun MutableMap<InkTextKey, TextLayoutResult>.cached(

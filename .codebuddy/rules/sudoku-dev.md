@@ -1,4 +1,4 @@
-# 数独（手写纸 · 简约油墨）开发纪律 · v1.4
+# 数独（手写纸 · 简约油墨）开发纪律 · v1.5
 
 > 本文件是"系统层"上下文（自动加载），既是**强制规则**，也是本工程的**开发思路 / 选型依据 / 模块说明 / 迭代计划**的简版。
 > 详细论证见 `docs/01-架构设计.md`、`docs/02-设计规范.md`、`docs/03-开发流程.md`、`docs/05-发展规划.md`。
@@ -39,7 +39,7 @@
     `packageMsi` 验证，不能只看 `createDistributable` 通过就宣布打包没问题。
 16. 应用图标是**生成资产**：只通过 `tools/make-icon.ps1` 产出（`composeApp/icons/`），不手改二进制、不在构建期临时生成。
 
-**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 39 项）+ 肉眼验收四档窗口（§6）。
+**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 40 项）+ **实机试玩**（§6 第 4–5 条）+ 肉眼验收四档窗口。
 
 ---
 
@@ -113,7 +113,7 @@
 | 判胜 | `isSolved(current) && current == solution`（唯一解题目下等价，双保险） |
 | 撤销/重做 | 改盘前压栈（盘面 + 笔记 + `hintUsed` + `hintsCount` + `revealed`）；重做会重新推导 `settled` |
 | 提示 | 优先当前选中空格，否则第一个空格；标记 `hintUsed` 并累加 `hintsCount` |
-| 候选提示 | 切换 `hintCandidates`（默认关）；**打开且无选中格时自动选中第一个空格**——否则开关看不出效果。渲染在 `ui`：选中格画 `legalMask` 的**空心**数字，玩家笔记优先 |
+| 候选提示 | 切换 `hintCandidates`（默认关，**不动选中格**）。渲染在 `ui`：**所有空格**画 `legalMask` 的**半透明灰**数字（整盘 `remember(game.current)` 缓存），玩家笔记优先 |
 | 提示事件 | 不存在状态里：`reduce` 返回 `Reduction(state, message)`，由 ViewModel 送进事件通道 → Snackbar |
 | 计时 | 秒数由**单调时钟**算出（`SyncElapsed(seconds)`）；仅 Game 屏、未暂停、未结算时接受新值；暂停 / 离开界面 / 窗口最小化都会停表 |
 | 新局 | `NewGame` 重置对局字段（盘面 / 笔记 / 计时 / 提示 / 结算标记），但**继承三项偏好**（`strictMode / showNotes / noteMode`） |
@@ -145,7 +145,7 @@
 | `components/InkWidgets.kt` | 墨线控件库 | `InkSurface` 统一五态反馈；`InkText` 是唯一文本出口 |
 | `components/BoardCanvas.kt` | 棋盘墨线绘制 | 分层：纸面 → 墨洗 → 格线 → 数字/笔记 → 选中框；文本缓存 + `rememberUpdatedState` |
 | `components/NumberPad.kt` | 数字键盘 | `legalMask: Int?`：`null` = 不区分；非 null 时**线重**区分可填 / 不可填（不禁用） |
-| `components/FloatingPad.kt` | 半透明悬浮输入面板 + `FloatingPadPolicy`（位置 / 开合纯逻辑） | 只用 `PointerType` 判定"精确指针"；**不接管焦点**；开合判据与位置算法必须是纯函数并有单测 |
+| `components/FloatingPad.kt` | 半透明悬浮输入面板 + `FloatingPadPolicy`（位置 / 尺寸 / 开合纯逻辑） | **只列该格可填数字**（键 48dp、最多 3 列自适应；候选为 0 时给一行提示）；只用 `PointerType` 判定"精确指针"；**不接管焦点**；位置 / 尺寸 / 开合必须是纯函数并有单测 |
 | `screens/MenuScreen.kt` | 首页 | **只有三个入口**（开始 / 继续 / 退出）+ 难度遮罩 + 退出确认 + 底部草图；`MenuCursor` + `onPreviewKeyEvent` 提供 ↑↓ / Enter / Esc（跳过置灰项，鼠标点击同步高亮） |
 | `screens/GameScreen.kt` | 对局页 | 宽屏双栏 / 窄屏滚动；暂停白纸遮题；通关墨框（`WinOverlay` 复用 `InkOverlay`，不可点空白关闭）；悬浮面板的锚点格与统一出口 `dispatch`（除选格 / 换格 / 心跳外任何动作都收面板）；`handleKeyEvent` 键盘映射（`Esc` 先收面板，通关时 Enter 再来一局 / Esc 回首页） |
 | `App.kt` | 装配 | `MiuixTheme(lightColorScheme())` + `Scaffold` + 两页导航 + Snackbar；铺 `Ink.Paper`；无顶部栏 |
@@ -199,8 +199,8 @@
 - ✅ 通关墨框 + 再来一局（复用 `InkOverlay` + 落纸动画，未引入新依赖）。
 - ✅ 首页三入口键盘导航（↑↓ / Enter / Esc，含难度与退出确认面板）。
 - ✅ 打包收口：ASCII `packageName` + vendor/description/图标，`packageMsi` 实测产出安装包。
-- ✅ 候选提示开关：选中格用**空心**数字显示规则允许的候选（第 4 项设置，默认关闭，打开时自动选中首空格）。
-- ✅ 悬浮输入面板：鼠标 / 触控笔点空格就地弹出（位置与开合是纯函数 + 单测；手指不弹）。
+- ✅ 候选提示开关：**所有空格**用**半透明灰**数字显示规则允许的候选（第 4 项设置，默认关闭）。
+- ✅ 悬浮输入面板：鼠标 / 触控笔点空格就地弹出，**只列该格可填的数字**（键 48dp、尺寸自适应；位置 / 尺寸 / 开合是纯函数 + 单测；手指不弹）。
 - ✅ 触屏方案定型：常驻底部键盘 + 同一套空心候选；命中区放大与候选预览条留到 M2。
 - ⏳ 续局体验增强：首页「继续游戏」显示难度与进度摘要（当前只有置灰/可用两态）。
 - ⏳ `legalMask` 下沉到状态层（目前按盘面 `remember`，未进入派生状态）。
@@ -237,7 +237,7 @@
 - **精准投喂**：先 `@folder composeApp/src/commonMain` 预热，再用 `@file` / `@code` 定位；方法见 `docs/04`。
 - **负面约束随需求一起给**：把本文件 §0 的相关红线直接写进需求里。
 - **提交前自检清单**：
-  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（39 项）；改过 `state/` 或 `core/` 时必须补/改用例；
+  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（40 项）；改过 `state/` 或 `core/` 时必须补/改用例；
   2. 无新增色相、无裸色值 / 魔法尺寸（§0 6–8）；
   3. 四档窗口肉眼验收：1180×900 / 800×600 / 500×1000 / 1024×768；
   4. 键盘路径可走通：首页 ↑↓ + Enter、对局内方向键 / 数字 / Ctrl+Z/Y、`Esc` 收浮层、通关后 Enter / Esc；

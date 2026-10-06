@@ -38,6 +38,34 @@ class FloatingPadPolicyTest {
         )
 
     @Test
+    fun padSizeShrinksWithCandidateCountSoKeysStayLarge() {
+        val key = 48f
+        val padGap = 6f
+        val padding = 10f
+
+        // 列数按候选个数自适应（最多 3 列）
+        assertEquals(1, FloatingPadPolicy.columns(1))
+        assertEquals(2, FloatingPadPolicy.columns(2))
+        assertEquals(3, FloatingPadPolicy.columns(5))
+        assertEquals(3, FloatingPadPolicy.columns(9))
+        // 行数：候选为 0 时也留一行，用来放"本格无可填数字"
+        assertEquals(1, FloatingPadPolicy.rows(0))
+        assertEquals(1, FloatingPadPolicy.rows(3))
+        assertEquals(2, FloatingPadPolicy.rows(4))
+        assertEquals(3, FloatingPadPolicy.rows(9))
+
+        val one = FloatingPadPolicy.padWidth(1, key, padGap, padding)
+        val two = FloatingPadPolicy.padWidth(2, key, padGap, padding)
+        val three = FloatingPadPolicy.padWidth(3, key, padGap, padding)
+        assertTrue(one < two && two < three, "候选越少面板越窄：$one / $two / $three")
+        assertEquals(padding * 2 + key, one)
+        assertEquals(padding * 2 + 3 * key + 2 * padGap, three)
+        // 一行候选 → 面板高度只有一个键高（+ 内边距）
+        assertEquals(padding * 2 + key, FloatingPadPolicy.padHeight(2, key, padGap, padding))
+        assertEquals(padding * 2 + 2 * key + padGap, FloatingPadPolicy.padHeight(4, key, padGap, padding))
+    }
+
+    @Test
     fun placementSitsRightOfTheCell() {
         // 中间一行一列：右侧放得下 → 贴右侧，且与该格垂直居中
         val p = place(cellIndex = 4 * 9 + 4)
