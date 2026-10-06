@@ -1,4 +1,4 @@
-# 数独（手写纸 · 简约油墨）开发纪律 · v1.8
+# 数独（手写纸 · 简约油墨）开发纪律 · v1.9
 
 > 本文件是"系统层"上下文（自动加载），既是**强制规则**，也是本工程的**开发思路 / 选型依据 / 模块说明 / 迭代计划**的简版。
 > 详细论证见 `docs/01-架构设计.md`、`docs/02-设计规范.md`、`docs/03-开发流程.md`、`docs/05-发展规划.md`。
@@ -47,7 +47,8 @@
     **打包图标与运行时图标必须同源**：jpackage 只把图标嵌进 exe；AWT 窗口默认仍显示 JDK 的 Java 图标，
     因此 `jvmMain/main.kt` 必须显式设置 `window.iconImages`（PNG 经 `jvmMain { resources.srcDir("icons") }` 进 jar）。
 
-**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 40 项）+ **实机试玩**（§6 第 4–5 条）+ 肉眼验收四档窗口。
+**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 53 项）+ **实机冒烟**
+（`tools/smoke-e2e.ps1`，置顶 + 固定坐标，见 §5）+ **实机试玩**（§6 第 4–5 条）+ 肉眼验收四档窗口。
 
 ---
 
@@ -242,6 +243,11 @@
 - `build/` 与 `composeApp/build/` 属可再生产物，可随时清理（MSI 打包需联网重下 WiX 工具集约 99 MB）。
 - 打包：`.\gradlew.bat :composeApp:packageMsi` 产出 `composeApp/build/compose/binaries/main/msi/SudokuInk-2.0.0.msi`（约 60 MB）；
   `createDistributable` 产出 `binaries/main/app/SudokuInk/`（自带 JRE）。
+- 实机冒烟：`powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1`（先 `createDistributable`）。
+  它把窗口 `HWND_TOPMOST` 钉在 (100,100) 1180×900，**每次注入前断言前台是应用**（否则中止），按窗口矩形截图，
+  覆盖难度抽屉 / 退出确认 / 通关抽屉三条流，并自动备份恢复 `~/.sudoku-ink/save.txt`。
+  **教训**：不置顶就注入按键/点击，桌面有别的窗口时会打到别人的窗口上（点击落到过浏览器）；
+  方向键必须带 `KEYEVENTF_EXTENDEDKEY`；脚本保持 **ASCII-only**（PS 5.1 无 BOM 时按 ANSI 解析中文会崩）。
 - 图标**一处生成、三处使用**：`tools/make-icon.ps1` 同时产出
   ① 打包图标（`composeApp/icons/sudoku.ico` / `sudoku.png` → jpackage `iconFile`）、
   ② 运行时窗口图标（`composeApp/icons/sudoku-NN.png` 作为 jvmMain 资源进 jar，`main.kt` 设置）、
@@ -258,7 +264,8 @@
 - **精准投喂**：先 `@folder composeApp/src/commonMain` 预热，再用 `@file` / `@code` 定位；方法见 `docs/04`。
 - **负面约束随需求一起给**：把本文件 §0 的相关红线直接写进需求里。
 - **提交前自检清单**：
-  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（40 项）；改过 `state/` 或 `core/` 时必须补/改用例；
+  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（53 项）；改过 `state/` 或 `core/` 时必须补/改用例；
+     动过覆盖层 / 键盘映射时，跑 `tools\smoke-e2e.ps1` 并看截图；
   2. 无新增色相、无裸色值 / 魔法尺寸（§0 6–8）；
   3. 四档窗口肉眼验收：1180×900 / 800×600 / 500×1000 / 1024×768；
   4. 键盘路径可走通：首页 ↑↓ + Enter、对局内方向键 / 数字 / Ctrl+Z/Y、`Esc` 收浮层、通关后 Enter / Esc；

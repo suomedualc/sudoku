@@ -94,6 +94,8 @@ org.example.sudoku
 ```powershell
 .\gradlew.bat :composeApp:run                  # 桌面直接运行
 .\gradlew.bat :composeApp:jvmTest --offline    # 单元测试 + UI 测试（53 项）
+.\gradlew.bat :composeApp:createDistributable --offline   # 便携版（build/compose/binaries/main/app）
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1   # 实机冒烟（置顶 + 固定坐标，自动截图）
 .\gradlew.bat :composeApp:createDistributable  # 自带 JRE 的分发目录（binaries/main/app/SudokuInk）
 .\gradlew.bat :composeApp:packageMsi           # Windows 安装包（首次需联网下载 WiX）
 ```
