@@ -38,6 +38,21 @@ class SudokuTest {
     }
 
     @Test
+    fun generateReachesTargetBlanksForEveryDifficulty() {
+        // 旧实现单次贪心挖洞在大师档只有约 88% 能挖满 56 空，这条用例锁住"必须达标"
+        Difficulty.entries.forEach { difficulty ->
+            val game = Sudoku.generate(difficulty, Random(2026))
+            assertEquals(
+                difficulty.targetBlanks,
+                game.puzzle.count { it == 0 },
+                "${difficulty.label} 应挖满目标空格数",
+            )
+            assertEquals(1, Sudoku.countSolutions(game.puzzle, 2), "${difficulty.label} 题目必须唯一解")
+            assertEquals(game.current.toList(), game.puzzle.toList(), "初始盘面应等于题面")
+        }
+    }
+
+    @Test
     fun conflictFlagsDetectsDuplicates() {
         val board = IntArray(81)
         board[0] = 5

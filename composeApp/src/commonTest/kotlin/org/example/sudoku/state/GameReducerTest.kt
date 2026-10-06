@@ -9,20 +9,26 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
-import kotlin.test.fail
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
+import kotlin.test.fail
 
 /**
- * 状态机单测：固定随机种子，覆盖落子 / 笔记 / 严格模式 / 撤销重做 / 提示 / 方向键 / 判胜 / 计时。
+ * 状态机单测：固定随机种子，覆盖落子 / 笔记 / 严格模式 / 撤销重做 / 提示 / 方向键 / 判胜 / 计时同步。
  * 与 `SudokuTest` 一样写在 commonTest，各目标共用。
  */
 class GameReducerTest {
     private val seed = 20261006L
 
     private fun newGame(difficulty: Difficulty = Difficulty.Easy): GameState =
-        GameReducer.reduce(GameState(), GameAction.NewGame(difficulty), Random(seed))
+        GameReducer.reduce(GameState(), GameAction.NewGame(difficulty), Random(seed)).state
 
+    /** 只关心新状态时的便捷写法。 */
     private fun reduce(state: GameState, action: GameAction): GameState =
+        GameReducer.reduce(state, action, Random(seed)).state
+
+    /** 需要检查一次性提示时的写法。 */
+    private fun reduction(state: GameState, action: GameAction): Reduction =
         GameReducer.reduce(state, action, Random(seed))
 
     private fun firstEmpty(state: GameState): Int =
@@ -47,10 +53,12 @@ class GameReducerTest {
     fun givenCellRejectsInput() {
         val pos = firstGiven(newGame())
         val state = reduce(newGame(), GameAction.Select(pos))
-        val after = reduce(state, GameAction.Digit(5))
-        assertEquals(state.game!!.current[pos], after.game!!.current[pos], "给定格不可被修改")
-        assertNotNull(after.message)
-        assertTrue(after.undoStack.isEmpty(), "被拒绝的输入不应进入撤销栈")
+
+        val outcome = reduction(state, GameAction.Digit(5))
+
+        assertEquals(state.game!!.current[pos], outcome.state.game!!.current[pos], "给定格不可被修改")
+        assertNotNull(outcome.message, "应给出提示")
+        assertTrue(outcome.state.undoStack.isEmpty(), "被拒绝的输入不应进入撤销栈")
     }
 
     @Test
@@ -88,10 +96,11 @@ class GameReducerTest {
         state = reduce(state, GameAction.ToggleNoteMode)
         state = reduce(state, GameAction.Digit(9))
         state = reduce(state, GameAction.ToggleNoteMode)
-        val after = reduce(state, GameAction.Digit(4))
-        assertEquals(9, after.game!!.current[pos])
-        assertEquals(0, after.notes[pos])
-        assertTrue(after.message!!.contains("无法记笔记"))
+
+        val outcome = reduction(state, GameAction.Digit(4))
+        assertEquals(9, outcome.state.game!!.current[pos])
+        assertEquals(0, outcome.state.notes[pos])
+        assertTrue(outcome.message!!.contains("无法记笔记"))
     }
 
     @Test
@@ -105,10 +114,11 @@ class GameReducerTest {
 
         var state = reduce(newGame(), GameAction.Select(target))
         state = reduce(state, GameAction.ToggleStrict(true))
-        val after = reduce(state, GameAction.Digit(value))
 
-        assertEquals(0, after.game!!.current[target])
-        assertTrue(after.message!!.contains("严格模式"))
+        val outcome = reduction(state, GameAction.Digit(value))
+
+        assertEquals(0, outcome.state.game!!.current[target])
+        assertTrue(outcome.message!!.contains("严格模式"))
     }
 
     @Test
@@ -182,28 +192,32 @@ class GameReducerTest {
         val initial = newGame()
         val solution = initial.game!!.solution
         var state = initial
+        var winMessage: String? = null
         for (pos in 0..80) {
             if (initial.game!!.current[pos] != 0) continue
             state = reduce(state, GameAction.Select(pos))
-            state = reduce(state, GameAction.Digit(solution[pos]))
+            val outcome = reduction(state, GameAction.Digit(solution[pos]))
+            state = outcome.state
+            if (outcome.message != null) winMessage = outcome.message
         }
         assertTrue(state.won)
         assertTrue(state.settled)
         assertFalse(state.interactive)
-        assertTrue(state.message!!.contains("恭喜通关"))
+        assertTrue(winMessage!!.contains("恭喜通关"), "通关提示应随最后一次落子返回")
     }
 
     @Test
-    fun tickAndSelectRespectPauseAndScreen() {
+    fun syncElapsedWritesRealSecondsOnlyInGame() {
         val state = newGame()
-        assertEquals(1, reduce(state, GameAction.Tick).elapsed)
-
-        val paused = reduce(state, GameAction.Pause)
-        assertEquals(0, reduce(paused, GameAction.Tick).elapsed)
-        assertNull(reduce(paused, GameAction.Select(0)).selected, "暂停时不接受选格")
+        val once = reduce(state, GameAction.SyncElapsed(5))
+        assertEquals(5, once.elapsed, "对局中应写入真实秒数")
+        assertSame(once, reduce(once, GameAction.SyncElapsed(5)), "秒数未变化时不应产生新状态")
 
         val away = reduce(state, GameAction.Navigate(Screen.Menu))
-        assertEquals(0, reduce(away, GameAction.Tick).elapsed, "离开对局界面应停表")
+        assertEquals(0, reduce(away, GameAction.SyncElapsed(9)).elapsed, "离开对局界面不接受计时更新")
+
+        val paused = reduce(state, GameAction.Pause)
+        assertNull(reduce(paused, GameAction.Select(0)).selected, "暂停时不接受选格")
     }
 
     @Test
@@ -211,7 +225,7 @@ class GameReducerTest {
         val pos = firstEmpty(newGame())
         var state = reduce(newGame(), GameAction.Select(pos))
         state = reduce(state, GameAction.Digit(4))
-        state = reduce(state, GameAction.Tick)
+        state = reduce(state, GameAction.SyncElapsed(42))
         state = reduce(state, GameAction.Hint)
         state = reduce(state, GameAction.Pause)
         state = reduce(state, GameAction.Reset)

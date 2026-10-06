@@ -21,8 +21,13 @@ fun main() = application {
         LaunchedEffect(Unit) {
             window.minimumSize = Dimension(940, 720)
         }
-        // 桌面注入文件存档：实现首页「继续游戏」与关窗后恢复
+        // 桌面注入文件存档：实现首页「继续游戏」与关窗后恢复；
+        // isWindowActive 用于最小化时自动暂停（避免挂后台还在走表）
         val store = remember { FileGameStore() }
-        App(store = store, onExit = ::exitApplication)
+        App(
+            store = store,
+            onExit = ::exitApplication,
+            isWindowActive = !windowState.isMinimized,
+        )
     }
 }

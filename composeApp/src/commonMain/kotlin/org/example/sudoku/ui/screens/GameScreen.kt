@@ -247,9 +247,14 @@ private fun PadPanel(game: Game, state: GameState, onAction: (GameAction) -> Uni
         } else {
             Sudoku.legalMask(game.current, state.selected)
         }
+        // 每个数字还剩几个：只在盘面变化时重算（心跳不触发重组计算）
+        val remaining = remember(game) {
+            IntArray(9) { digit -> 9 - game.current.count { it == digit + 1 } }
+        }
         NumberPad(
             legalMask = legalMask,
             enabled = state.interactive,
+            remaining = remaining,
             onDigit = { onAction(GameAction.Digit(it)) },
             onErase = { onAction(GameAction.Digit(0)) },
         )
@@ -282,8 +287,20 @@ private fun OptionsPanel(state: GameState, onAction: (GameAction) -> Unit) {
         InkDivider(seed = 42)
         Spacer(Modifier.height(DesignTokens.Spacing.Md))
         Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Sm)) {
-            InkButton("撤销", { onAction(GameAction.Undo) }, Modifier.weight(1f), compact = true)
-            InkButton("重做", { onAction(GameAction.Redo) }, Modifier.weight(1f), compact = true)
+            InkButton(
+                "撤销",
+                { onAction(GameAction.Undo) },
+                Modifier.weight(1f),
+                enabled = state.undoStack.isNotEmpty(),
+                compact = true,
+            )
+            InkButton(
+                "重做",
+                { onAction(GameAction.Redo) },
+                Modifier.weight(1f),
+                enabled = state.redoStack.isNotEmpty(),
+                compact = true,
+            )
             InkButton(
                 "提示",
                 { onAction(GameAction.Hint) },

@@ -54,13 +54,16 @@ class GameStoreTest {
     @Test
     fun viewModelPersistsAndRestoresGame() {
         val store = InMemoryGameStore()
-        val first = GameViewModel(seed = 11, store = store)
+        var now = 0L
+        val first = GameViewModel(seed = 11, store = store, clock = { now })
         first.dispatch(GameAction.NewGame(Difficulty.Easy))
 
         val pos = (0..80).first { first.state.game!!.current[it] == 0 }
         first.dispatch(GameAction.Select(pos))
         first.dispatch(GameAction.Digit(4))
-        repeat(10) { first.dispatch(GameAction.Tick) }
+        // 真实时间走 10 秒：syncClock 写入 elapsed，并在整十秒处落盘
+        now += 10_000
+        first.syncClock()
         assertTrue(first.canResume, "有未完成对局时应可继续")
 
         // 模拟重启：同一份存档交给新的状态容器

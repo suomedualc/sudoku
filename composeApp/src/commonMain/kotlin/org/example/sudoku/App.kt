@@ -32,39 +32,46 @@ import top.yukonga.miuix.kmp.theme.lightColorScheme
  * - 页面内容自绘墨线组件，miuix 只负责骨架（`Scaffold` 的安全区与 `SnackbarHost` 的提示通道）；
  * - 背景统一铺 [Ink.Paper]，让纸面从状态栏一直延伸到页面底部。
  *
- * 数据流仍是单向：`输入 → GameAction → GameReducer → GameState → 重组`；
- * 计时由 1 秒心跳派发 `Tick`；一次性提示经 `state.message` 转 Snackbar。
+ * 数据流仍是单向：`输入 → GameAction → GameReducer → Reduction(state, message) → 重组`；
+ * 副作用只有三处：提示走**事件通道** → Snackbar、计时由心跳按**真实时间**同步、存档由 `GameStore` 落盘。
  *
  * @param store 存档端口（桌面注入文件实现，Android / iOS 各自提供）；默认不落盘。
  * @param onExit 「退出游戏」的回调（桌面 = 关窗退出；移动端可传空实现）。
+ * @param isWindowActive 窗口是否处于活动状态（桌面传 `!isMinimized`，移动端可接生命周期）；
+ *                       变为 false 时自动暂停，避免"挂后台还在走表"。
  */
 @Composable
 fun App(
     store: GameStore = NoopGameStore,
     onExit: () -> Unit = {},
+    isWindowActive: Boolean = true,
 ) {
     MiuixTheme(colors = lightColorScheme()) {
         val viewModel = remember(store) { GameViewModel(store = store) }
         val state = viewModel.state
         val snackbarState = remember { SnackbarHostState() }
 
-        // 计时心跳：每秒派发一次 Tick（仅在游戏进行且未暂停时累加）
+        // 计时心跳：约 250ms 校对一次；真正的秒数由单调时钟算出（不再"每秒 +1"，长局不漂移）
         LaunchedEffect(Unit) {
             while (true) {
-                delay(1000)
-                viewModel.dispatch(GameAction.Tick)
+                delay(250)
+                viewModel.syncClock()
             }
         }
 
-        // 一次性提示：转为 Snackbar 后立即消费，避免重复弹出
-        LaunchedEffect(state.message) {
-            val message = state.message ?: return@LaunchedEffect
-            snackbarState.showSnackbar(message, duration = SnackbarDuration.Short)
-            viewModel.dispatch(GameAction.ConsumeMessage)
+        // 一次性提示：从事件通道逐条取；相同文案也会逐条送达（旧实现会被等值比较吞掉）
+        LaunchedEffect(Unit) {
+            for (message in viewModel.messages) {
+                snackbarState.showSnackbar(message, duration = SnackbarDuration.Short)
+            }
+        }
+
+        // 窗口最小化 / 切后台 → 自动暂停
+        LaunchedEffect(isWindowActive) {
+            if (!isWindowActive) viewModel.dispatch(GameAction.Pause)
         }
 
         Scaffold(
-            // 棋盘侧已预留 SnackbarReserve，无需再抬高提示条
             snackbarHost = { SnackbarHost(state = snackbarState) },
         ) { paddingValues ->
             Box(

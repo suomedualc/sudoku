@@ -30,11 +30,13 @@
 
 **工程**
 
-11. 一次性提示统一走 `state.message` → Snackbar，不新增弹窗式反馈。
-12. `archive/` 里的 TS / Rust 旧实现只作参考，**不得**当作当前实现引用或复制。
-13. 文档与代码必须同一次改动内保持一致。
+11. 一次性提示统一走 `reduce` 返回的 `Reduction.message` → `GameViewModel.messages` 事件通道 → Snackbar；
+    **不要**把事件塞回 `GameState`，也不要新增弹窗式反馈。
+12. 计时只允许"由注入的单调时钟算出秒数 + `SyncElapsed`"这一条路径；禁止在 reducer 里读时钟或累加 Tick。
+13. `archive/` 里的 TS / Rust 旧实现只作参考，**不得**当作当前实现引用或复制。
+14. 文档与代码必须同一次改动内保持一致。
 
-**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 22 项）+ 肉眼验收四档窗口（§6）。
+**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 28 项）+ 肉眼验收四档窗口（§6）。
 
 ---
 
@@ -69,7 +71,7 @@
 | 存档 | 端口 + 注入（`GameStore` / `SaveCodec`） | `expect/actual` / DataStore / SQLDelight | `state` 保持零平台依赖；桌面写单文件、测试用内存实现；编解码纯文本可单测 | 需为每个平台写实现；只存对局不存设置 | 需要结构化查询（战绩统计）时换 SQLDelight / DataStore（换实现即可，不动状态机） |
 | 求解 / 出题 | 位掩码 + MRV 回溯 + 贪心挖洞 + 唯一解校验 | 朴素回溯 / 题库资源 | 候选判断 O(1)，出题实测 1–4 ms | 空格数只是上限（大师档实测 22/25 达标） | 做"技巧难度"时新增技巧求解器，出题改为"技巧可解性"驱动 |
 | 计时 | UI 心跳 `delay(1000)` 累加 | `TimeSource.Monotonic` 差值 | 实现最简单、无平台依赖 | 有累积漂移；窗口最小化仍走表；不可测 | **应当改**（§4 P1）：真实时间源 + 时钟注入 |
-| 提示反馈 | `state.message` → `SnackbarHost` | 事件 `Channel` / 自绘墨条 | 复用 miuix 的通知通道，零额外依赖 | 相同文案会被吞；事件挂在状态上 | **应当改**（§4 P1）：`Channel<UiMessage>` |
+| 提示反馈 | `Reduction(state, message)` → `Channel<String>` → `SnackbarHost` | 自绘墨条 / `SharedFlow` | 复用 miuix 的通知通道，零额外依赖；相同文案也能逐条送达（已修） | 需 ViewModel 持有 Channel 与收集协程 | 若要做"可撤销的提示条"，改自绘墨条（`docs/05` §4） |
 | 测试 | `kotlin.test` + 固定种子 | 断言库 / 属性测试 | 零依赖、跨端同一套用例 | 无 UI 自动化 | UI 复杂化后引入 CMP UI 测试（需加依赖并验证可行性） |
 
 ---
@@ -106,14 +108,17 @@
 | 判胜 | `isSolved(current) && current == solution`（唯一解题目下等价，双保险） |
 | 撤销/重做 | 改盘前压栈（盘面 + 笔记 + `hintUsed` + `hintsCount` + `revealed`）；重做会重新推导 `settled` |
 | 提示 | 优先当前选中空格，否则第一个空格；标记 `hintUsed` 并累加 `hintsCount` |
-| 计时 | 仅 Game 屏、未暂停、未结算时 `Tick` 累加 |
+| 提示 | 不在状态里：`reduce` 返回 `Reduction(state, message)`，由 ViewModel 送进事件通道 |
+| 计时 | 秒数由**单调时钟**算出（`SyncElapsed(seconds)`）；仅 Game 屏、未暂停、未结算时接受新值；暂停 / 离开界面 / 窗口最小化都会停表 |
 
 **存档**（`GameStore.kt`）：`SavedGame(game, notes, elapsed)`；`SaveCodec` 纯文本编解码（`v/difficulty/puzzle/current/solution/notes/elapsed`），
-解析失败一律返回 `null`（不抛异常）。`GameViewModel` 启动时 `load()` 恢复、动作后 `save()`（`Tick` 每 10 秒节流）、
+解析失败一律返回 `null`（不抛异常）。`GameViewModel` 启动时 `load()` 恢复、动作后 `save()`（每 10 秒节流）、
 通关 / 结算后 `clear()`；`canResume` 供首页「继续游戏」使用。
-**注意：只保存对局，不保存玩法开关（`noteMode/strictMode/showNotes`）** —— 这是已知取舍（§4 P1）。
+**注意：只保存对局，不保存玩法开关（`noteMode/strictMode/showNotes`）** —— 待做项，见 `docs/05` §5.1 第 7 条。
 
-已知短板（先别在上面叠新功能）：`message` 事件语义、`conflicts/progress/legalMask` 每次重组重算、计时漂移与后台计时。
+已修复（第二轮，勿回退）：提示事件语义（`Reduction` + `Channel`）、`conflicts/progress` 记忆化（`derivedStateOf`）、
+计时漂移与后台走表（单调时钟 + 最小化暂停）、大师档挖不满 56 空（`generate` 重试至达标）。
+仍未做：`legalMask` 每次重组按盘面 `remember`（未下沉）、设置持久化、逐格无障碍、首页键盘导航。
 
 ### 3.3 `ui/`（表现层，唯一允许调用 Compose / miuix 的层）
 
@@ -164,13 +169,16 @@
 - Android 落地：`sdkmanager "platforms;android-37" "build-tools;37.0.0"` → AGP + `androidTarget()` → `activity-compose` → 图标 → 模拟器验收（含返回键、边到边、`GameStore` 的 Android 实现）。
 - 构建环境固化：`JAVA_HOME` 指向 JDK 21（指向 JDK 25 会直接失败）。
 
-**P1（体验与状态机收口，对应 `docs/05` M1）**
-- 事件通道：`message` → `Channel<UiMessage>`，删掉 `ConsumeMessage`。
-- 派生状态下沉 / 记忆化：冲突、进度、legalMask。
-- 时钟注入 + 真实时间源：消除漂移；切后台 / 最小化自动暂停。
-- 出题达标：重试或返回实际空格数，保证难度名与实际一致。
-- 设置持久化：`strictMode / showNotes / noteMode` 一并入档（当前只存对局）。
-- 续局体验：首页「继续游戏」显示难度与进度摘要；首页三入口支持键盘 ↑↓ + Enter。
+**P1（体验与状态机收口，对应 `docs/05` M1；✅ = 第二轮已完成，详见 `docs/05` §5.1）**
+- ✅ 事件通道：`message` → `Reduction(state, message)` + `Channel<String>`，已删除状态字段与 `ConsumeMessage`。
+- ✅ 派生状态记忆化：`conflicts` / `progress` 改用 `derivedStateOf`。
+- ✅ 时钟注入 + 真实时间源：单调时钟 + `SyncElapsed`；窗口最小化 / 切后台自动暂停。
+- ✅ 出题达标：`generate` 重试至目标空格（测试断言 4 档达标）。
+- ✅ 体验项：数字键剩余计数角标、撤销 / 重做可用态。
+- ⏳ 设置持久化：`strictMode / showNotes / noteMode` 一并入档（当前只存对局）。
+- ⏳ 通关墨框 + 再来一局（复用现成 `InkOverlay`，无需新依赖）。
+- ⏳ 续局体验：首页「继续游戏」显示难度与进度摘要；首页三入口支持键盘 ↑↓ + Enter。
+- ⏳ `legalMask` 下沉到状态层（目前按盘面 `remember`，未进入派生状态）。
 
 **P2（产品化，对应 M3 / M4）**
 - 战绩数据（不再做占位页）：按难度的最佳 / 平均用时、通关率；记录页需按墨线风格重新设计后接入。
@@ -201,7 +209,7 @@
 - **精准投喂**：先 `@folder composeApp/src/commonMain` 预热，再用 `@file` / `@code` 定位；方法见 `docs/04`。
 - **负面约束随需求一起给**：把本文件 §0 的相关红线直接写进需求里。
 - **提交前自检清单**：
-  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（22 项）；
+  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（28 项）；
   2. 无新增色相、无裸色值 / 魔法尺寸（§0 6–8）；
   3. 四档窗口肉眼验收：1180×900 / 800×600 / 500×1000 / 1024×768；
   4. 受影响的文档已同步更新（`docs/01`–`05` 与 README 对应章节）。

@@ -12,6 +12,7 @@ import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -90,7 +91,7 @@ private fun InkSurface(
     emphasis: Boolean = false,
     soft: Boolean = false,
     radius: Dp = DesignTokens.Radius.Button,
-    content: @Composable () -> Unit,
+    content: @Composable BoxScope.() -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -205,6 +206,8 @@ fun InkKey(
     soft: Boolean = false,
     height: Dp = 52.dp,
     fontSize: TextUnit = 21.sp,
+    /** 右上角小角标（数字键盘用它显示"该数字还剩几个"）。 */
+    badge: String? = null,
 ) {
     InkSurface(
         onClick = onClick,
@@ -219,6 +222,15 @@ fun InkKey(
             text = text,
             style = Ink.style(fontSize, if (enabled) Ink.Black else Ink.Light),
         )
+        if (badge != null) {
+            InkText(
+                text = badge,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 3.dp, end = 7.dp),
+                style = Ink.style(10.sp, Ink.Light),
+            )
+        }
     }
 }
 

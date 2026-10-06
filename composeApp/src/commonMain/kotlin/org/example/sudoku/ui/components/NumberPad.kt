@@ -29,6 +29,8 @@ fun NumberPad(
     onDigit: (Int) -> Unit,
     onErase: () -> Unit,
     modifier: Modifier = Modifier,
+    /** 每个数字还剩几个未填（索引 0..8 对应数字 1..9）；传 null 则不显示角标。 */
+    remaining: IntArray? = null,
 ) {
     Column(modifier = modifier) {
         repeat(3) { rowIndex ->
@@ -38,14 +40,18 @@ fun NumberPad(
             ) {
                 repeat(3) { colIndex ->
                     val digit = rowIndex * 3 + colIndex + 1
+                    val count = remaining?.getOrNull(digit - 1)
+                    val usedUp = count != null && count <= 0
                     val legal = legalMask == null || (legalMask and (1 shl (digit - 1))) != 0
                     InkKey(
                         text = digit.toString(),
                         onClick = { onDigit(digit) },
                         modifier = Modifier.weight(1f),
                         enabled = enabled,
-                        emphasis = legalMask != null && legal,
-                        soft = legalMask != null && !legal,
+                        // "用完了"用淡墨框 + 角标 0 表达，而不是靠颜色
+                        emphasis = !usedUp && legalMask != null && legal,
+                        soft = usedUp || (legalMask != null && !legal),
+                        badge = count?.toString(),
                     )
                 }
             }

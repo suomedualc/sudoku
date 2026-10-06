@@ -22,8 +22,12 @@ sealed interface GameAction {
 
     data object Pause : GameAction
     data object Resume : GameAction
-    data object Tick : GameAction
+
+    /**
+     * 计时同步：把**由真实时间算出的**已用秒数写回状态（替代旧的"每秒 +1"）。
+     * 时间源由 [GameViewModel] 注入，因此 reducer 依旧是纯函数。
+     */
+    data class SyncElapsed(val seconds: Int) : GameAction
 
     data class Navigate(val screen: Screen) : GameAction
-    data object ConsumeMessage : GameAction
 }

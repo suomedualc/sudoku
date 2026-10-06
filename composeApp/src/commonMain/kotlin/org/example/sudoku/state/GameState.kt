@@ -47,8 +47,6 @@ data class GameState(
     val won: Boolean = false,
     val undoStack: List<Snapshot> = emptyList(),
     val redoStack: List<Snapshot> = emptyList(),
-    /** 一次性提示（Snackbar），UI 消费后应 dispatch `ConsumeMessage`。 */
-    val message: String? = null,
 ) {
     /** 是否接受棋盘输入。 */
     val interactive: Boolean

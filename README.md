@@ -30,7 +30,9 @@
   **冲突格斜排线 + 冲突数字手绘圈**；给定数字实墨、玩家填入淡墨、候选数小号淡墨。
 - **数字输入**：点格子选中 → 点数字键填入；`擦除` 清空；笔记模式记候选数（落子自动清理同行列宫候选）。
 - **难度与唯一解**：生成时校验唯一解（空格数是目标上限，实测大师档约 22/25 次挖满，见"重要说明 6"）。
-- **计时**：UI 侧心跳每秒累加，暂停与通关时停止。
+- **计时**：由**单调时钟**按真实时间推进（不再"每秒 +1"，长局不漂移）；暂停、通关、离开对局界面、窗口最小化都会停表。
+- **数字键剩余计数**：每个数字键右上角显示"还剩几个"，填满后该键变淡墨（不用颜色表达）。
+- **撤销 / 重做可用态**：栈为空时按钮显示虚线框（禁用态），不会出现"点了没反应"。
 - **错误提示**：改给定格、在已填格记笔记、数字冲突、通关均通过 Snackbar（纸面上的"墨块"）反馈。
 - **撤销 / 重做 / 提示 / 重置**：完整对局辅助（撤销栈上限 300 步；提示次数显示在状态行）。
 - **自动存档与续局**：有未完成对局时自动落盘（桌面 `~/.sudoku-ink/save.txt`），
@@ -85,7 +87,7 @@ org.example.sudoku
 ```
 
 单向数据流：`输入（点击 / 键盘 / 心跳）→ GameAction → GameReducer.reduce → GameState → Compose 重组`；
-副作用只有两处：`state.message` → Snackbar，`GameViewModel` → `GameStore` 落盘（`Tick` 每 10 秒节流一次）。
+副作用只有三处：提示走 **事件通道** → Snackbar、计时由心跳按**真实时间**同步（`SyncElapsed`）、`GameViewModel` → `GameStore` 落盘（每 10 秒节流一次）。
 
 ## 目录
 
@@ -99,7 +101,7 @@ sudoku/
 │   ├── build.gradle.kts            jvmToolchain(21) + jvm() target + compose.desktop 配置
 │   └── src/
 │       ├── commonMain/…            业务代码（core / state / ui / App.kt）
-│       ├── commonTest/…            单测（core 4 + state 12 + 存档 6 = 22 项）
+│       ├── commonTest/…            单测（内核 5 + 状态机 12 + 计时/事件 5 + 存档 6 = 28 项）
 │       ├── androidMain/…           MainActivity.kt · AndroidManifest.xml（未启用）
 │       └── jvmMain/…               桌面窗口 · 文件存档 · 手写字体探测
 ├── archive/                        旧版 TS / Rust 实现归档（只读参考，见"重要说明 7"）
@@ -118,7 +120,7 @@ sudoku/
 $env:JAVA_HOME="<你的 JDK 21 路径>"   # 必须，例如 D:\env\...\jdk-21.x 或 /usr/lib/jvm/jdk-21
 
 .\gradlew.bat :composeApp:run                                 # 桌面直接运行
-.\gradlew.bat :composeApp:jvmTest --offline                   # 单元测试（当前 22 项）
+.\gradlew.bat :composeApp:jvmTest --offline                   # 单元测试（当前 28 项）
 .\gradlew.bat :composeApp:createDistributable                 # 生成自带 JRE 的可分发目录
 .\gradlew.bat :composeApp:packageDistributionForCurrentOS     # msi / dmg / deb（需联网下载 WiX）
 ```
@@ -150,16 +152,16 @@ $env:JAVA_HOME="<你的 JDK 21 路径>"   # 必须，例如 D:\env\...\jdk-21.x 
    ② 在 `composeApp/build.gradle.kts` 增加 AGP 插件与 `androidTarget()`（namespace / compileSdk=37 / minSdk）；
    ③ 给 `androidMain` 加 `androidx.activity:activity-compose` 依赖（`MainActivity` 用到 `setContent` / `enableEdgeToEdge`）。
    `androidMain`（MainActivity / Manifest）已保留在磁盘，Manifest 的 AppCompat 主题也已换成系统内置主题。
-3. **构建与验收已验证**（2026-10-06，Windows）：`compileKotlinJvm` 通过；`jvmTest` **22 项全绿**
-   （内核 4 + 状态机 12 + 存档 6）；`createDistributable` 通过；桌面实例完成
+3. **构建与验收已验证**（2026-10-06，Windows）：`compileKotlinJvm` 通过；`jvmTest` **28 项全绿**
+   （内核 5 + 状态机 12 + 计时与事件 5 + 存档 6）；`createDistributable` 通过；桌面实例完成
    「首页 → 难度选择 → 对局 → 落子/冲突反馈 → 关窗重启 → 继续游戏」的截图验收。
 4. **字体**：手写体来自**本机系统字体**（不打包分发），探测失败自动回退衬线体；
    若要在多端统一字形，改为打包字体资源（`docs/02` §2.3 / `docs/05` §2 阶段 C）。
 5. **配色**：只用纸与墨两级色阶，禁止色相；冲突 / 禁用 / 可填性 / 模式分别用排线、虚线、线重、线型表达
    （`docs/02` §1、§5）。主题固定浅色纸面。
-6. **已知限制**（与 `docs/05` §1 一致）：出题空格数是上限（大师档实测 22/25 次挖满）；
-   计时为每秒累加、长局有漂移且窗口最小化仍走表；存档只保存对局（不保存玩法开关）；
-   棋盘尚无逐格无障碍语义；首页三入口暂无键盘上下选择。
+6. **已知限制**（与 `docs/05` §1 一致）：存档只保存对局，不保存玩法开关；棋盘尚无逐格无障碍语义；
+   首页三入口暂无键盘上下选择。旧的"大师档挖不满 56 空 / 计时漂移 / 相同提示被吞"已在第二轮修复，
+   见 `docs/05` §5.1 执行清单。
 7. **归档目录**：旧版 TypeScript 实现（`archive/legacy/` 展开源码 + `typescript-v2-20261006.zip`）与
    Rust v1 实现（`sudoku-rust-v1-20261006.zip`）只作历史参考，**不是**当前实现，请勿引用。
    `archive/**/node_modules` 与 `archive/**/dist` 已被 `.gitignore` 忽略。
