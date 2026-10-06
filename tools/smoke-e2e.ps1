@@ -179,8 +179,8 @@ try {
         $p = Start-App
         Send-Key $p 'Enter'                       # open the difficulty drawer
         Save-Shot $p 'difficulty_drawer'
-        Send-Key $p 'Down' $script:KeyExtended    # highlight 普通
-        Send-Key $p 'Down' $script:KeyExtended    # highlight 困难
+        Send-Key $p 'Down' $script:KeyExtended    # highlight "Normal"
+        Send-Key $p 'Down' $script:KeyExtended    # highlight "Hard"
         Save-Shot $p 'difficulty_hard_highlight'
         Send-Key $p 'Enter'                       # start the Hard game
         Save-Shot $p 'game_hard'
@@ -191,10 +191,10 @@ try {
         Write-Host '== flow: exit drawer =='
         if ([System.IO.File]::Exists($saveFile)) { [System.IO.File]::Delete($saveFile) }   # fresh start: resume is greyed out
         $p = Start-App
-        Send-Key $p 'Down' $script:KeyExtended    # skips the disabled entry, lands on 退出游戏
+        Send-Key $p 'Down' $script:KeyExtended    # skips the disabled entry, lands on "Exit game"
         Send-Key $p 'Enter'                       # open the exit drawer
         Save-Shot $p 'exit_drawer'
-        Send-Key $p 'Down' $script:KeyExtended    # highlight 退出
+        Send-Key $p 'Down' $script:KeyExtended    # highlight "Quit"
         Send-Key $p 'Enter'                       # really quit
         Start-Sleep -Milliseconds 1500
         $alive = Get-Process SudokuInk -ErrorAction SilentlyContinue
@@ -206,7 +206,7 @@ try {
         Write-Host '== flow: win drawer =='
         Write-OneEmptySave $saveFile
         $p = Start-App
-        Send-Key $p 'Down' $script:KeyExtended    # 继续游戏 (enabled now that a save exists)
+        Send-Key $p 'Down' $script:KeyExtended    # "Resume game" (enabled now that a save exists)
         Send-Key $p 'Enter'                       # load it
         Save-Shot $p 'board_one_empty'
         Send-Key $p 'Hint'                        # fills the last empty cell -> win
