@@ -1,3 +1,6 @@
+// compose.uiTest 目前标记为实验性，需要显式 opt-in（仅用于 jvmTest 的 UI 测试依赖）
+@file:OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
+
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 
 plugins {
@@ -34,10 +37,19 @@ kotlin {
             // 把生成的应用图标（tools/make-icon.ps1 的产物）打进 jar：
             // jpackage 只把图标**嵌入 exe**，AWT 窗口默认仍显示 JDK 的 Java 图标，
             // 所以运行时要在 main.kt 里用这些资源设置 window.iconImages（与打包图标同源）。
+            // .ico / .icns 只供打包用，不进 jar（各平台图标由 jpackage 读取）。
             resources.srcDir("icons")
+            resources.exclude("**/*.ico", "**/*.icns")
         }
 
         jvmMain.dependencies {
+            implementation(compose.desktop.currentOs)
+        }
+
+        jvmTest.dependencies {
+            // UI 测试：抽屉 / 覆盖层的**键盘路由**只有在真实组合里才能验（父先于子的
+            // onPreviewKeyEvent 顺序、焦点归属、Esc 归属），因此这里引入 Compose 测试框架。
+            implementation(compose.uiTest)
             implementation(compose.desktop.currentOs)
         }
     }
@@ -55,10 +67,11 @@ compose.desktop {
             description = "Sudoku with hand-drawn ink style (Kotlin + Compose Multiplatform)"
             vendor = "suomedualc"
             copyright = "Copyright (c) 2026 suomedualc. MIT License."
-            // 图标由 tools/make-icon.ps1 生成（纸面 + 墨线九宫格），与界面同一套视觉语言；
-            // macOS 需要 .icns（用 iconutil 生成），未纳入本脚本，DMG 暂时使用 jpackage 默认图标。
+            // 图标由 tools/make-icon.ps1 生成（纸面 + 九宫格数字），三平台各取所需；
+            // .icns 由脚本直接写出（11 个 PNG 块），同时给出 iconutil 用的 .iconset 供 macOS 上复核。
             windows { iconFile.set(project.file("icons/sudoku.ico")) }
             linux { iconFile.set(project.file("icons/sudoku.png")) }
+            macOS { iconFile.set(project.file("icons/SudokuInk.icns")) }
         }
     }
 }

@@ -31,7 +31,7 @@
 - **对局辅助**：撤销 / 重做（上限 300 步，栈空时按钮转虚线框）、提示（状态行显示「提示 ×N」）、
   重置、暂停（白纸遮题，不泄题）、严格模式。
 - **计时**：由单调时钟按真实时间推进；暂停、通关、离开对局页、窗口最小化都会停表。
-- **通关墨框**：填满正确盘面后弹出墨框，显示用时 / 难度 / 提示次数，可直接「再来一局」（同难度重开）或返回首页。
+- **通关抽屉**：填满正确盘面后从顶部滑下结算抽屉，显示用时 / 难度 / 提示次数，可直接「再来一局」（同难度重开）或返回首页。
 - **偏好与续局**：严格模式 / 显示笔记 / 笔记模式三项偏好跨对局、跨重启保留；
   未完成的对局自动存盘（桌面 `~/.sudoku-ink/save.txt`），重启后首页即可「继续游戏」。
 
@@ -39,11 +39,13 @@
 
 | 场景 | 按键 |
 |---|---|
-| 首页 | `↑` / `↓` 在三个入口间移动（自动跳过置灰项）、`Enter` / 空格 确认；面板内 `Esc` 返回 |
+| 首页 | `↑` / `↓` 在三个入口间移动（自动跳过置灰项）、`Enter` / 空格 确认 |
+| 抽屉（难度 / 退出确认） | `↑` / `↓` 在条目间移动、`Enter` / 空格 确认、`Esc` 关闭 |
 | 对局 | `1–9` 填数、`0` / `Delete` / `Backspace` 擦除、方向键选格（自动跳过给定格）、`N` 笔记、`H` 提示、`P` / 空格 暂停、`Esc` 继续（先收悬浮面板）、`Ctrl+Z` 撤销、`Ctrl+Y`（或 `Ctrl+Shift+Z`）重做 |
-| 通关墨框 | `Enter` 再来一局、`Esc` 返回首页 |
+| 通关抽屉 | `Enter` 再来一局、`Esc` 返回首页 |
 
 鼠标点击会把键盘高亮同步到被点的项，两种输入方式互不打架；悬浮面板不接管焦点，键盘操作始终可用。
+**抽屉是模态的**：打开期间未处理的按键一律被抽屉吞掉，不会穿透到下面的菜单或棋盘（`TopDrawerKeys` 统一裁决）。
 
 ## 鼠标与触屏
 
@@ -76,7 +78,7 @@ org.example.sudoku
 ├── ui/
 │   ├── theme/    Ink.kt（纸墨配色 + 手写体 + 手绘原语）· DesignTokens.kt（尺寸）
 │   ├── components/  InkWidgets.kt（墨线控件库）· BoardCanvas.kt · NumberPad.kt · FloatingPad.kt（就近输入）
-│   ├── screens/  MenuScreen（三入口 + 键盘导航）· GameScreen（双形态 + 通关墨框 + 键盘）
+│   ├── screens/  MenuScreen（三入口 + 键盘导航）· GameScreen（双形态 + 通关抽屉 + 键盘）
 │   └── App.kt    MiuixTheme + Scaffold + 两页导航 + Snackbar
 └── entrypoints
     ├── androidMain/MainActivity.kt
@@ -91,7 +93,7 @@ org.example.sudoku
 
 ```powershell
 .\gradlew.bat :composeApp:run                  # 桌面直接运行
-.\gradlew.bat :composeApp:jvmTest --offline    # 单元测试（40 项）
+.\gradlew.bat :composeApp:jvmTest --offline    # 单元测试 + UI 测试（53 项）
 .\gradlew.bat :composeApp:createDistributable  # 自带 JRE 的分发目录（binaries/main/app/SudokuInk）
 .\gradlew.bat :composeApp:packageMsi           # Windows 安装包（首次需联网下载 WiX）
 ```
@@ -99,16 +101,17 @@ org.example.sudoku
 首次构建需联网拉取依赖，依赖缓存就绪后可加 `--offline`。仓库已含 Gradle wrapper，无需本机安装 Gradle；
 启动 Gradle 的 `JAVA_HOME` 指向 JDK 17–24 即可（`jvmToolchain(21)` 会复用该 JVM，仓库内不写死任何本机路径）。
 应用图标是**九宫格 + 数字**的纸墨风格（`5 / 3 / 4 / 9 / 7` 部分填、部分空），由 `tools/make-icon.ps1` 一次生成：
-`composeApp/icons/` 供打包（`iconFile`，写进 exe / MSI）与运行时窗口图标（打进 jar，jpackage 不负责后者），
-`assets/icon/` 输出桌面 / Android / iOS / Web 各平台规格与矢量源文件。设计与规格见 `docs/06-应用图标设计.md`。
+`composeApp/icons/` 供打包（Windows `.ico` / Linux `.png` / macOS `.icns`，写进 exe、MSI、DMG）与运行时窗口图标
+（打进 jar，jpackage 不负责后者）；`assets/icon/` 输出桌面 / Android（含**自适应图标分层**）/ iOS / macOS / Web
+各平台规格与矢量源文件。设计与规格见 `docs/06-应用图标设计.md`（含 Android 66dp 安全区规范与 `.icns` 生成流程）。
 
 ## 跨平台
 
 | 目标 | 状态 | 说明 |
 |---|---|---|
-| Desktop / JVM | ✅ | Windows 上完成编译、测试、运行与 MSI 打包验证 |
-| Android | 接入即用 | miuix 要求 `compileSdk 37`；步骤见 `docs/05` §3.1 |
-| iOS / macOS | 接入即用 | miuix 已发布对应变体，构建需 macOS 主机 |
+| Desktop / JVM | ✅ | Windows 上完成编译、测试、运行与 MSI 打包验证；三平台图标（`.ico` / `.png` / `.icns`）已就绪 |
+| Android | 接入即用 | miuix 要求 `compileSdk 37`；步骤见 `docs/05` §3.1；自适应图标分层资源已生成（`docs/06` §6） |
+| iOS / macOS | 接入即用 | miuix 已发布对应变体，构建需 macOS 主机；`.icns` 已生成（`docs/06` §7） |
 | Web（wasmJs / js） | 接入即用 | miuix 已发布 Web 变体，可在 Windows 上构建 |
 
 `core` 与 `state` 两层零平台依赖，新增平台只需补 target、entrypoint 与 `GameStore` 实现，业务代码不动。

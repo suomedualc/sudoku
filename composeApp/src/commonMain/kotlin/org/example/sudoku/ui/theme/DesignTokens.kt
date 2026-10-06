@@ -47,6 +47,12 @@ object DesignTokens {
         /** 首页底部装饰棋盘的边长。 */
         val SketchSize: Dp = 168.dp
 
+        /** 顶部抽屉（TopDrawer）内容的最大宽度：宽窗口居中留白，窄窗口占满。 */
+        val DrawerMaxWidth: Dp = 560.dp
+
+        /** 顶部抽屉的下缘圆角外的"抓手段"长度。 */
+        val DrawerGripWidth: Dp = 44.dp
+
         /** 对局页为底部提示条（Snackbar）预留的高度，避免提示盖住棋盘最后一行。 */
         val SnackbarReserve: Dp = 64.dp
 

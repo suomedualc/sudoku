@@ -48,6 +48,8 @@ object Ink {
         const val Wash = 0.07f
         const val WashStrong = 0.14f
         const val Disabled = 0.26f
+        /** 模态遮罩：覆盖层的"纸背压暗"程度（全站统一，避免各覆盖层深浅不一）。 */
+        const val Mask = 0.16f
     }
 
     /** 线宽（像素值；如需 dp 请用 [DesignTokens] 里的尺寸再 `toPx()`）。 */

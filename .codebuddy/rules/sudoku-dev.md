@@ -1,4 +1,4 @@
-# 数独（手写纸 · 简约油墨）开发纪律 · v1.7
+# 数独（手写纸 · 简约油墨）开发纪律 · v1.8
 
 > 本文件是"系统层"上下文（自动加载），既是**强制规则**，也是本工程的**开发思路 / 选型依据 / 模块说明 / 迭代计划**的简版。
 > 详细论证见 `docs/01-架构设计.md`、`docs/02-设计规范.md`、`docs/03-开发流程.md`、`docs/05-发展规划.md`。
@@ -22,8 +22,12 @@
 6. **只有纸与墨**：任何新组件都不得引入色相（不得出现红/绿/蓝语义色，也不得使用 miuix 的彩色语义色）；
    层次只能用墨的浓淡（`Ink.Alpha.*`）、线重（`DesignTokens.Stroke.*`）、线型（实线 / 虚线 / 排线）表达。
 7. **颜色与字体只在 `ui/theme/Ink.kt`，尺寸只在 `ui/theme/DesignTokens.kt`**；组件里禁止裸色值与魔法尺寸。
-8. **所有可见控件走自绘墨线组件**（`InkSurface` 家族：`InkButton` / `InkKey` / `InkToggleRow` / `InkPanel` / `InkOverlay`）；
+8. **所有可见控件走自绘墨线组件**（`InkSurface` 家族：`InkButton` / `InkKey` / `InkToggleRow` / `InkPanel`）；
    引入 miuix 的 `Button / Card / Switch / TopAppBar` 等**外观型组件**属于回退，需先说明理由。
+9. **覆盖层一律用 `TopDrawer`**（`ui/components/TopDrawer.kt` + `TopDrawerController`）：难度选择 / 退出确认 / 通关结算
+   以及今后任何"请先做决定"的浮层都用它；**禁止** `Dialog` / `Popup` / 自造遮罩 / 第二套覆盖层实现。
+   页面根节点必须在 `onPreviewKeyEvent` 里先 `drawer.handleKey(event, drawerKeys)` 再处理自己的键——
+   Compose 的预览事件是**父先于子**，不仲裁就会出现"抽屉打开时底下的菜单/棋盘同时响应"。
 9. 手绘线条必须使用 `inkLine / inkRoundRect / inkHatch`，且抖动的种子必须由内容派生（纯函数）——
    **禁止** `Random()` 之类每次重绘都会变的抖动源（会让界面"抖"）。
 10. 绘制尺寸一律用 dp / `toSp()`，**禁止**把 `DrawScope` 的像素值直接当 dp / sp 用。
@@ -150,8 +154,9 @@
 | `components/BoardCanvas.kt` | 棋盘墨线绘制 | 分层：纸面 → 墨洗 → 格线 → 数字/笔记 → 选中框；文本缓存 + `rememberUpdatedState` |
 | `components/NumberPad.kt` | 数字键盘 | `legalMask: Int?`：`null` = 不区分；非 null 时**线重**区分可填 / 不可填（不禁用） |
 | `components/FloatingPad.kt` | 半透明悬浮输入面板 + `FloatingPadPolicy`（位置 / 尺寸 / 开合纯逻辑） | **只列该格可填数字**（键 48dp、最多 3 列自适应；候选为 0 时给一行提示）；只用 `PointerType` 判定"精确指针"；**不接管焦点**；位置 / 尺寸 / 开合必须是纯函数并有单测 |
-| `screens/MenuScreen.kt` | 首页 | **只有三个入口**（开始 / 继续 / 退出）+ 难度遮罩 + 退出确认 + 底部草图；`MenuCursor` + `onPreviewKeyEvent` 提供 ↑↓ / Enter / Esc（跳过置灰项，鼠标点击同步高亮） |
-| `screens/GameScreen.kt` | 对局页 | 宽屏双栏 / 窄屏滚动；暂停白纸遮题；通关墨框（`WinOverlay` 复用 `InkOverlay`，不可点空白关闭）；悬浮面板的锚点格与统一出口 `dispatch`（除选格 / 换格 / 心跳外任何动作都收面板）；`handleKeyEvent` 键盘映射（`Esc` 先收面板，通关时 Enter 再来一局 / Esc 回首页） |
+| `components/TopDrawer.kt` | 顶部抽屉（**唯一覆盖层形态**）+ `TopDrawerController` + `TopDrawerKeys` | 全屏遮罩 + 顶部滑入纸片（全宽、限宽 560dp、只有下缘圆角 + 抓手段）；遮罩只在展开时拦指针；键盘仲裁是**纯函数**（有单测）；关闭时 `restoreFocus` 交回焦点；页面根节点必须先调 `drawer.handleKey` |
+| `screens/MenuScreen.kt` | 首页 | **只有三个入口**（开始 / 继续 / 退出）+ 难度抽屉 + 退出确认抽屉 + 底部草图；`MenuCursor` + `onPreviewKeyEvent` 提供 ↑↓ / Enter / Esc（跳过置灰项，鼠标点击同步高亮）；键先过抽屉仲裁 |
+| `screens/GameScreen.kt` | 对局页 | 宽屏双栏 / 窄屏滚动；暂停白纸遮题；通关结算抽屉（`WinDrawer` 复用 `TopDrawer`，不可点遮罩关闭）；悬浮面板的锚点格与统一出口 `dispatch`（除选格 / 换格 / 心跳外任何动作都收面板）；键序 **抽屉 → 悬浮面板 Esc → 棋盘**（`handleKeyEvent` 只管棋盘，通关期由 `winDrawerKeys` 接管） |
 | `App.kt` | 装配 | `MiuixTheme(lightColorScheme())` + `Scaffold` + 两页导航 + Snackbar；铺 `Ink.Paper`；无顶部栏 |
 
 ### 3.4 entrypoints
@@ -210,6 +215,9 @@
 - ✅ 候选提示开关：**所有空格**用**半透明灰**数字显示规则允许的候选（第 4 项设置，默认关闭）。
 - ✅ 悬浮输入面板：鼠标 / 触控笔点空格就地弹出，**只列该格可填的数字**（键 48dp、尺寸自适应；位置 / 尺寸 / 开合是纯函数 + 单测；手指不弹）。
 - ✅ 触屏方案定型：常驻底部键盘 + 同一套空心候选；命中区放大与候选预览条留到 M2。
+- ✅ 顶部抽屉统一覆盖层（第五轮）：`TopDrawer` + `TopDrawerController` + `TopDrawerKeys`；难度 / 退出确认 / 通关结算全部迁入，
+  `InkOverlay` 删除；抽屉打开时未处理的键一律吞掉（解决"覆盖层 + 快捷键"冲突）；
+  新增 `TopDrawerKeysTest`（9）+ `TopDrawerUiTest`（4，真实组合 + 按键注入），测试总数 40 → **53**。
 - ⏳ 续局体验增强：首页「继续游戏」显示难度与进度摘要（当前只有置灰/可用两态）。
 - ⏳ `legalMask` 下沉到状态层（目前按盘面 `remember`，未进入派生状态）。
 

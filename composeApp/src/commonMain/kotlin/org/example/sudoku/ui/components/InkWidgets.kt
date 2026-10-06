@@ -3,7 +3,6 @@ package org.example.sudoku.ui.components
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.hoverable
@@ -25,11 +24,9 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,7 +40,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -342,59 +338,6 @@ fun InkPanel(
             .padding(padding),
         content = content,
     )
-}
-
-/**
- * 墨色遮罩层：难度选择 / 退出确认 / 通关墨框。默认点空白关闭（[dismissible] = false 时不可关）。
- *
- * 入场是"墨迹落纸"：遮罩由淡到浓、墨框从 0.94 倍压印到原尺寸（约 220ms），
- * 用位移 + 透明度表达手写感，不做弹跳与回弹（与纸墨语言一致）。
- */
-@Composable
-fun InkOverlay(
-    onDismiss: () -> Unit,
-    modifier: Modifier = Modifier,
-    dismissible: Boolean = true,
-    content: @Composable ColumnScope.() -> Unit,
-) {
-    var appeared by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { appeared = true }
-    val stamp by animateFloatAsState(
-        targetValue = if (appeared) 1f else 0f,
-        animationSpec = tween(durationMillis = 220),
-        label = "inkOverlay",
-    )
-
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Ink.Black.copy(alpha = 0.16f * stamp))
-            .clickable(
-                indication = null,
-                interactionSource = remember { MutableInteractionSource() },
-                onClick = { if (dismissible) onDismiss() },
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        InkPanel(
-            modifier = Modifier
-                .padding(DesignTokens.Spacing.Lg)
-                .widthIn(max = 440.dp)
-                .graphicsLayer {
-                    alpha = stamp
-                    scaleX = 0.94f + 0.06f * stamp
-                    scaleY = 0.94f + 0.06f * stamp
-                }
-                .clickable(
-                    indication = null,
-                    interactionSource = remember { MutableInteractionSource() },
-                    onClick = { /* 吞掉点击，避免穿透到遮罩 */ },
-                ),
-            padding = PaddingValues(DesignTokens.Spacing.Lg),
-            seed = 21,
-            content = content,
-        )
-    }
 }
 
 /**

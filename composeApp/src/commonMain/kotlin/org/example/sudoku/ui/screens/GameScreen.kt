@@ -55,14 +55,18 @@ import org.example.sudoku.ui.components.FloatingInputPad
 import org.example.sudoku.ui.components.FloatingPadPolicy
 import org.example.sudoku.ui.components.InkButton
 import org.example.sudoku.ui.components.InkDivider
-import org.example.sudoku.ui.components.InkOverlay
 import org.example.sudoku.ui.components.InkPanel
 import org.example.sudoku.ui.components.InkText
 import org.example.sudoku.ui.components.InkTitleFrame
 import org.example.sudoku.ui.components.InkToggleRow
 import org.example.sudoku.ui.components.NumberPad
+import org.example.sudoku.ui.components.TopDrawer
+import org.example.sudoku.ui.components.rememberTopDrawerController
 import org.example.sudoku.ui.theme.DesignTokens
 import org.example.sudoku.ui.theme.Ink
+
+/** 抽屉标识：通关结算（模态，必须明确选择）。 */
+private const val DRAWER_WIN = "game.win"
 
 /**
  * 对局界面（手写纸 · 油墨）。
@@ -76,7 +80,9 @@ import org.example.sudoku.ui.theme.Ink
  * - 鼠标 / 触屏点选；**鼠标 / 触控笔点空格**会就地弹出半透明悬浮数字面板（[FloatingInputPad]），
  *   手指不弹（会被手指挡住），触屏走常驻数字键盘；
  * - 桌面键盘由 [handleKeyEvent] 处理（1–9 填数、0/Delete 擦除、方向键选格并跳过给定格、N 笔记、
- *   H 提示、P/空格 暂停、Esc 继续 / 收面板、Ctrl+Z/Y 撤销重做）。
+ *   H 提示、P/空格 暂停、Esc 继续 / 收面板、Ctrl+Z/Y 撤销重做）；
+ * - 通关时改为**模态的顶部抽屉**（[WinDrawer]）：`Enter` 再来一局、`Esc` 返回首页，
+ *   其余按键由抽屉统一吞掉，不会再落到棋盘上（见 [rememberTopDrawerController]）。
  */
 @Composable
 fun GameScreen(
@@ -90,8 +96,19 @@ fun GameScreen(
     val (done, total) = progress
     val focusRequester = remember { FocusRequester() }
     val scrollState = rememberScrollState()
+    val drawer = rememberTopDrawerController()
 
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
+
+    // 通关是"数据驱动"的状态，抽屉开关跟着它走：不可点遮罩关闭，必须明确选择
+    // （「再来一局」/「返回首页」）。离开通关态（再来一局、重置、看答案结算）时自动收起。
+    LaunchedEffect(state.won) {
+        if (state.won) {
+            drawer.open(DRAWER_WIN, dismissible = false)
+        } else if (drawer.isOpen(DRAWER_WIN)) {
+            drawer.close()
+        }
+    }
 
     // 悬浮数字面板：记录"面板锚在哪个格子"。属于纯 UI 细节，因此不进 GameState。
     var padCell by remember { mutableStateOf<Int?>(null) }
@@ -118,6 +135,34 @@ fun GameScreen(
         onAction(GameAction.Select(cell))
     }
 
+    /** Esc 先收悬浮面板：第一次 Esc 只关浮层，再按才走"暂停 / 继续"。 */
+    val handleEscForPad: (KeyEvent) -> Boolean = { event ->
+        if (event.type == KeyEventType.KeyDown && event.key == Key.Escape && padCell != null) {
+            padCell = null
+            true
+        } else {
+            false
+        }
+    }
+
+    /**
+     * 通关抽屉内的键：`Enter` / 空格 再来一局，`Esc` 返回首页（抽屉不可点遮罩关闭）。
+     * 抽屉是模态的——棋盘此时已锁定，其余按键由 [rememberTopDrawerController] 统一吞掉。
+     */
+    val winDrawerKeys: (KeyEvent) -> Boolean = { event ->
+        when (event.key) {
+            Key.Enter, Key.NumPadEnter, Key.Spacebar -> {
+                dispatch(GameAction.NewGame(game.difficulty))
+                true
+            }
+            Key.Escape -> {
+                dispatch(GameAction.Navigate(Screen.Menu))
+                true
+            }
+            else -> false
+        }
+    }
+
     val boardDescription = remember(game, state.selected, state.paused, state.hintCandidates, done, total) {
         buildString {
             append("数独棋盘，难度 ${game.difficulty.label}，已填 $done / $total")
@@ -135,13 +180,10 @@ fun GameScreen(
             .fillMaxSize()
             .focusRequester(focusRequester)
             .onPreviewKeyEvent { event ->
-                // Esc 优先收面板：第一次 Esc 只关浮层，再按才走"暂停 / 继续"
-                if (event.type == KeyEventType.KeyDown && event.key == Key.Escape && padCell != null) {
-                    padCell = null
-                    true
-                } else {
+                // 键序：抽屉（模态，打开时吞掉一切）→ 悬浮面板（Esc 先收它）→ 棋盘快捷键
+                drawer.handleKey(event, winDrawerKeys) ||
+                    handleEscForPad(event) ||
                     handleKeyEvent(event, state, dispatch)
-                }
             }
             .focusable(),
     ) {
@@ -217,32 +259,40 @@ fun GameScreen(
             }
         }
 
-        // 通关墨框：盖住整页，玩家必须明确选择「再来一局」或「返回首页」
-        if (state.won) {
-            WinOverlay(
-                difficultyLabel = game.difficulty.label,
-                elapsed = state.elapsed,
-                hintsCount = state.hintsCount,
-                onPlayAgain = { dispatch(GameAction.NewGame(game.difficulty)) },
-                onBackToMenu = { dispatch(GameAction.Navigate(Screen.Menu)) },
-            )
-        }
+        // 通关抽屉：从顶部滑下、盖住整页，玩家必须明确选择「再来一局」或「返回首页」
+        WinDrawer(
+            visible = drawer.isOpen(DRAWER_WIN),
+            difficultyLabel = game.difficulty.label,
+            elapsed = state.elapsed,
+            hintsCount = state.hintsCount,
+            restoreFocus = focusRequester,
+            onPlayAgain = { dispatch(GameAction.NewGame(game.difficulty)) },
+            onBackToMenu = { dispatch(GameAction.Navigate(Screen.Menu)) },
+        )
     }
 }
 
 /**
- * 通关墨框：复用 [InkOverlay]（自带"墨迹落纸"入场动画），给出本局成绩并支持直接再来一局。
- * 不可点空白关闭——避免"随手一点就丢了结算信息"。
+ * 通关抽屉：用 [TopDrawer] 从顶部滑下（自带滑入动画），给出本局成绩并支持直接再来一局。
+ * 不可点遮罩关闭（[TopDrawer] 的 `dismissible = false`）——避免"随手一点就丢了结算信息"。
  */
 @Composable
-private fun WinOverlay(
+private fun WinDrawer(
+    visible: Boolean,
     difficultyLabel: String,
     elapsed: Int,
     hintsCount: Int,
+    restoreFocus: FocusRequester,
     onPlayAgain: () -> Unit,
     onBackToMenu: () -> Unit,
 ) {
-    InkOverlay(onDismiss = {}, dismissible = false) {
+    TopDrawer(
+        visible = visible,
+        onDismiss = {},
+        dismissible = false,
+        restoreFocus = restoreFocus,
+        a11yTitle = "通关结算",
+    ) {
         InkTitleFrame(title = "通关", subtitle = "本局用时 ${Sudoku.formatDuration(elapsed)}")
         Spacer(Modifier.height(DesignTokens.Spacing.Md))
         WinRow("难度", difficultyLabel)
@@ -474,6 +524,9 @@ private fun OptionsPanel(state: GameState, onAction: (GameAction) -> Unit) {
 
 /**
  * 桌面键盘映射（仅 KeyDown 生效；暂停 / 结算时只保留撤销重做与继续）。
+ *
+ * **通关期不在本函数处理**：那时是模态的通关抽屉在管事（`Enter` 再来一局 / `Esc` 返回首页，
+ * 其余键一律吞掉），所以这里既没有 `won` 分支，也不会出现"空格被当成继续"的串扰。
  */
 private fun handleKeyEvent(
     event: KeyEvent,
@@ -489,21 +542,6 @@ private fun handleKeyEvent(
     if (event.isCtrlPressed && event.key == Key.Y) {
         onAction(GameAction.Redo)
         return true
-    }
-    // 通关墨框：Enter / 空格 再来一局，Esc 返回首页（棋盘已锁定，其余按键不再响应）
-    if (state.won) {
-        val difficulty = state.game?.difficulty
-        return when (event.key) {
-            Key.Enter, Key.NumPadEnter, Key.Spacebar -> {
-                if (difficulty != null) onAction(GameAction.NewGame(difficulty))
-                true
-            }
-            Key.Escape -> {
-                onAction(GameAction.Navigate(Screen.Menu))
-                true
-            }
-            else -> false
-        }
     }
     if (!state.interactive) {
         if (event.key == Key.Escape || event.key == Key.Spacebar) {
