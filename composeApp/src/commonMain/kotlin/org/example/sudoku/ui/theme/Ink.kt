@@ -28,7 +28,7 @@ import kotlin.math.sin
  * - **只有纸与墨**：纸 = 暖白，墨 = 近黑；层次只靠墨的浓淡（alpha），不引入色相；
  * - 所有线条用 [inkLine] / [inkRoundRect] 绘制（折线微弯 + 叠一遍淡墨）模拟手绘与笔触不匀；
  * - 抖动由 `seed` 决定的**纯函数**生成——同一根线每次重绘完全一致，不会在重组/重绘时闪动；
- * - 字体走系统手写体（[systemInkFontFamily]），取不到时回退衬线体，绝不因缺字体而崩。
+ * - 字体打包分发（[textFontFamily] 霞鹜文楷 / [digitFontFamily] Nunito），取不到时回退系统字体，绝不因缺字体而崩。
  */
 object Ink {
     /**
@@ -82,20 +82,17 @@ object Ink {
     // 线宽不在此处定义——统一走 DesignTokens.Stroke（dp 令牌，可适配高 DPI）。
 
     /**
-     * 全站**唯一的字形出口**：中西混排。
+     * 正文 / 标题字体：**打包霞鹜文楷**（LXGW WenKai，OFL 1.1），取不到再回退系统楷书 → 衬线体。
      *
-     * - 汉字：**霞鹜文楷**（LXGW WenKai，OFL 1.1）——硬笔楷书的骨架 + 屏幕优化版（Screen 变种），
-     *   手写感来自笔画本身，不需要额外的"手写风格变形"；
-     * - 拉丁字与**数字**：**Source Serif**（Adobe，OFL 1.1）——低对比的人文书卷衬线，
-     *   开放字口（小字号不糊）、笔画轻重与文楷同一档、`tnum` 等宽数字齐全。
-     *   为什么不给汉字配数字：数独里 81 个格子是主信息，认得出第一位；
-     *   比较两个大家"搭不搭"的关键其实是**笔画粗细与字重**相同，而不是同一个出品方。
-     * - 两者都**随包分发**（不再是"取本机已装的字体"），跨平台字形完全一致。
-     * - 平台全部取不到时回退衬线体，绝不因缺字体而崩。
+     * 为什么从"只探系统字体"改为"打包分发"：跨平台字形一致（`docs/07` P1-3），
+     * 不同设备不再因为缺字体而退回衬线体。授权文件见 `resources/fonts/OFL-LXGWWenKai.txt`。
      */
-    val InkFont: FontFamily get() = platformInkFontFamily() ?: FontFamily.Serif
+    val FontText: FontFamily get() = textFontFamily() ?: FontFamily.Serif
 
-    /** 墨字：默认字距略放宽，模拟手写呼吸感。 */
+    /** 数字字体：**打包 Nunito**（圆润人文无衬线，OFL 1.1），用于棋盘格内数字与数字键盘键位。 */
+    val FontDigits: FontFamily get() = digitFontFamily() ?: FontFamily.SansSerif
+
+    /** 墨字（正文）：默认字距略放宽，模拟手写呼吸感。 */
     fun style(
         size: TextUnit,
         color: Color = Black,
@@ -103,7 +100,28 @@ object Ink {
         letterSpacing: TextUnit = 0.6.sp,
         lineHeight: TextUnit = TextUnit.Unspecified,
     ) = TextStyle(
-        fontFamily = InkFont,
+        fontFamily = FontText,
+        fontSize = size,
+        color = color,
+        fontWeight = weight,
+        letterSpacing = letterSpacing,
+        lineHeight = lineHeight,
+    )
+
+    /**
+     * 数字专用样式：与正文同一套墨色与字号，但换 [FontDigits]、字距收紧为 0。
+     *
+     * 数字不是方块字，不需要正文那 0.6sp 的"呼吸字距"——收紧后多位数（如候选、计时）更稳。
+     * 用于棋盘格内数字 / 笔记 / 候选，以及数字键盘键位；**句子里的数字仍走 [style]**（读作"文字里的数字"）。
+     */
+    fun digitStyle(
+        size: TextUnit,
+        color: Color = Black,
+        weight: FontWeight = FontWeight.Normal,
+        letterSpacing: TextUnit = 0.sp,
+        lineHeight: TextUnit = TextUnit.Unspecified,
+    ) = TextStyle(
+        fontFamily = FontDigits,
         fontSize = size,
         color = color,
         fontWeight = weight,
@@ -144,16 +162,11 @@ object Ink {
     }
 }
 
-/**
- * 数字专用：**等宽数字**（tnum）。
- *
- * 计时、进度、统计每跳一秒都在变——比例数字的 `1` 比 `0` 窄，
- * 数字一变整串宽度就抖；开了 tnum 之后字宽一致，视觉上钉住不动。
- */
-fun TextStyle.tabular(): TextStyle = copy(fontFeatureSettings = "tnum")
+/** 由平台提供正文字体（桌面加载打包的霞鹜文楷，失败再探系统楷书）；取不到返回 null，[Ink.FontText] 回退衬线体。 */
+expect fun textFontFamily(): FontFamily?
 
-/** 由平台提供字形（桌面端优先读随包字体，见各平台 `ui/theme/InkFonts`）。 */
-expect fun platformInkFontFamily(): FontFamily?
+/** 由平台提供数字字体（桌面加载打包的 Nunito）；取不到返回 null，[Ink.FontDigits] 回退无衬线体。 */
+expect fun digitFontFamily(): FontFamily?
 
 /**
  * 稳定伪随机：同一 seed 永远返回同一值，范围 [-0.5, 0.5)。

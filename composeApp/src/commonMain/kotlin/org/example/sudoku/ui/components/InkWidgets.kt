@@ -220,7 +220,19 @@ fun InkKey(
     fontSize: TextUnit = Ink.Type.Title.fontSize,
     /** 右上角小角标（数字键盘用它显示"该数字还剩几个"）。 */
     badge: String? = null,
+    /** 内容是纯数字时置 true：换 [Ink.FontDigits]（Nunito）并收紧字距——数字不是方块字，不需要标题那 2sp 的呼吸字距。 */
+    digit: Boolean = false,
 ) {
+    val keyStyle = if (digit) {
+        Ink.Type.Title.copy(fontFamily = Ink.FontDigits, letterSpacing = 0.sp)
+    } else {
+        Ink.Type.Title
+    }
+    val badgeStyle = if (digit) {
+        Ink.Type.Meta.copy(color = Ink.Light, fontFamily = Ink.FontDigits, letterSpacing = 0.sp)
+    } else {
+        Ink.Type.Meta.copy(color = Ink.Light)
+    }
     InkSurface(
         onClick = onClick,
         modifier = modifier,
@@ -232,7 +244,7 @@ fun InkKey(
     ) {
         InkText(
             text = text,
-            style = Ink.Type.Title.copy(fontSize = fontSize, color = if (enabled) Ink.Black else Ink.Faint),
+            style = keyStyle.copy(fontSize = fontSize, color = if (enabled) Ink.Black else Ink.Faint),
         )
         if (badge != null) {
             InkText(
@@ -240,7 +252,7 @@ fun InkKey(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(top = DesignTokens.Spacing.Xs, end = DesignTokens.Spacing.Sm),
-                style = Ink.Type.Meta.copy(color = Ink.Light),
+                style = badgeStyle,
             )
         }
     }

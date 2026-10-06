@@ -1,7 +1,7 @@
 package org.example.sudoku.ui.theme
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.ProvidableCompositionLocal
+import androidx.compose.runtime.CompositionLocal
 import androidx.compose.runtime.compositionLocalOf
 
 /**
@@ -21,7 +21,7 @@ expect fun prefersReducedMotion(): Boolean
  * 之所以要这个注入点：平台 API 在跨平台测试源集里调不到，而"减少动效时时长必须是 0"
  * 恰恰是最容易写漏的一条（写成"缩短一半"就白做了）。
  */
-val LocalReduceMotion: ProvidableCompositionLocal<Boolean> = compositionLocalOf { prefersReducedMotion() }
+val LocalReduceMotion: CompositionLocal<Boolean> = compositionLocalOf { prefersReducedMotion() }
 
 /**
  * 纯函数：基准时长 → 实际时长。**减少动效时一律 0（瞬时）**。

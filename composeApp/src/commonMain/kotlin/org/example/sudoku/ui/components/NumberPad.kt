@@ -52,6 +52,7 @@ fun NumberPad(
                         emphasis = !usedUp && legalMask != null && legal,
                         soft = usedUp || (legalMask != null && !legal),
                         badge = count?.toString(),
+                        digit = true,
                     )
                 }
             }

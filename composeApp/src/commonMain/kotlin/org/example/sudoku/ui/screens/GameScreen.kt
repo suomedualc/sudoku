@@ -64,7 +64,6 @@ import org.example.sudoku.ui.components.TopDrawer
 import org.example.sudoku.ui.components.rememberTopDrawerController
 import org.example.sudoku.ui.theme.DesignTokens
 import org.example.sudoku.ui.theme.Ink
-import org.example.sudoku.ui.theme.tabular
 
 /** 抽屉标识：通关结算（模态，必须明确选择）。 */
 private const val DRAWER_WIN = "game.win"
@@ -322,7 +321,7 @@ private fun WinRow(label: String, value: String) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         InkText(text = label, style = Ink.Type.Caption.copy(color = Ink.Grey))
-        InkText(text = value, style = Ink.Type.Body.tabular())
+        InkText(text = value, style = Ink.Type.Body)
     }
     Spacer(Modifier.height(DesignTokens.Spacing.Xs))
 }
@@ -399,13 +398,12 @@ private fun StatusLine(game: Game, state: GameState, done: Int, total: Int) {
             InkText(text = game.difficulty.label, style = Ink.Type.Body.copy(color = Ink.Grey))
             InkText(
                 text = if (state.paused) "已暂停" else Sudoku.formatDuration(state.elapsed),
-                // 等宽数字（tnum）：计时每跳一秒宽度不变，读数不左右抖
-                style = Ink.Type.Body.tabular(),
+                style = Ink.Type.Body,
             )
             if (state.hintsCount > 0) {
                 InkText(text = "提示 ×${state.hintsCount}", style = Ink.Type.Caption.copy(color = Ink.Grey))
             }
-            InkText(text = "$done / $total", style = Ink.Type.Body.tabular().copy(color = Ink.Grey))
+            InkText(text = "$done / $total", style = Ink.Type.Body.copy(color = Ink.Grey))
         }
         Spacer(Modifier.height(DesignTokens.Spacing.Sm))
         InkDivider(seed = 5)

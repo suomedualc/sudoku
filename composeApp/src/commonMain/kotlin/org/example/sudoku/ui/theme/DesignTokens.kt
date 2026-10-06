@@ -115,13 +115,11 @@ object DesignTokens {
      * 手绘风格不适合"弹跳 / 过冲"这类机械感曲线，因此统一用 `tween` 的默认
      * FastOutSlowIn 缓动；时长分三档即可：
      * - [Press] 按压 / 底纹等**即时反馈**：必须快，慢了就像卡顿；
-     * - [Reveal] 开局**墨迹显影**：够看清"字被写上去"，又不拖到让人等；
      * - [Enter] 覆盖层进入：略慢，让"纸落下来"看得清；
      * - [Exit] 覆盖层退出：**比进入快**——退场不该拖沓（iOS/ Material 通用惯例）。
      */
     object Motion {
         const val PressMs: Int = 90
-        const val RevealMs: Int = 160
         const val EnterMs: Int = 240
         const val ExitMs: Int = 180
     }

@@ -1,4 +1,4 @@
-# 数独（手写纸 · 简约油墨）开发纪律 · v2.1
+# 数独（手写纸 · 简约油墨）开发纪律 · v2.2
 
 > 本文件是"系统层"上下文（自动加载），既是**强制规则**，也是本工程的**开发思路 / 选型依据 / 模块说明 / 迭代计划**的简版。
 > 详细论证见 `docs/01-架构设计.md`、`docs/02-设计规范.md`、`docs/03-开发流程.md`、`docs/05-发展规划.md`。
@@ -57,10 +57,14 @@
     语义层**不许吞掉点击**（有专项 UI 测试守着）。新增棋盘可视化（如新的提示层）要评估是否需要进朗读文案。
 20. **新增动画必须过 reduced-motion**：任何 `animate*AsState` / `tween` 的时长都要经 `motionDurationMs(baseMs)`
     （开启时返回 **0**，不做半速播放）；平台判定只在 `prefersReducedMotion()` 里做，不在调用点读系统设置。
+21. **字体是分发资产**：正文用打包霞鹜文楷（`Ink.FontText`）、数字用打包 Nunito（`Ink.FontDigits` / `Ink.digitStyle`），
+    都在 `resources/fonts/`（OFL 1.1，授权原文随包）。**只对纯数字内容用数字字体**（棋盘格内、数字键盘键位），
+    句子里的数字仍走正文字体。改字体来源 / 版本要同步 `tools/get-fonts.ps1`（钉死 URL 与版本）并保留 OFL 原文；
+    若做子集化，属"修改版本"，需按 OFL 第 3 条处理保留字体名（霞鹜文楷 OFL 声明保留「LXGW / 霞鹜」等名）。
     **打包图标与运行时图标必须同源**：jpackage 只把图标嵌进 exe；AWT 窗口默认仍显示 JDK 的 Java 图标，
     因此 `jvmMain/main.kt` 必须显式设置 `window.iconImages`（PNG 经 `jvmMain { resources.srcDir("icons") }` 进 jar）。
 
-**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 75 项，含 3 项离线渲染快照）+ **实机冒烟**
+**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 70 项）+ **实机冒烟**
 （`tools/smoke-e2e.ps1`，置顶 + 固定坐标，见 §5）+ **实机试玩**（§6 第 4–5 条）+ 肉眼验收四档窗口。
 
 ---
@@ -90,7 +94,7 @@
 | 语言/框架 | Kotlin + Compose Multiplatform | Flutter / Tauri+Web / 原生双写 | 一份 UI 跨端；`core/state` 零平台依赖可 100% 复用 | 生态小于 Flutter；iOS 构建需 macOS 主机 | 若必须覆盖 iOS 且无 Mac，评估 Flutter（会丢掉现有栈） |
 | 骨架与提示 | miuix（`MiuixTheme` / `Scaffold` / `SnackbarHost`） | 纯 Compose 自建骨架 | 主题上下文、安全区内边距、Snackbar 生命期与无障碍都已成熟 | miuix 标注 experimental，签名可能变 | 若 miuix 长期不更新或被迫升 compileSdk，可改为自建骨架（`Box` + `WindowInsets` + 自绘提示条） |
 | 视觉组件 | **自绘墨线组件**（`InkWidgets.kt`） | miuix `Button/Card/Switch` | 手写纸风格与填充色块 / Material 圆角的观感冲突；自绘才能做到"折线微弯 + 叠墨 + 五态一致" | 需要自己维护交互态（悬停/按压/焦点/禁用）与无障碍语义 | 若将来要"回到 miuix 观感"，只需替换 `InkWidgets` 一层，页面代码不动（组件边界已隔离） |
-| 字体 | **随包中西混排**（霞鹜文楷 + Source Serif Pro，各带 OFL 授权随二进制分发） | 探测系统字体 | "跨平台字形一致"是设计评审的门槛项：探测系统字体时同一个汉字在这台机器是硬笔楷、到别人机器可能是宋体，调性就散了 | 包体 +550 KB（文楷按 UI 实际用字子集化，18.2 MB → 345 KB；OFL 要求授权文本随行） | 换字体只改 `tools/prepare-fonts.ps1` + `InkFonts.jvm.kt` 的名字列表，不动页面代码；其它平台接入时把同一份资产放进各自资源目录 |
+| 字体 | 系统手写体 + 回退衬线体 | 打包字体资源 | 不增加仓库体积、不涉及字体再分发授权；本机已有硬笔楷书 | 各端字形可能不一致；Android 可能取不到手写体 | 需要多端统一字形时，改为 `composeResources/font` 打包（需重新引入 `compose.components.resources`） |
 | 棋盘渲染 | Compose `Canvas` 自绘 | 81 个 Composable / 图片贴图 | 81 格一次绘制远轻于 81 个节点；完全控制墨色分层与手绘线条 | 需自己处理测量、字号、缓存与无障碍 | 要做逐格无障碍节点时，改为"语义网格 + Canvas"混合（§4 P2） |
 | 状态管理 | 自写纯 reducer + `GameViewModel` | ViewModel + Flow / MVI 框架 | 规模小、可单测、可回放、零框架依赖 | 需自己补生命周期、事件通道、派生缓存 | 出现多数据源（战绩 + 每日题）与复杂副作用时，引入 Effect 模型 + Repository（`docs/05` 阶段 D） |
 | 存档 | 端口 + 注入（`GameStore` / `SaveCodec`） | `expect/actual` / DataStore / SQLDelight | `state` 保持零平台依赖；桌面写单文件、测试用内存实现；编解码纯文本可单测 | 需为每个平台写实现；只存对局不存设置 | 需要结构化查询（战绩统计）时换 SQLDelight / DataStore（换实现即可，不动状态机） |
@@ -161,8 +165,8 @@
 
 | 文件 | 职责 | 关键约定 |
 |---|---|---|
-| `theme/Ink.kt` | 纸墨配色、中西混排版式、绘制原语 | **颜色与字体的唯一出口**；`inkLine/inkRoundRect/inkHatch` 抖动用纯函数种子；跳变数字一律 `.tabular()`（tnum） |
-| `theme/InkFonts.jvm.kt`（jvmMain） | 字形加载 | **随包字体优先**（jar 内资源首次解到应用数据目录）→ 系统字体兜底 → `FontFamily.Serif`；失败返回 null，不因缺字体而崩 |
+| `theme/Ink.kt` | 纸墨配色、手写体、绘制原语 | **颜色与字体的唯一出口**；`inkLine/inkRoundRect/inkHatch` 抖动用纯函数种子 |
+| `theme/InkFonts.jvm.kt`（jvmMain） | 系统手写体探测 | 按候选路径列表探测，失败返回 null（回退衬线体） |
 | `theme/DesignTokens.kt` | 间距 / 圆角 / 断点 / 线宽 | **尺寸的唯一出口**，不含颜色 |
 | `components/InkWidgets.kt` | 墨线控件库 | `InkSurface` 统一五态反馈；`InkText` 是唯一文本出口 |
 | `components/BoardCanvas.kt` | 棋盘墨线绘制 | 分层：纸面 → 墨洗 → 格线 → 数字/笔记 → 选中框；文本缓存 + `rememberUpdatedState` |
@@ -205,7 +209,7 @@
 | 加一个难度 | ① `Difficulty` 加值 ② （若要求达标）改 `generate` 的重试策略 ③ `MenuScreen` 难度遮罩自动出现（遍历 entries）④ 测试断言实际空格数 |
 | 加一个新屏幕 | ① `Screen` 枚举 ② `App.kt` 的 `when` 分支 ③ 新 Screen 用 `InkPanel` + `InkButton` 组织 ④ 更新 `docs/01` §2 与 `docs/02` §3 |
 | 加一个新平台 | 见 `docs/05` §3.1 / §3.2：确认 miuix 有该平台变体 → 加 target → 写 entrypoint → 实现 `GameStore` → 逐条过输入差异与屏幕档位 |
-| 换字体 | ① 改 `tools/prepare-fonts.ps1` 的取字/裁剪规则并重跑 ② 改 `InkFonts.jvm.kt` 的名字列表 ③ 授权文本必须随二进制一起进包——不动任何页面代码 |
+| 换字体 | 改 `InkFonts.jvm.kt` 的候选列表（或改为打包字体资源），不动任何页面代码 |
 | 改打包标识 / 图标 | ① 视觉改动重跑 `tools/make-icon.ps1`（生成 `composeApp/icons/`）② 改 `nativeDistributions` 里的 `packageName`（**保持 ASCII**）/ `description` / `vendor` ③ 真跑 `packageMsi` 并核对产品名与图标 |
 
 ---
@@ -257,12 +261,8 @@
 - 打包：`.\gradlew.bat :composeApp:packageMsi` 产出 `composeApp/build/compose/binaries/main/msi/SudokuInk-2.0.0.msi`（约 60 MB）；
   `createDistributable` 产出 `binaries/main/app/SudokuInk/`（自带 JRE）。
 - 实机冒烟：`powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1`（先 `createDistributable`）。
-  它把窗口 `HWND_TOPMOST` 钉在 (100,100) 1180×900，**按键用 `PostMessage` 直投窗口句柄**（不依赖前台、不会打到别的窗口；
-  鼠标点击仍需前台，注入前断言），按窗口矩形截图，覆盖难度抽屉 / 退出确认 / 通关抽屉三条流，
-  并自动备份恢复 `~/.sudoku-ink/save.txt`。**截图会自检**：整帧过暗（锁屏 / 被遮挡）就报 `SMOKE WARN` 并退出码 2——
-  这时"流程跑通"不等于"画面验收过"，需解锁后重跑。
-- 离线快照（锁屏 / 无头时验排版的唯一手段）：`jvmTest` 里的 `ui/VisualSnapshotTest` 渲染 PNG 到
-  `composeApp/build/visual-snapshots/`。**动画一律抽成纯函数走单测**——离屏场景的动画时钟不可控，别写"动画中途"的像素断言。
+  它把窗口 `HWND_TOPMOST` 钉在 (100,100) 1180×900，**每次注入前断言前台是应用**（否则中止），按窗口矩形截图，
+  覆盖难度抽屉 / 退出确认 / 通关抽屉三条流，并自动备份恢复 `~/.sudoku-ink/save.txt`。
   **教训**：不置顶就注入按键/点击，桌面有别的窗口时会打到别人的窗口上（点击落到过浏览器）；
   方向键必须带 `KEYEVENTF_EXTENDEDKEY`；脚本保持 **ASCII-only**（PS 5.1 无 BOM 时按 ANSI 解析中文会崩）。
 - 图标**一处生成、三处使用**：`tools/make-icon.ps1` 同时产出
@@ -281,8 +281,8 @@
 - **精准投喂**：先 `@folder composeApp/src/commonMain` 预热，再用 `@file` / `@code` 定位；方法见 `docs/04`。
 - **负面约束随需求一起给**：把本文件 §0 的相关红线直接写进需求里。
 - **提交前自检清单**：
-  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（75 项）；改过 `state/` 或 `core/` 时必须补/改用例；
-     动过棋盘字形 / 排版时看 `composeApp/build/visual-snapshots/` 的 PNG；
+  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（70 项）；改过 `state/` 或 `core/` 时必须补/改用例；
+     动过字体 / 资源时跑 `BundledFontsTest`（字体在、family 对、中文/数字各归其位）；
      动过棋盘绘制 / 语义层时要跑 `BoardCanvasUiTest`（81 节点 + 点击穿透）；
      动过覆盖层 / 键盘映射时，跑 `tools\smoke-e2e.ps1` 并看截图；
   2. 无新增色相、无裸色值 / 魔法尺寸（§0 6–8）；
