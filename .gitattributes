@@ -1,0 +1,15 @@
+# 统一换行：仓库内一律 LF，Windows 检出为 CRLF（配合 core.autocrlf，跨平台协作更稳）
+* text=auto
+
+# 跨平台脚本必须保持 LF，否则 Linux / macOS 上无法执行
+gradlew text eol=lf
+*.sh text eol=lf
+*.bat text eol=crlf
+
+# 二进制：禁止换行转换
+*.jar binary
+*.zip binary
+*.png binary
+*.jpg binary
+*.ttf binary
+*.ttc binary

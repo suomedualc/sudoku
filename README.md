@@ -109,13 +109,13 @@ sudoku/
 ## 构建与运行
 
 前置：**启动 Gradle 的 `JAVA_HOME` 必须是 JDK 17–24（本项目用 21）**——实测 JDK 25 会让 Gradle 8.12
-直接失败，且报错只有一串版本号、极易误判为工程问题；本机 JDK 21 位于
-`D:\env\_SDK\versions\jdk_versions\jdk-21.0.12.0_10`（`gradle.properties` 已声明该路径供 `jvmToolchain(21)` 解析）。
+直接失败，且报错只有一串版本号、极易误判为工程问题。把 `JAVA_HOME` 指向你本机的 JDK 21 即可——
+`jvmToolchain(21)` 会复用这个 JVM，仓库里不需要（也不应该）写死任何本机路径。
 首次构建需联网拉取依赖（体积较大），依赖缓存就绪后可加 `--offline`。
 仓库已含 Gradle wrapper（8.12），无需本机安装 Gradle。
 
 ```powershell
-$env:JAVA_HOME="D:\env\_SDK\versions\jdk_versions\jdk-21.0.12.0_10"   # 必须
+$env:JAVA_HOME="<你的 JDK 21 路径>"   # 必须，例如 D:\env\...\jdk-21.x 或 /usr/lib/jvm/jdk-21
 
 .\gradlew.bat :composeApp:run                                 # 桌面直接运行
 .\gradlew.bat :composeApp:jvmTest --offline                   # 单元测试（当前 22 项）
@@ -163,3 +163,7 @@ $env:JAVA_HOME="D:\env\_SDK\versions\jdk_versions\jdk-21.0.12.0_10"   # 必须
 7. **归档目录**：旧版 TypeScript 实现（`archive/legacy/` 展开源码 + `typescript-v2-20261006.zip`）与
    Rust v1 实现（`sudoku-rust-v1-20261006.zip`）只作历史参考，**不是**当前实现，请勿引用。
    `archive/**/node_modules` 与 `archive/**/dist` 已被 `.gitignore` 忽略。
+
+## 许可证
+
+本项目以 [MIT 许可证](LICENSE) 开源。

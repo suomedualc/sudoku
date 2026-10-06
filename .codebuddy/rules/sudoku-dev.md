@@ -185,7 +185,8 @@
 
 ## 5. 环境与构建备忘
 
-- **`JAVA_HOME` 必须是 JDK 17–24**（本项目用 21：`D:\env\_SDK\versions\jdk_versions\jdk-21.0.12.0_10`）。
+- **`JAVA_HOME` 必须是 JDK 17–24**（本项目用 21）。`jvmToolchain(21)` 复用该 JVM，**仓库内不写死本机路径**；
+  需要额外工具链路径时，在用户级 `~/.gradle/gradle.properties` 声明 `org.gradle.java.installations.paths`。
   若报错只有一串版本号（如 `25.0.4.1`），先查 `JAVA_HOME`——这是 Gradle 8.12 遇到 JDK 25 的典型表现。
 - 依赖已缓存，日常加 `--offline` 更快：`.\gradlew.bat :composeApp:jvmTest --offline`。
 - `build/` 与 `composeApp/build/` 属可再生产物，可随时清理（MSI 打包需联网重下 WiX 工具集）。
