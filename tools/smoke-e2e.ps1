@@ -40,7 +40,7 @@ param(
     [int]$Width = 1180,
     [int]$Height = 900,
     [string]$OutDir = $env:TEMP,
-    [ValidateSet('all', 'menu', 'exit', 'win', 'theme', 'bar', 'ux', 'keys', 'keymap')]
+    [ValidateSet('all', 'menu', 'exit', 'win', 'theme', 'bar', 'ux', 'keys', 'keymap', 'stats', 'lang')]
     [string]$Flow = 'all'
 )
 
@@ -260,7 +260,11 @@ try {
         Write-Host '== flow: exit drawer =='
         if ([System.IO.File]::Exists($saveFile)) { [System.IO.File]::Delete($saveFile) }   # fresh start: resume is greyed out
         $p = Start-App
-        Send-Key $p 'Down' $script:KeyExtended    # skips the disabled entry, lands on "Exit game"
+        # 菜单现在是 5 个入口：0 开始 / 1 继续(置灰，跳过) / 2 统计 / 3 语言 / 4 退出
+        # → 三次 ↓ 落在「退出游戏」
+        Send-Key $p 'Down' $script:KeyExtended
+        Send-Key $p 'Down' $script:KeyExtended
+        Send-Key $p 'Down' $script:KeyExtended
         Send-Key $p 'Enter'                       # open the exit drawer
         Save-Shot $p 'exit_drawer'
         Send-Key $p 'Down' $script:KeyExtended    # highlight "Quit"
@@ -409,12 +413,64 @@ try {
         Send-Click $p 780 278
         Send-Key $p 'D'
         Save-Shot $p 'keymap_bound_d'
-        # ⑤ Esc 关抽屉（此时不在捕获态，Esc = 关抽屉）→ 提示行应已变成「W」「↓」「←」「D」
+        # ⑦ Esc 关抽屉（此时不在捕获态，Esc = 关抽屉）→ 提示行应已变成「W」「↓」「←」「D」
         Send-Key $p 'Escape'
         Save-Shot $p 'keymap_hint_custom'
-        # ⑥ 真的按一下 D：光标应往右走一格（键位设置生效）
+        # ⑧ 真的按一下 D：光标应往右走一格（键位设置生效）
         Send-Key $p 'D'
         Save-Shot $p 'keymap_d_moves_cursor'
+        Stop-App $p
+    }
+
+    if ($Flow -eq 'all' -or $Flow -eq 'stats') {
+        Write-Host '== flow: statistics =='
+        # 注入"只差一格"的存档：先用空统计看空态，再通关一局看重放
+        Write-OneEmptySave $saveFile
+        $p = Start-App
+        # 主菜单光标从「开始游戏」起：↓↓（跳过置灰的"继续"）到「查看游玩统计」
+        Send-Key $p 'Down' $script:KeyExtended
+        Send-Key $p 'Down' $script:KeyExtended
+        Send-Key $p 'Enter'
+        Save-Shot $p 'stats_empty'
+        Send-Key $p 'Escape'
+        # 关抽屉后**光标停在「统计」**：↑ 一步到「继续游戏」→ 进局 → H 补满 → 通关 → Esc 回首页
+        Send-Key $p 'Up' $script:KeyExtended
+        Send-Key $p 'Enter'
+        Send-Key $p 'Hint'
+        Save-Shot $p 'stats_win_drawer'
+        Send-Key $p 'Escape'
+        # 再开统计：应出现 1 场胜局、连胜 1、最快纪录与总时长
+        # （通关后"继续游戏"置灰，回首页光标从「开始游戏」起——**一次 ↓** 就到「统计」）
+        Send-Key $p 'Down' $script:KeyExtended
+        Send-Key $p 'Enter'
+        Save-Shot $p 'stats_after_win'
+        Stop-App $p
+    }
+
+    if ($Flow -eq 'all' -or $Flow -eq 'lang') {
+        Write-Host '== flow: language switch + sentence strip =='
+        $p = Start-App
+        Save-Shot $p 'lang_menu_zh'                # 首页（中文）+ 底部随机句子
+        # ↓↓ 到「语言」→ Enter 开抽屉 → ↓ 到 English → Enter（抽屉不关，整页当场变英文）
+        Send-Key $p 'Down' $script:KeyExtended
+        Send-Key $p 'Down' $script:KeyExtended
+        Send-Key $p 'Enter'
+        Send-Key $p 'Down' $script:KeyExtended
+        Send-Key $p 'Down' $script:KeyExtended
+        Send-Key $p 'Enter'
+        Save-Shot $p 'lang_menu_en'
+        Send-Key $p 'Escape'                       # 关抽屉
+        Save-Shot $p 'lang_menu_en_closed'
+        # 切回简体中文（入口文字已是英文："Language · 语言：English"）
+        Send-Key $p 'Down' $script:KeyExtended
+        Send-Key $p 'Down' $script:KeyExtended
+        Send-Key $p 'Down' $script:KeyExtended
+        Send-Key $p 'Enter'                        # Language 抽屉（光标仍在 English）
+        Send-Key $p 'Up' $script:KeyExtended
+        Send-Key $p 'Up' $script:KeyExtended
+        Send-Key $p 'Enter'                        # 选简体中文
+        Send-Key $p 'Escape'
+        Save-Shot $p 'lang_menu_back_zh'
         Stop-App $p
     }
 } catch {

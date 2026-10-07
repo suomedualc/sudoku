@@ -2,6 +2,7 @@ package org.example.sudoku.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,21 +18,19 @@ import androidx.compose.ui.text.style.TextAlign
 import org.example.sudoku.state.KeyAction
 import org.example.sudoku.state.KeyMap
 import org.example.sudoku.state.keyTokenLabel
+import org.example.sudoku.ui.i18n.Strings
 import org.example.sudoku.ui.theme.DesignTokens
 import org.example.sudoku.ui.theme.Ink
 
 /**
- * 键位设置抽屉的内容：五条绑定（上 / 下 / 左 / 右 / 擦除）+ 一行说明。
+ * 键位设置抽屉的内容：五条绑定（上 / 下 / 左 / 右 / 擦除）+ 说明。
  *
- * **绑定方式是"点一下 → 按新键"，而不是下拉框**：
- * 下拉框要新做一个自绘控件（本项目不引第三方组件库），而"按下即绑"既符合游戏里的惯例，
- * 也让"我要用的那个键"不必在列表里找——候选键是开放的（字母 / 数字 / 空格 / 退格 / Del）。
- *
- * @param capturing 正在等待按键的动作（`null` = 没在捕获）。捕获态由**页面**持有：
- *   按键是在页面根节点的 `onPreviewKeyEvent` 里收的，抽屉自己收不到。
+ * **绑定方式是"点一下 → 按新键"**：候选键是开放的（字母 / 数字 / 空格 / 退格 / Del），
+ * 下拉框做不了这件事。捕获态由**页面**持有（按键在页面根节点的 `onPreviewKeyEvent` 收）。
  */
 @Composable
-fun KeyMapSheet(
+fun ColumnScope.KeyMapSheet(
+    strings: Strings,
     keyMap: KeyMap,
     capturing: KeyAction?,
     /** 上一次捕获失败的原因（`null` = 没有）。 */
@@ -41,14 +40,14 @@ fun KeyMapSheet(
     onResetDefaults: () -> Unit,
 ) {
     InkText(
-        text = "键位设置",
+        text = strings.keymapTitle,
         modifier = Modifier.fillMaxWidth(),
         style = Ink.Type.Title.copy(color = Ink.Black),
         textAlign = TextAlign.Center,
     )
     Spacer(Modifier.height(DesignTokens.Spacing.Xs))
     InkText(
-        text = "点一下右侧的键位，再按下你想用的键",
+        text = strings.keymapHintCapture,
         modifier = Modifier.fillMaxWidth(),
         style = Ink.Type.Meta.copy(color = Ink.Light),
         textAlign = TextAlign.Center,
@@ -57,6 +56,7 @@ fun KeyMapSheet(
 
     for (action in KeyAction.entries) {
         KeyBindRow(
+            strings = strings,
             action = action,
             token = keyMap.token(action),
             capturing = capturing == action,
@@ -66,7 +66,7 @@ fun KeyMapSheet(
         Spacer(Modifier.height(DesignTokens.Spacing.Xs))
     }
 
-    // 捕获失败要**说清原因**：否则玩家按了个键却没绑上，只会以为界面坏了
+    // 捕获失败要说清原因：否则玩家按了个键却没绑上，只会以为界面坏了
     if (captureHint != null) {
         Spacer(Modifier.height(DesignTokens.Spacing.Xs))
         InkText(
@@ -78,23 +78,20 @@ fun KeyMapSheet(
     }
 
     Spacer(Modifier.height(DesignTokens.Spacing.Sm))
-    // 用 Box 居中而不是 `Modifier.align`：本组件不声明 ColumnScope receiver，
-    // 免得调用方必须处在 Column 里才能用
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        InkButton(text = "恢复默认键位", onClick = onResetDefaults, compact = true)
+        InkButton(text = strings.keymapReset, onClick = onResetDefaults, compact = true)
     }
     Spacer(Modifier.height(DesignTokens.Spacing.Sm))
     // 绑定手势与兜底必须写在这里：键位设置是为了"更好用"，不能让人把自己锁在门外
     InkText(
-        text = "点键位 → 按新键；按退格清除该键位（恢复默认），按 Esc 取消",
+        text = strings.keymapHintGestures,
         modifier = Modifier.fillMaxWidth(),
         style = Ink.Type.Meta.copy(color = Ink.Light),
         textAlign = TextAlign.Center,
     )
     Spacer(Modifier.height(DesignTokens.Spacing.Xs))
     InkText(
-        text = "方向键逐格移动，可停在已填的格子上回去改 / 擦；" +
-            "Shift + 方向键跳到下一个空格；退格 / Del 始终可擦除",
+        text = strings.keymapHintFallbacks,
         modifier = Modifier.fillMaxWidth(),
         style = Ink.Type.Meta.copy(color = Ink.Light),
         textAlign = TextAlign.Center,
@@ -104,6 +101,7 @@ fun KeyMapSheet(
 /** 一条：图标 + 动作名 + 当前键位（可点；点了就等下一个按键）。 */
 @Composable
 private fun KeyBindRow(
+    strings: Strings,
     action: KeyAction,
     token: String,
     capturing: Boolean,
@@ -111,11 +109,11 @@ private fun KeyBindRow(
     onCancelCapture: () -> Unit,
 ) {
     val name = when (action) {
-        KeyAction.Up -> "向上"
-        KeyAction.Down -> "向下"
-        KeyAction.Left -> "向左"
-        KeyAction.Right -> "向右"
-        KeyAction.Erase -> "擦除"
+        KeyAction.Up -> strings.actionUp
+        KeyAction.Down -> strings.actionDown
+        KeyAction.Left -> strings.actionLeft
+        KeyAction.Right -> strings.actionRight
+        KeyAction.Erase -> strings.actionErase
     }
     val icon = when (action) {
         KeyAction.Up -> InkIcon.ArrowUp
@@ -136,7 +134,7 @@ private fun KeyBindRow(
             style = Ink.Type.Body.copy(color = Ink.Black),
         )
         InkButton(
-            text = if (capturing) "按下按键…" else keyTokenLabel(token),
+            text = if (capturing) strings.keyCapturing else keyTokenLabel(token),
             onClick = { if (capturing) onCancelCapture() else onStartCapture(action) },
             // 捕获态用重墨框：它是"这里正在等你"的明确信号，不能只是一个淡淡的框
             emphasized = capturing,
@@ -145,9 +143,9 @@ private fun KeyBindRow(
                 .width(DesignTokens.Sizes.KeyBindButton)
                 .semantics {
                     contentDescription = if (capturing) {
-                        "$name 键位：正在等待按键，按下 Esc 取消"
+                        strings.keyCapCapturing.format(name)
                     } else {
-                        "$name 键位：${keyTokenLabel(token)}，点击后按下新键"
+                        strings.keyCapBound.format(name, keyTokenLabel(token))
                     }
                 },
         )
@@ -161,19 +159,20 @@ private fun KeyBindRow(
  * 画成按钮样的键帽会和功能区抢注意力（上一轮刚把棋盘四周清空，不该在底部又立一排控件）。
  */
 @Composable
-fun KeyHintRow(keyMap: KeyMap, modifier: Modifier = Modifier) {
+fun KeyHintRow(strings: Strings, keyMap: KeyMap, modifier: Modifier = Modifier) {
     val label = { token: String -> keyTokenLabel(token) }
     val text = buildString {
-        append("移动「${label(keyMap.up)}」「${label(keyMap.down)}」")
-        append("「${label(keyMap.left)}」「${label(keyMap.right)}」")
-        append(" · 擦除「${label(keyMap.erase)}」")
-        append(" · 填数「1–9」")
-        append(" · 笔记「N」")
-        append(" · 提示「H」")
-        append(" · 暂停「P」")
-        append(" · 撤销「Ctrl+Z」")
-        append(" · 方向键逐格（可回到已填格）")
-        append(" · Shift+方向 跳下一个空格")
+        append(strings.hintsMove)
+        append("「" + label(keyMap.up) + "」「" + label(keyMap.down) + "」")
+        append("「" + label(keyMap.left) + "」「" + label(keyMap.right) + "」")
+        append(" · " + strings.hintsErase + "「" + label(keyMap.erase) + "」")
+        append(" · " + strings.hintsFill + "「1–9」")
+        append(" · " + strings.hintsNote + "「N」")
+        append(" · " + strings.hintsHint + "「H」")
+        append(" · " + strings.hintsPause + "「P」")
+        append(" · " + strings.hintsUndo + "「Ctrl+Z」")
+        append(" · " + strings.hintStep)
+        append(" · " + strings.hintJump)
     }
     InkText(
         text = text,

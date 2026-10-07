@@ -52,7 +52,13 @@
   重置、暂停（白纸遮题，不泄题）、严格模式。
 - **计时**：由单调时钟按真实时间推进；暂停、通关、离开对局页、窗口最小化都会停表。
 - **通关抽屉**：填满正确盘面后从顶部滑下结算抽屉，显示用时 / 难度 / 提示次数，可直接「再来一局」（同难度重开）或返回首页。
-- **偏好与续局**：严格模式 / 显示笔记 / 笔记模式 / 候选提示 / 夜墨模式 / **键位**共**六项**偏好跨对局、跨重启保留；
+- **游玩统计**：首页「查看游玩统计」——完成 / 放弃对局数、胜率（含墨条可视化）、当前与最长连胜、
+  总游玩时长、填数步数、平均每步耗时、提示次数、**各难度最快通关**；随存档持久化。
+- **随机句子**：首页标题下的文案位轮播**内置语料**（名人名言 / 诗词歌赋 / 脑筋急转弯，
+  收集自公开网络资料后打包内置），定时 + 手动换一句，会话内不重复。
+- **多语言**：首页「语言」入口切换（跟随系统 / 简体中文 / English），**全部可见文字**即时切换、无需重启；
+  界面上不写死任何文案，一律走 `ui/i18n/Strings` 字典（reducer 只发语义键）。
+- **偏好与续局**：严格模式 / 显示笔记 / 笔记模式 / 候选提示 / 夜墨模式 / 键位 / **语言**共**七项**偏好跨对局、跨重启保留；
   未完成的对局自动存盘（桌面 `~/.sudoku-ink/save.txt`），重启后首页即可「继续游戏」。
 - **两套主题**：纸墨（浅色纸面）/ 夜墨（深底浅墨），首页与对局页**右上角同一枚图标**切换；
   不跟随系统深色——两套都是成品设计，各自校准到 WCAG AA（详见 `docs/02` §11）。
@@ -116,6 +122,7 @@ org.example.sudoku
 ├── state/        应用层：GameState / GameAction / GameReducer（纯状态机）
 │                 + GameViewModel（状态容器）· GameStore / SaveCodec（存档端口与编解码）
 │                 + KeyMap（键位配置：字符串令牌 + 绑定 / 冲突 / 落盘）
+│                 + Msg（一次性提示的语义键）· GameStats（终身游玩统计）· AppLanguage（界面语言）
 ├── ui/
 │   ├── theme/    Ink.kt（**双主题**纸墨配色 + 字体 + 手绘原语）· DesignTokens.kt（尺寸 / 线宽 / 动效五档）
 │   │                SafeArea.kt（安全区，expect/actual）· Motion.kt（reduced-motion 与时长策略）
@@ -123,7 +130,8 @@ org.example.sudoku
 │   │                KeyToken.kt（按键事件 → 键位令牌）· KeyMapSheet.kt（键位设置抽屉 + 底部键位提示行）
 │   │                FloatingPad.kt（就近输入）· FloatingBarPolicy.kt（浮动条换边判据）
 │   │                TopDrawer.kt（顶部抽屉：覆盖层唯一出口）· InkSnackbar.kt（自绘墨条提示）
-│   ├── screens/  MenuScreen（三入口 + 键盘导航）· GameScreen（**顶栏 + 棋盘舞台 + 功能区** + 通关抽屉 + 键盘）
+│   ├── screens/  MenuScreen（**五入口** + 键盘导航 + 统计 / 语言抽屉 + 随机句子）
+│   │             · GameScreen（**顶栏 + 棋盘舞台 + 功能区** + 通关抽屉 + 键盘）
 │   └── App.kt    页面骨架（Box + 安全区）+ 两页导航 + 自绘墨条提示
 └── entrypoints
     ├── androidMain/MainActivity.kt
@@ -138,7 +146,7 @@ org.example.sudoku
 
 ```powershell
 .\gradlew.bat :composeApp:run                  # 桌面直接运行
-.\gradlew.bat :composeApp:jvmTest --offline    # 单元测试 + UI 测试（130 项）
+.\gradlew.bat :composeApp:jvmTest --offline    # 单元测试 + UI 测试（136 项）
 .\gradlew.bat :composeApp:createDistributable --offline   # 便携版（build/compose/binaries/main/app）
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1   # 实机冒烟（置顶 + 固定坐标，自动截图）
 # 根目录 SudokuInk.lnk 指向上面的便携版，双击即可预览（本机快捷方式，不入库）

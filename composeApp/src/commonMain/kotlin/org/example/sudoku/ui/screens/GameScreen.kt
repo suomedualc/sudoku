@@ -71,6 +71,8 @@ import org.example.sudoku.ui.components.InkToggleRow
 import org.example.sudoku.ui.components.NumberPad
 import org.example.sudoku.ui.components.TopDrawer
 import org.example.sudoku.ui.components.rememberTopDrawerController
+import org.example.sudoku.ui.i18n.Strings
+import org.example.sudoku.ui.i18n.stringsFor
 import org.example.sudoku.ui.theme.DesignTokens
 import org.example.sudoku.ui.theme.Ink
 
@@ -113,6 +115,8 @@ fun GameScreen(
 ) {
     val game = state.game ?: return
     val (done, total) = progress
+    // 全部可见文字从字典取词：语言是快照状态，切换即整页重组（无需重启）
+    val strings = stringsFor(state.language)
     val focusRequester = remember { FocusRequester() }
     val drawer = rememberTopDrawerController()
 
@@ -239,7 +243,7 @@ fun GameScreen(
                 // 绑不了的键（修饰键 / F1 等）：继续等，别把它当成"确认"
                 token == null -> Unit
                 !state.keyMap.accepts(target, token) -> {
-                    captureHint = "数字 1–9 留给填数，不能绑定"
+                    captureHint = strings.digitsReserved
                     capturing = null
                 }
                 else -> {
@@ -263,12 +267,12 @@ fun GameScreen(
         total,
     ) {
         buildString {
-            append("数独棋盘，难度 ${game.difficulty.label}，已填 $done / $total")
-            if (state.paused) append("，已暂停")
-            if (state.noteMode) append("，笔记模式")
-            if (state.hintCandidates) append("，候选提示开启")
+            append(strings.boardDesc.format(strings.difficulty(game.difficulty), done, total))
+            if (state.paused) append(strings.boardPaused)
+            if (state.noteMode) append(strings.boardNoteMode)
+            if (state.hintCandidates) append(strings.boardCandidates)
             state.selected?.let {
-                append("，当前选中第 ${Sudoku.rowOf(it) + 1} 行第 ${Sudoku.colOf(it) + 1} 列")
+                append(strings.boardSelected.format(Sudoku.rowOf(it) + 1, Sudoku.colOf(it) + 1))
             }
         }
     }
@@ -342,6 +346,7 @@ fun GameScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     BoardStage(
+                        strings = strings,
                         game = game,
                         state = state,
                         conflicts = conflicts,
@@ -357,6 +362,7 @@ fun GameScreen(
                     Spacer(Modifier.height(pad))
                     // 功能区与棋盘**同宽**：整页因此是一条自上而下的中轴，视线不用左右找
                     FunctionArea(
+                        strings = strings,
                         game = game,
                         state = state,
                         onAction = dispatch,
@@ -365,7 +371,7 @@ fun GameScreen(
                     Spacer(Modifier.height(DesignTokens.Spacing.Xs))
                     // 键位提示占**整页宽**（不跟棋盘同宽）：文案长，挤在棋盘那一列会折行，
                     // 一折行就会把预留的高度撑破、反过来挤小棋盘
-                    KeyHintRow(keyMap = state.keyMap, modifier = Modifier.fillMaxWidth())
+                    KeyHintRow(strings = strings, keyMap = state.keyMap, modifier = Modifier.fillMaxWidth())
                 }
             }
         }
@@ -373,7 +379,8 @@ fun GameScreen(
         // 通关抽屉：从顶部滑下、盖住整页，玩家必须明确选择「再来一局」或「返回首页」
         WinDrawer(
             visible = drawer.isOpen(DRAWER_WIN),
-            difficultyLabel = game.difficulty.label,
+            strings = strings,
+            difficultyLabel = strings.difficulty(game.difficulty),
             elapsed = state.elapsed,
             hintsCount = state.hintsCount,
             restoreFocus = focusRequester,
@@ -389,6 +396,7 @@ fun GameScreen(
             a11yTitle = "键位设置",
         ) {
             KeyMapSheet(
+                strings = strings,
                 keyMap = state.keyMap,
                 capturing = capturing,
                 captureHint = captureHint,
@@ -411,6 +419,7 @@ fun GameScreen(
 @Composable
 private fun WinDrawer(
     visible: Boolean,
+    strings: Strings,
     difficultyLabel: String,
     elapsed: Int,
     hintsCount: Int,
@@ -423,19 +432,22 @@ private fun WinDrawer(
         onDismiss = {},
         dismissible = false,
         restoreFocus = restoreFocus,
-        a11yTitle = "通关结算",
+        a11yTitle = strings.winTitle,
     ) {
-        InkTitleFrame(title = "通关", subtitle = "本局用时 ${Sudoku.formatDuration(elapsed)}")
+        InkTitleFrame(
+            title = strings.winTitle,
+            subtitle = strings.winTimeLabel + " " + Sudoku.formatDuration(elapsed),
+        )
         Spacer(Modifier.height(DesignTokens.Spacing.Md))
-        WinRow("难度", difficultyLabel)
-        WinRow("提示", if (hintsCount == 0) "未使用" else "×$hintsCount")
+        WinRow(strings.winDifficultyLabel, difficultyLabel)
+        WinRow(strings.winHintsLabel, if (hintsCount == 0) strings.hintsNone else "×$hintsCount")
         Spacer(Modifier.height(DesignTokens.Spacing.Lg))
-        InkButton("再来一局", onPlayAgain, emphasized = true, compact = true)
+        InkButton(strings.playAgain, onPlayAgain, emphasized = true, compact = true)
         Spacer(Modifier.height(DesignTokens.Spacing.Sm))
-        InkButton("返回首页", onBackToMenu, compact = true)
+        InkButton(strings.backHome, onBackToMenu, compact = true)
         Spacer(Modifier.height(DesignTokens.Spacing.Sm))
         InkText(
-            text = "Enter 再来一局 · Esc 返回首页",
+            text = strings.winKeys,
             modifier = Modifier.fillMaxWidth(),
             style = Ink.Type.Meta.copy(color = Ink.Light),
             textAlign = TextAlign.Center,
@@ -476,6 +488,7 @@ private fun GameTopBar(
     /** 打开键位设置抽屉（抽屉状态在页面里，这里只发信号）。 */
     onOpenKeyMap: () -> Unit,
 ) {
+    val strings = stringsFor(state.language)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -486,7 +499,7 @@ private fun GameTopBar(
     ) {
         InkIconButton(
             icon = InkIcon.Back,
-            contentDescription = "返回菜单",
+            contentDescription = strings.backToMenu,
             onClick = { onAction(GameAction.Navigate(Screen.Menu)) },
             // 贴左边缘：提示片向右长，否则会被窗口左边缘切掉
             tooltipAlignment = Alignment.TopStart,
@@ -498,14 +511,17 @@ private fun GameTopBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Md),
         ) {
-            InkText(text = game.difficulty.label, style = Ink.Type.Caption.copy(color = Ink.Grey))
+            InkText(text = strings.difficulty(game.difficulty), style = Ink.Type.Caption.copy(color = Ink.Grey))
             InkText(
                 text = if (state.paused) "已暂停" else Sudoku.formatDuration(state.elapsed),
                 // 计时是数字读数：走 Nunito 且字距为 0——秒数跳动时不会因等宽与否而左右晃
                 style = Ink.digitStyle(Ink.Type.Body.fontSize),
             )
             if (state.hintsCount > 0) {
-                InkText(text = "提示 ×${state.hintsCount}", style = Ink.Type.Caption.copy(color = Ink.Grey))
+                InkText(
+                    text = strings.hintsUsed.format(state.hintsCount),
+                    style = Ink.Type.Caption.copy(color = Ink.Grey),
+                )
             }
             InkText(
                 text = "$done / $total",
@@ -518,37 +534,37 @@ private fun GameTopBar(
         // 顶栏最右侧那枚按钮的位置才不会变（冒烟脚本按固定坐标点它）。
         InkIconButton(
             icon = InkIcon.Keyboard,
-            contentDescription = "键位设置",
-            tooltip = "键位",
+            contentDescription = strings.keymapA11y,
+            tooltip = strings.keymapTooltip,
             onClick = onOpenKeyMap,
             tooltipAlignment = Alignment.TopEnd,
         )
         InkIconButton(
             icon = InkIcon.Hint,
-            contentDescription = "提示",
+            contentDescription = strings.hint,
             onClick = { onAction(GameAction.Hint) },
             enabled = !state.settled && !state.paused,
             tooltipAlignment = Alignment.TopEnd,
         )
         InkIconButton(
             icon = if (state.paused) InkIcon.Play else InkIcon.Pause,
-            contentDescription = if (state.paused) "继续" else "暂停",
+            contentDescription = if (state.paused) strings.resume else strings.pause,
             onClick = { onAction(if (state.paused) GameAction.Resume else GameAction.Pause) },
             enabled = !state.settled,
             tooltipAlignment = Alignment.TopEnd,
         )
         InkIconButton(
             icon = InkIcon.Reset,
-            contentDescription = "重置本局",
+            contentDescription = strings.resetGame,
             onClick = { onAction(GameAction.Reset) },
             enabled = !state.settled && !state.paused,
             tooltipAlignment = Alignment.TopEnd,
         )
         InkIconButton(
             icon = if (state.darkMode) InkIcon.Sun else InkIcon.Moon,
-            contentDescription = if (state.darkMode) "切回浅色纸面" else "切换到夜墨模式",
+            contentDescription = if (state.darkMode) strings.toLight else strings.toNight,
             // 悬停提示用短名：读屏描述可以啰嗦（"切回浅色纸面"），浮出来的标签要一眼看完
-            tooltip = if (state.darkMode) "纸面模式" else "夜墨模式",
+            tooltip = if (state.darkMode) strings.tooltipPaper else strings.tooltipNight,
             onClick = { onAction(GameAction.ToggleDarkMode) },
             tooltipAlignment = Alignment.TopEnd,
         )
@@ -568,6 +584,7 @@ private fun GameTopBar(
  */
 @Composable
 private fun BoardStage(
+    strings: Strings,
     game: Game,
     state: GameState,
     conflicts: BooleanArray,
@@ -635,6 +652,7 @@ private fun BoardStage(
                     showNotes = state.showNotes,
                     hintCandidates = state.hintCandidates,
                     paused = state.paused,
+                    language = state.language,
                     modifier = Modifier.fillMaxSize().semantics { contentDescription = description },
                     onCellClick = onCellClick,
                 )
@@ -648,7 +666,7 @@ private fun BoardStage(
                         onDigit = { onAction(GameAction.Digit(it)) },
                     )
                 }
-                if (state.paused) PauseVeil(onAction)
+                if (state.paused) PauseVeil(strings, onAction)
             }
         }
 
@@ -700,7 +718,7 @@ private fun UndoRedoBar(state: GameState, onAction: (GameAction) -> Unit) {
 
 /** 暂停遮挡：用一张纸盖住题面——"暂停"意味着不能继续读题（读屏同步遮住，见 [BoardCanvas]）。 */
 @Composable
-private fun PauseVeil(onAction: (GameAction) -> Unit) {
+private fun PauseVeil(strings: Strings, onAction: (GameAction) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -708,10 +726,10 @@ private fun PauseVeil(onAction: (GameAction) -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        InkText(text = "已暂停", style = Ink.Type.Headline)
+        InkText(text = strings.pausedLabel, style = Ink.Type.Headline)
         Spacer(Modifier.height(DesignTokens.Spacing.Lg))
         InkButton(
-            text = "继续",
+            text = strings.resume,
             onClick = { onAction(GameAction.Resume) },
             modifier = Modifier.width(DesignTokens.Sizes.OverlayButtonWidth),
             emphasized = true,
@@ -730,20 +748,26 @@ private fun PauseVeil(onAction: (GameAction) -> Unit) {
  */
 @Composable
 private fun FunctionArea(
+    strings: Strings,
     game: Game,
     state: GameState,
     onAction: (GameAction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Sm)) {
-        NumberRow(game, state, onAction)
-        ToggleRow(state, onAction)
+        NumberRow(strings, game, state, onAction)
+        ToggleRow(strings, state, onAction)
     }
 }
 
 /** 第一排：1–9 横向一排 + 擦除（[NumberPad]）。 */
 @Composable
-private fun NumberRow(game: Game, state: GameState, onAction: (GameAction) -> Unit) {
+private fun NumberRow(
+    strings: Strings,
+    game: Game,
+    state: GameState,
+    onAction: (GameAction) -> Unit,
+) {
     // 笔记模式下不限制（要能记"不可能的数字"）；其余按盘面 + 选中格缓存——
     // 计时每秒触发一次重组，不缓存就是每秒白扫一遍 81 格。
     // 注意把判空放进 remember 的 key 里，而不是在分支里各调一次 remember。
@@ -755,6 +779,7 @@ private fun NumberRow(game: Game, state: GameState, onAction: (GameAction) -> Un
         IntArray(9) { digit -> 9 - game.current.count { it == digit + 1 } }
     }
     NumberPad(
+        strings = strings,
         legalMask = legalMask,
         enabled = state.interactive,
         remaining = remaining,
@@ -771,28 +796,28 @@ private fun NumberRow(game: Game, state: GameState, onAction: (GameAction) -> Un
  * 代价是每项宽度只有棋盘宽的 1/4：标签一律 4 个字以内，`maxLines = 1` 兜住更长的文案。
  */
 @Composable
-private fun ToggleRow(state: GameState, onAction: (GameAction) -> Unit) {
+private fun ToggleRow(strings: Strings, state: GameState, onAction: (GameAction) -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Sm)) {
         InkToggleRow(
-            label = "笔记模式",
+            label = strings.toggleNoteMode,
             checked = state.noteMode,
             onCheckedChange = { onAction(GameAction.ToggleNoteMode) },
             modifier = Modifier.weight(1f),
         )
         InkToggleRow(
-            label = "显示笔记",
+            label = strings.toggleShowNotes,
             checked = state.showNotes,
             onCheckedChange = { onAction(GameAction.ToggleShowNotes) },
             modifier = Modifier.weight(1f),
         )
         InkToggleRow(
-            label = "候选提示",
+            label = strings.toggleHintCandidates,
             checked = state.hintCandidates,
             onCheckedChange = { onAction(GameAction.ToggleHintCandidates) },
             modifier = Modifier.weight(1f),
         )
         InkToggleRow(
-            label = "严格模式",
+            label = strings.toggleStrict,
             checked = state.strictMode,
             onCheckedChange = { enabled -> onAction(GameAction.ToggleStrict(enabled)) },
             modifier = Modifier.weight(1f),

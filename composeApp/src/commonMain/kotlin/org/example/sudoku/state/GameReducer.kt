@@ -15,7 +15,8 @@ import kotlin.random.Random
  */
 data class Reduction(
     val state: GameState,
-    val message: String? = null,
+    /** 一次性提示的**语义键**（文案由 UI 按当前语言渲染，见 `ui/i18n/Strings.render`）。 */
+    val message: Msg? = null,
 )
 
 /**
@@ -28,7 +29,8 @@ object GameReducer {
     private const val UNDO_LIMIT = 300
 
     fun reduce(state: GameState, action: GameAction, rng: Random): Reduction = when (action) {
-        // 新开一局：对局字段全部归零，但**偏好跨对局保留**（否则玩家每局都要重设开关）
+        // 新开一局：对局字段全部归零，但**偏好跨对局保留**（否则玩家每局都要重设开关）。
+        // 若旧局还没打完且有过进展 → 记一次"放弃"（连胜清零、时长累加），统计随新局带走。
         is GameAction.NewGame -> Reduction(
             GameState(
                 screen = Screen.Game,
@@ -39,6 +41,8 @@ object GameReducer {
                 hintCandidates = state.hintCandidates,
                 darkMode = state.darkMode,
                 keyMap = state.keyMap,
+                language = state.language,
+                stats = state.abandonIfInProgress(),
             ),
         )
 
@@ -65,8 +69,11 @@ object GameReducer {
         // 夜墨只换配色，不动任何对局字段（进棋盘前的首页也能切，所以不要求 interactive）
         GameAction.ToggleDarkMode -> Reduction(
             state.copy(darkMode = !state.darkMode),
-            if (!state.darkMode) "夜墨模式：开" else "夜墨模式：关",
+            if (!state.darkMode) Msg.DarkModeOn else Msg.DarkModeOff,
         )
+
+        // 语言是纯偏好：改了立即由快照状态驱动全部文字更新，不需要重启
+        is GameAction.SetLanguage -> Reduction(state.copy(language = action.language))
 
         GameAction.Hint -> hint(state)
         GameAction.Reveal -> reveal(state)
@@ -97,9 +104,9 @@ object GameReducer {
     private fun place(state: GameState, value: Int, advance: Boolean): Reduction {
         if (!state.interactive) return Reduction(state)
         val game = state.game ?: return Reduction(state)
-        val pos = state.selected ?: return Reduction(state, "请先选择一个格子")
+        val pos = state.selected ?: return Reduction(state, Msg.SelectFirst)
 
-        if (Sudoku.isGiven(game, pos)) return Reduction(state, "题目给定的数字不可修改")
+        if (Sudoku.isGiven(game, pos)) return Reduction(state, Msg.GivenImmutable)
 
         val notes = state.notes.copyOf()
         val current = game.current.copyOf()
@@ -109,13 +116,13 @@ object GameReducer {
 
         // 笔记模式只对空格生效
         if (state.noteMode && value != 0 && current[pos] != 0) {
-            return Reduction(state, "该格已填入数字，无法记笔记")
+            return Reduction(state, Msg.NoNoteOnFilled)
         }
 
         if (value != 0 && state.strictMode) {
             val allowed = Sudoku.legalMask(current, pos)
             if ((allowed and (1 shl (value - 1))) == 0) {
-                return Reduction(state, "严格模式：该数字与规则冲突")
+                return Reduction(state, Msg.StrictConflict)
             }
         }
 
@@ -143,7 +150,7 @@ object GameReducer {
         }
 
         val message = if (value != 0 && !state.noteMode && Sudoku.conflictFlags(current)[pos]) {
-            "数字 $value 与所在行 / 列 / 宫冲突"
+            Msg.Conflict(value)
         } else {
             null
         }
@@ -160,6 +167,8 @@ object GameReducer {
             game = game.copy(current = current),
             notes = notes,
             selected = landed,
+            // 一步成功填入计入统计（擦除 / 笔记不算）
+            stats = if (filled) base.stats.recordMove() else base.stats,
         )
         return settle(next, message)
     }
@@ -199,7 +208,7 @@ object GameReducer {
         val enabled = !state.hintCandidates
         return Reduction(
             state.copy(hintCandidates = enabled),
-            if (enabled) "候选提示：开（空格显示可填数字）" else "候选提示：关",
+            if (enabled) Msg.HintCandidatesOn else Msg.HintCandidatesOff,
         )
     }
 
@@ -210,7 +219,7 @@ object GameReducer {
         if (!state.interactive) return Reduction(state)
         val game = state.game ?: return Reduction(state)
         val target = state.selected?.takeIf { game.current[it] == 0 } ?: firstEmpty(game)
-        if (target == null) return Reduction(state, "已无可提示的空格")
+        if (target == null) return Reduction(state, Msg.NoHintLeft)
 
         val notes = state.notes.copyOf()
         val current = game.current.copyOf()
@@ -224,21 +233,26 @@ object GameReducer {
             hintUsed = true,
             hintsCount = state.hintsCount + 1,
             selected = target,
+            stats = state.stats.recordHint(),
         )
-        return settle(next, "已填入正确答案")
+        return settle(next, Msg.HintFilled)
     }
 
     private fun reveal(state: GameState): Reduction {
         if (!state.interactive) return Reduction(state)
         val game = state.game ?: return Reduction(state)
+        // 看答案 = 认输：连胜清零、当局时长计入统计（只记一次）
+        val stats = if (state.outcomeCounted) state.stats else state.stats.recordAbandon(state.elapsed)
         return Reduction(
             pushUndo(state).copy(
                 game = game.copy(current = game.solution.copyOf()),
                 notes = IntArray(81),
                 revealed = true,
                 settled = true,
+                outcomeCounted = true,
+                stats = stats,
             ),
-            "已显示答案，本局不计入胜场",
+            Msg.Revealed,
         )
     }
 
@@ -256,13 +270,13 @@ object GameReducer {
                 hintUsed = false,
                 hintsCount = 0,
             ),
-            "本局已重置",
+            Msg.ResetDone,
         )
     }
 
     private fun undo(state: GameState): Reduction {
         val game = state.game ?: return Reduction(state)
-        val last = state.undoStack.lastOrNull() ?: return Reduction(state, "没有可撤销的步骤")
+        val last = state.undoStack.lastOrNull() ?: return Reduction(state, Msg.NothingToUndo)
         return Reduction(
             state.copy(
                 game = game.copy(current = last.current.copyOf()),
@@ -280,7 +294,7 @@ object GameReducer {
 
     private fun redo(state: GameState): Reduction {
         val game = state.game ?: return Reduction(state)
-        val last = state.redoStack.lastOrNull() ?: return Reduction(state, "没有可重做的步骤")
+        val last = state.redoStack.lastOrNull() ?: return Reduction(state, Msg.NothingToRedo)
         val next = state.copy(
             game = game.copy(current = last.current.copyOf()),
             notes = last.notes.copyOf(),
@@ -337,19 +351,34 @@ object GameReducer {
 
     /**
      * 判胜（方案乙：填满无冲突 **且** 与标准答案一致）。
-     * 通关时把"恭喜"文案与状态一起返回；[message] 是本次动作原本要提示的内容（如冲突提示）。
+     * 通关时把"恭喜"语义与状态一起返回（文案由 UI 按语言渲染）；
+     * [message] 是本次动作原本要提示的内容（如冲突提示）。
      */
-    private fun settle(state: GameState, message: String?): Reduction {
+    private fun settle(state: GameState, message: Msg?): Reduction {
         val game = state.game ?: return Reduction(state, message)
         val solved = Sudoku.isSolved(game.current) && game.current.contentEquals(game.solution)
         if (!solved || state.settled || state.revealed) return Reduction(state, message)
-        val suffix = if (state.hintUsed) "（使用过提示）" else ""
+
+        // 记账只发生一次：撤销会把 settled 翻回 false，"再走一步赢回来"就会重放胜利——
+        // outcomeCounted 不会跟着翻回去，因此重放的胜利不会再进统计。
+        val stats =
+            if (state.outcomeCounted) state.stats else state.stats.recordWin(state.elapsed, game.difficulty)
         return Reduction(
             state.copy(
                 settled = true,
                 won = true,
+                outcomeCounted = true,
+                stats = stats,
             ),
-            "恭喜通关$suffix！用时 ${Sudoku.formatDuration(state.elapsed)}",
+            Msg.Win(elapsed = state.elapsed, usedHints = state.hintUsed),
         )
+    }
+
+    /** 旧局还没打完且有过进展 → 记一次"放弃"（连胜清零、时长累加）；否则原样返回。 */
+    private fun GameState.abandonIfInProgress(): GameStats {
+        val current = game ?: return stats
+        if (outcomeCounted || settled || won) return stats // 结果已经记过（赢了 / 看了答案）
+        if (current.current.contentEquals(current.puzzle)) return stats // 一步没走，不算"打了"
+        return stats.recordAbandon(elapsed)
     }
 }

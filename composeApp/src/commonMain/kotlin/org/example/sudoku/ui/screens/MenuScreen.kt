@@ -4,7 +4,6 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -30,55 +29,46 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.sp
 import org.example.sudoku.core.Difficulty
+import org.example.sudoku.state.AppLanguage
+import org.example.sudoku.state.GameStats
 import org.example.sudoku.ui.components.InkButton
-import org.example.sudoku.ui.components.InkDivider
 import org.example.sudoku.ui.components.InkGridSketch
 import org.example.sudoku.ui.components.InkIcon
 import org.example.sudoku.ui.components.InkIconButton
 import org.example.sudoku.ui.components.InkText
 import org.example.sudoku.ui.components.InkTitleFrame
-import org.example.sudoku.ui.components.TopDrawer
+import org.example.sudoku.ui.components.SentenceStrip
 import org.example.sudoku.ui.components.rememberTopDrawerController
+import org.example.sudoku.ui.i18n.stringsFor
 import org.example.sudoku.ui.theme.DesignTokens
 import org.example.sudoku.ui.theme.Ink
 
-/** 主菜单三入口的下标（顺序即上下排列顺序）。 */
+/** 主菜单入口的下标（顺序即上下排列顺序）。 */
 private const val ENTRY_START = 0
 private const val ENTRY_RESUME = 1
-private const val ENTRY_EXIT = 2
-private const val ENTRY_COUNT = 3
-
-/** 退出确认：0 = 取消、1 = 退出。 */
-private const val EXIT_CANCEL = 0
-private const val EXIT_QUIT = 1
-private const val EXIT_ITEM_COUNT = 2
-
-/** 抽屉标识（每个抽屉一个常量，避免字符串写错）。 */
-private const val DRAWER_DIFFICULTY = "menu.difficulty"
-private const val DRAWER_EXIT = "menu.exit"
+private const val ENTRY_STATS = 2
+private const val ENTRY_LANGUAGE = 3
+private const val ENTRY_EXIT = 4
+private const val ENTRY_COUNT = 5
 
 /**
  * 首页：手写纸 · 油墨风格。
  *
- * 结构参考"标题框 + 竖排主菜单 + 底部棋盘插图"的经典布局，但只用墨线与留白表达；
- * **只有三个入口**：开始游戏 / 继续游戏 / 退出游戏（单机游戏，无对弈、联网、社交）。
+ * 五个入口：开始游戏 / 继续游戏 / 查看游玩统计 / 语言 / 退出游戏（单机游戏，无对弈、社交）。
+ * - 开始游戏 → 难度抽屉，选完直接开局；继续游戏 → 未完成的对局（无存档置灰）；
+ * - 查看游玩统计 / 语言 → 各自的抽屉（统计只读；语言切换当场生效，无需重启）；
+ * - 退出游戏 → 二次确认。底部：随机句子（内置语料，定时 + 手动轮播）。
  *
- * - 开始游戏 → 顶部抽屉里的难度选择（简单 / 普通 / 困难 / 大师），选完直接开局；
- * - 继续游戏 → 进入未完成的对局（没有存档时置灰，并给出文字说明）；
- * - 退出游戏 → 顶部抽屉二次确认后退出。
- *
- * 键盘（桌面）：`↑` / `↓` 在三入口之间移动——**自动跳过置灰项**，与棋盘方向键"跳过给定格"
- * 是同一套约定；`Enter` / 空格 确认。抽屉（难度 / 退出确认）同样支持方向键选择、
- * `Enter` 确认、`Esc` 关闭，鼠标点击也会把高亮同步过去，两种输入方式不打架。
- *
- * 抽屉打开时它是**模态**的：所有按键先经 [rememberTopDrawerController] 仲裁，
- * 未处理的键不会再落到菜单上（详见 `TopDrawerKeys`）。
+ * 键盘：`↑` / `↓` 在入口之间移动（自动跳过置灰项），`Enter` / 空格 确认；
+ * 抽屉打开时模态——所有按键先经 `TopDrawerKeys` 仲裁，未处理的键不会再落到菜单上。
  */
 @Composable
 fun MenuScreen(
     canResume: Boolean,
+    stats: GameStats,
+    language: AppLanguage,
+    onLanguageChange: (AppLanguage) -> Unit,
     onStart: (Difficulty) -> Unit,
     onResume: () -> Unit,
     onExit: () -> Unit,
@@ -86,12 +76,14 @@ fun MenuScreen(
     onToggleDark: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // 全部可见文字从字典取词：语言是快照状态，切换即整页重组，无需重启
+    val strings = stringsFor(language)
     val drawer = rememberTopDrawerController()
     val mainCursor = remember { MenuCursor() }
     val difficultyCursor = remember { MenuCursor() }
     val exitCursor = remember { MenuCursor() }
+    val languageCursor = remember { MenuCursor() }
     val difficulties = remember { Difficulty.entries }
-    // 难度抽屉的最后一项是「返回」
     val difficultyItemCount = difficulties.size + 1
 
     val focusRequester = remember { FocusRequester() }
@@ -104,19 +96,20 @@ fun MenuScreen(
         difficultyCursor.reset()
         drawer.open(DRAWER_DIFFICULTY)
     }
-    val openExitConfirm: () -> Unit = {
-        exitCursor.reset()
-        drawer.open(DRAWER_EXIT)
-    }
     val activateMain: (Int) -> Unit = { index ->
         when (index) {
             ENTRY_START -> openDifficulty()
             ENTRY_RESUME -> if (canResume) onResume()
-            else -> openExitConfirm()
+            ENTRY_STATS -> drawer.open(DRAWER_STATS)
+            ENTRY_LANGUAGE -> openLanguageDrawer(languageCursor, drawer)
+            else -> {
+                exitCursor.reset()
+                drawer.open(DRAWER_EXIT)
+            }
         }
     }
 
-    /** 抽屉内的键：方向键在抽屉条目间移动，Enter / 空格 确认（Esc 由抽屉控制器统一关闭）。 */
+    /** 抽屉内的键：方向键在条目间移动，Enter / 空格 确认（Esc 由抽屉控制器统一关闭）。 */
     val drawerKeys: (KeyEvent) -> Boolean = { event ->
         if (event.type != KeyEventType.KeyDown) {
             false
@@ -152,12 +145,25 @@ fun MenuScreen(
                     else -> false
                 }
 
+                DRAWER_LANGUAGE -> when {
+                    delta != 0 -> {
+                        languageCursor.move(delta, LANGUAGE_ITEM_COUNT)
+                        true
+                    }
+                    confirm -> {
+                        // 选完不关抽屉：让玩家当场看到整页文字换成新语言（"免重启"的直观证明）
+                        onLanguageChange(AppLanguage.entries[languageCursor.index])
+                        true
+                    }
+                    else -> false
+                }
+
                 else -> false
             }
         }
     }
 
-    /** 页面本身的键（没有抽屉时）：只在三入口之间移动 / 确认。 */
+    /** 页面本身的键（没有抽屉时）：只在入口之间移动 / 确认。 */
     val pageKeys: (KeyEvent) -> Boolean = { event ->
         if (event.type != KeyEventType.KeyDown) {
             false
@@ -182,7 +188,7 @@ fun MenuScreen(
             .fillMaxSize()
             .focusRequester(focusRequester)
             .onPreviewKeyEvent { event ->
-                // 先交给抽屉仲裁：抽屉打开时是模态的，未处理的键不会再落到菜单上（避免"两面同时响应"）
+                // 先交给抽屉仲裁：抽屉打开时是模态的，未处理的键不会再落到菜单上
                 drawer.handleKey(event, drawerKeys) || pageKeys(event)
             }
             .focusable(),
@@ -195,13 +201,15 @@ fun MenuScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(Modifier.height(DesignTokens.Spacing.Xxl))
-
             InkTitleFrame(
-                title = "数独",
+                title = strings.appTitle,
                 subtitle = "SUDOKU",
                 modifier = Modifier.widthIn(max = DesignTokens.Sizes.MenuMaxWidth),
             )
-
+            // 随机句子：替代原来的"单机 · 无需联网"。放标题正下方而不是页面底部——
+            // 底部在 900 高的窗口里会被折到首屏之外，"看一眼"的东西不该让玩家去滚动找
+            Spacer(Modifier.height(DesignTokens.Spacing.Lg))
+            SentenceStrip(strings = strings, modifier = Modifier.widthIn(max = DesignTokens.Sizes.MenuMaxWidth))
             Spacer(Modifier.height(DesignTokens.Spacing.Xxl))
 
             Column(
@@ -211,7 +219,7 @@ fun MenuScreen(
                 verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Md),
             ) {
                 InkButton(
-                    text = "开始游戏",
+                    text = strings.menuStart,
                     onClick = {
                         mainCursor.select(ENTRY_START)
                         openDifficulty()
@@ -220,7 +228,7 @@ fun MenuScreen(
                     highlighted = mainCursor.index == ENTRY_START,
                 )
                 InkButton(
-                    text = "继续游戏",
+                    text = strings.menuResume,
                     onClick = {
                         mainCursor.select(ENTRY_RESUME)
                         onResume()
@@ -230,23 +238,40 @@ fun MenuScreen(
                 )
                 if (!canResume) {
                     InkText(
-                        text = "暂无未完成的对局",
+                        text = strings.menuNoResume,
                         modifier = Modifier.fillMaxWidth(),
                         style = Ink.Type.Meta.copy(color = Ink.Light),
                         textAlign = TextAlign.Center,
                     )
                 }
                 InkButton(
-                    text = "退出游戏",
+                    text = strings.viewStats,
+                    onClick = {
+                        mainCursor.select(ENTRY_STATS)
+                        drawer.open(DRAWER_STATS)
+                    },
+                    highlighted = mainCursor.index == ENTRY_STATS,
+                )
+                InkButton(
+                    text = strings.languageTitle + "：" + language.label,
+                    onClick = {
+                        mainCursor.select(ENTRY_LANGUAGE)
+                        openLanguageDrawer(languageCursor, drawer)
+                    },
+                    highlighted = mainCursor.index == ENTRY_LANGUAGE,
+                )
+                InkButton(
+                    text = strings.menuExit,
                     onClick = {
                         mainCursor.select(ENTRY_EXIT)
-                        openExitConfirm()
+                        exitCursor.reset()
+                        drawer.open(DRAWER_EXIT)
                     },
                     highlighted = mainCursor.index == ENTRY_EXIT,
                 )
                 Spacer(Modifier.height(DesignTokens.Spacing.Xs))
                 InkText(
-                    text = "↑↓ 选择 · Enter 确认",
+                    text = strings.menuKeys,
                     modifier = Modifier.fillMaxWidth(),
                     style = Ink.Type.Meta.copy(color = Ink.Light),
                     textAlign = TextAlign.Center,
@@ -254,22 +279,15 @@ fun MenuScreen(
             }
 
             Spacer(Modifier.height(DesignTokens.Spacing.Xxl))
-
             InkGridSketch()
-
-            Spacer(Modifier.height(DesignTokens.Spacing.Lg))
-
-            InkText(text = "单机 · 无需联网", style = Ink.Type.Meta.copy(color = Ink.Light))
-
             Spacer(Modifier.height(DesignTokens.Spacing.Xl))
         }
 
         // 右上角：明暗切换。与对局页顶栏用同一枚图标、同一个位置——切页时它不会"跳走"。
         InkIconButton(
             icon = if (darkMode) InkIcon.Sun else InkIcon.Moon,
-            contentDescription = if (darkMode) "切回浅色纸面" else "切换到夜墨模式",
-            // 悬停提示用短名；贴右边缘因此提示片向左长
-            tooltip = if (darkMode) "纸面模式" else "夜墨模式",
+            contentDescription = if (darkMode) strings.toLight else strings.toNight,
+            tooltip = if (darkMode) strings.tooltipPaper else strings.tooltipNight,
             onClick = onToggleDark,
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -277,90 +295,20 @@ fun MenuScreen(
             tooltipAlignment = Alignment.TopEnd,
         )
 
-        TopDrawer(
-            visible = drawer.isOpen(DRAWER_DIFFICULTY),
-            onDismiss = { drawer.close() },
-            restoreFocus = focusRequester,
-            a11yTitle = "选择难度",
-        ) {
-            InkText(
-                text = "选择难度",
-                modifier = Modifier.fillMaxWidth(),
-                style = Ink.Type.Title,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.height(DesignTokens.Spacing.Md))
-            InkDivider(seed = 31)
-            Spacer(Modifier.height(DesignTokens.Spacing.Md))
-            difficulties.forEachIndexed { index, difficulty ->
-                InkButton(
-                    text = "${difficulty.label}　${difficulty.targetBlanks} 空",
-                    onClick = {
-                        drawer.close()
-                        onStart(difficulty)
-                    },
-                    compact = true,
-                    highlighted = difficultyCursor.index == index,
-                )
-                Spacer(Modifier.height(DesignTokens.Spacing.Sm))
-            }
-            Spacer(Modifier.height(DesignTokens.Spacing.Xs))
-            InkButton(
-                text = "返回",
-                onClick = { drawer.close() },
-                compact = true,
-                highlighted = difficultyCursor.index == difficulties.size,
-            )
-            Spacer(Modifier.height(DesignTokens.Spacing.Sm))
-            InkText(
-                text = "↑↓ 选择 · Enter 确认 · Esc 返回",
-                modifier = Modifier.fillMaxWidth(),
-                style = Ink.Type.Meta.copy(color = Ink.Light),
-                textAlign = TextAlign.Center,
-            )
-        }
-
-        TopDrawer(
-            visible = drawer.isOpen(DRAWER_EXIT),
-            onDismiss = { drawer.close() },
-            restoreFocus = focusRequester,
-            a11yTitle = "退出确认",
-        ) {
-            InkText(
-                text = "退出游戏？",
-                modifier = Modifier.fillMaxWidth(),
-                style = Ink.Type.Title,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.height(DesignTokens.Spacing.Sm))
-            InkText(
-                text = "未完成的对局会自动保存",
-                modifier = Modifier.fillMaxWidth(),
-                style = Ink.Type.Caption.copy(color = Ink.Light),
-                textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.height(DesignTokens.Spacing.Lg))
-            Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Md)) {
-                InkButton(
-                    text = "取消",
-                    onClick = { drawer.close() },
-                    modifier = Modifier.weight(1f),
-                    compact = true,
-                    highlighted = exitCursor.index == EXIT_CANCEL,
-                )
-                InkButton(
-                    text = "退出",
-                    onClick = {
-                        drawer.close()
-                        onExit()
-                    },
-                    modifier = Modifier.weight(1f),
-                    compact = true,
-                    emphasized = true,
-                    highlighted = exitCursor.index == EXIT_QUIT,
-                )
-            }
-        }
+        MenuDrawers(
+            drawer = drawer,
+            strings = strings,
+            difficulties = difficulties,
+            difficultyCursor = difficultyCursor,
+            exitCursor = exitCursor,
+            languageCursor = languageCursor,
+            language = language,
+            stats = stats,
+            focusRequester = focusRequester,
+            onStart = onStart,
+            onLanguageChange = onLanguageChange,
+            onExit = onExit,
+        )
     }
 }
 
@@ -368,7 +316,7 @@ fun MenuScreen(
  * 键盘高亮下标：`move` 在给定条目数内循环移动，可跳过置灰项
  * （若全部不可用则原地不动）。只保存"当前项"，渲染交给调用方。
  */
-private class MenuCursor {
+internal class MenuCursor {
     var index by mutableStateOf(0)
         private set
 
@@ -401,5 +349,5 @@ private fun verticalDelta(key: Key): Int = when (key) {
 }
 
 /** 确认键：Enter / 小键盘 Enter / 空格。 */
-private fun isConfirmKey(key: Key): Boolean =
+internal fun isConfirmKey(key: Key): Boolean =
     key == Key.Enter || key == Key.NumPadEnter || key == Key.Spacebar

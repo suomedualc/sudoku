@@ -100,7 +100,7 @@ class GameReducerTest {
         val outcome = reduction(state, GameAction.Digit(4))
         assertEquals(9, outcome.state.game!!.current[pos])
         assertEquals(0, outcome.state.notes[pos])
-        assertTrue(outcome.message!!.contains("无法记笔记"))
+        assertEquals(Msg.NoNoteOnFilled, outcome.message, "笔记模式的提示应说明原因")
     }
 
     @Test
@@ -134,7 +134,7 @@ class GameReducerTest {
         val outcome = reduction(state, GameAction.Digit(value))
 
         assertEquals(0, outcome.state.game!!.current[target])
-        assertTrue(outcome.message!!.contains("严格模式"))
+        assertEquals(Msg.StrictConflict, outcome.message, "严格模式应说明拒绝原因")
     }
 
     @Test
@@ -208,7 +208,7 @@ class GameReducerTest {
         val initial = newGame()
         val solution = initial.game!!.solution
         var state = initial
-        var winMessage: String? = null
+        var winMessage: Msg? = null
         for (pos in 0..80) {
             if (initial.game!!.current[pos] != 0) continue
             state = reduce(state, GameAction.Select(pos))
@@ -219,7 +219,10 @@ class GameReducerTest {
         assertTrue(state.won)
         assertTrue(state.settled)
         assertFalse(state.interactive)
-        assertTrue(winMessage!!.contains("恭喜通关"), "通关提示应随最后一次落子返回")
+        // 胜利提示是语义键（含用时），文案由 UI 渲染；同时核对**统计记账**恰好发生一次
+        assertEquals(Msg.Win(elapsed = state.elapsed, usedHints = false), winMessage, "通关提示应随最后一次落子返回")
+        assertEquals(1, state.stats.gamesWon, "只记一次胜场")
+        assertEquals(1, state.stats.currentStreak)
     }
 
     @Test

@@ -1,4 +1,4 @@
-# 数独（手写纸 · 简约油墨）开发纪律 · v3.2
+# 数独（手写纸 · 简约油墨）开发纪律 · v3.3
 
 > 本文件是"系统层"上下文（自动加载），既是**强制规则**，也是本工程的**开发思路 / 选型依据 / 模块说明 / 迭代计划**的简版。
 > 详细论证见 `docs/01-架构设计.md`、`docs/02-设计规范.md`、`docs/03-开发流程.md`、`docs/05-发展规划.md`。
@@ -65,7 +65,7 @@
     **打包图标与运行时图标必须同源**：jpackage 只把图标嵌进 exe；AWT 窗口默认仍显示 JDK 的 Java 图标，
     因此 `jvmMain/main.kt` 必须显式设置 `window.iconImages`（PNG 经 `jvmMain { resources.srcDir("icons") }` 进 jar）。
 
-**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 130 项）+ **实机冒烟**
+**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 136 项）+ **实机冒烟**
 （`tools/smoke-e2e.ps1`，置顶 + 固定坐标，见 §5）+ **实机试玩**（§6 第 4–5 条）+ 肉眼验收四档窗口。
 
 ---
@@ -191,7 +191,7 @@
 | `jvmMain` | `main.kt`（1180×900 / 最小 940×720）· `platform/FileGameStore.kt`（`~/.sudoku-ink/save.txt`）· `ui/theme/InkFonts.jvm.kt` | ✅ 已启用 |
 | `androidMain` | `MainActivity` + `AndroidManifest`（主题已改系统内置） | ⏸ 未参与编译：缺 `androidTarget()` 与 `compileSdk 37`（`docs/05` §3.1） |
 
-### 3.5 十五个容易踩的坑
+### 3.5 十六个容易踩的坑
 
 1. `GameState` / `Game` 里是 `IntArray`，`data class` 的 `equals` 对数组是**引用比较**——不要用 `==` 做业务判断。
 2. `Snapshot` 必须覆盖"所有会被改的字段"（漏一个就会出现 `hintUsed` 回退而 `hintsCount` 不回退这类矛盾）。
@@ -238,6 +238,12 @@
     于是"点纸上的空白"变成了"点遮罩"——抽屉被误关（`-Flow keymap` 第一步就抓到）。
     修法：给纸片加一层 `detectTapGestures { }` 吞掉点击；子控件的按钮照常先命中。
     同理：**底部提示行这类"只是文字"的东西别放进会被测量预留高度的窄列**，折行会把预留高度撑破。
+16. **界面上的可见文字一律走 `ui/i18n/Strings` 字典，禁止写字面量**（含读屏文案、抽屉说明、提示行）：
+    reducer 在 `state/` 不做 UI，因此提示一律发**语义键**（`Msg`），文案由 `Strings.render(msg)` 按语言渲染；
+    新增可见文字时**中英同批给齐**（漏了英文，切到 English 就是中文夹英文）。
+    两条例外：句子语料（诗句 / 名言）是**内容**不是界面文字，保持收集原文；
+    语言选择器的选项用**各自语言写自己的名字**（简体中文 / English），这是通用做法。
+    另：统计这类"事件累加"的数据**只存累加值**，胜率 / 平均值等派生值不落盘——改口径不用迁移旧存档。
     同理：给"标识符"选墨色要两侧夹住（`InkThemeTest` 的 `typeBox...` 那项：
     ≥ 1.5:1 才看得见、≤ 3.5:1 才不抢戏、且与一墨数字差一个量级），**两套主题各取一档**
     （深底上同样浓度的线更亮，直接沿用浅色值会重近一倍）。
@@ -331,7 +337,7 @@
 - **精准投喂**：先 `@folder composeApp/src/commonMain` 预热，再用 `@file` / `@code` 定位；方法见 `docs/04`。
 - **负面约束随需求一起给**：把本文件 §0 的相关红线直接写进需求里。
 - **提交前自检清单**：
-  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（130 项）；改过 `state/` 或 `core/` 时必须补/改用例；
+  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（136 项）；改过 `state/` 或 `core/` 时必须补/改用例；
      动过字体 / 资源时跑 `BundledFontsTest`（字体在、family 对、中文/数字各归其位、**数字族的中文兜底链还在**）；
      动过棋盘绘制 / 语义层时要跑 `BoardCanvasUiTest`（81 节点 + 点击穿透 + 暂停遮读屏）；
      **动过配色必须跑 `InkThemeTest`**（两套主题的前三级都要 ≥ 4.5:1；新增色值必须同时给浅 / 深两套）；

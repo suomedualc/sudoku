@@ -53,6 +53,9 @@ sealed interface GameAction {
     /** 夜墨模式开关：深底浅墨（见 [GameState.darkMode]）。 */
     data object ToggleDarkMode : GameAction
 
+    /** 切换界面语言（立即生效：所有可见文字都从字典取词，快照状态驱动）。 */
+    data class SetLanguage(val language: AppLanguage) : GameAction
+
     /**
      * 取消选格：清掉选中框、同行列宫高亮、同数字高亮等一切**临时**标记，让棋盘回到开局时的纯净配色。
      *

@@ -88,8 +88,9 @@ class GameClockTest {
 
         val first = vm.messages.tryReceive().getOrNull()
         val second = vm.messages.tryReceive().getOrNull()
-        assertEquals("请先选择一个格子", first)
-        assertEquals(first, second, "相同文案应逐条送达")
+        // 提示是**语义键**：状态机只说"发生了什么"，文案由 UI 按语言渲染（见 ui/i18n/Strings.render）
+        assertEquals(Msg.SelectFirst, first)
+        assertEquals(first, second, "相同提示应逐条送达")
     }
 
     @Test

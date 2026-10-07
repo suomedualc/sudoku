@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import org.example.sudoku.ui.i18n.Strings
+import org.example.sudoku.ui.i18n.ZhStrings
 import org.example.sudoku.ui.theme.DesignTokens
 import org.example.sudoku.ui.theme.Ink
 
@@ -33,6 +35,8 @@ fun NumberPad(
     modifier: Modifier = Modifier,
     /** 每个数字还剩几个未填（索引 0..8 对应数字 1..9）；传 null 则不显示角标。 */
     remaining: IntArray? = null,
+    /** 字典（"擦除"等可见文字从这里取）。 */
+    strings: Strings = ZhStrings,
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -57,7 +61,7 @@ fun NumberPad(
         // 「擦除」单独占固定宽（见 DesignTokens.Sizes.EraseKeyWidth）：它是两个汉字，
         // 跟着 1–9 一起等分会被压得比数字键还窄，读起来就不像"擦除"了。
         InkKey(
-            text = "擦除",
+            text = strings.erase,
             onClick = onErase,
             modifier = Modifier.width(DesignTokens.Sizes.EraseKeyWidth),
             enabled = enabled,

@@ -60,6 +60,20 @@ data class GameState(
      * 真正的"按键 → 令牌"换算在 `ui/` 层（`KeyToken.of`），这里只存令牌。
      */
     val keyMap: KeyMap = KeyMap(),
+    /**
+     * 界面语言。字典与渲染在 `ui/i18n/Strings`（`state/` 只存"选了哪个"）；
+     * 切换即改这个字段——所有可见文字都从字典取词，快照状态驱动，**无需重启**。
+     */
+    val language: AppLanguage = AppLanguage.ZhCn,
+    /** 终身游玩统计（随存档落盘，跨对局累计；字段与派生值见 [GameStats]）。 */
+    val stats: GameStats = GameStats(),
+    /**
+     * 本局的结果**是否已计入统计**（胜 / 放弃都算一次结果）。
+     *
+     * 没有它，"通关 → 撤销 → 再走一步赢回来"会把同一局记两次。
+     * 不随存档落盘：结算后的对局本来就不进存档，没有"重启后重复计"的路径。
+     */
+    val outcomeCounted: Boolean = false,
     val elapsed: Int = 0,
     val paused: Boolean = false,
     val hintUsed: Boolean = false,
@@ -75,7 +89,7 @@ data class GameState(
         get() = screen == Screen.Game && game != null && !paused && !settled && !won
 
     /**
-     * 跨对局保留的偏好（严格 / 显示笔记 / 笔记 / 候选提示 / 夜墨 / **键位**）。
+     * 跨对局保留的偏好（严格 / 显示笔记 / 笔记 / 候选提示 / 夜墨 / 键位 / **语言**）。
      * 换局、重置、通关都不清空，并由 [GameViewModel] 随存档落盘。
      */
     val settings: GameSettings
@@ -86,5 +100,6 @@ data class GameState(
             hintCandidates = hintCandidates,
             darkMode = darkMode,
             keyMap = keyMap,
+            language = language,
         )
 }

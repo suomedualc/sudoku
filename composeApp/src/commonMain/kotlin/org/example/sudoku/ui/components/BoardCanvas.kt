@@ -39,8 +39,11 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import org.example.sudoku.core.Game
+import org.example.sudoku.state.AppLanguage
 import org.example.sudoku.core.Sudoku
 import org.example.sudoku.ui.theme.DesignTokens
+import org.example.sudoku.ui.i18n.Strings
+import org.example.sudoku.ui.i18n.stringsFor
 import org.example.sudoku.ui.theme.Ink
 import org.example.sudoku.ui.theme.LocalReduceMotion
 import org.example.sudoku.ui.theme.inkHatch
@@ -76,6 +79,8 @@ fun BoardCanvas(
     hintCandidates: Boolean = false,
     paused: Boolean = false,
     modifier: Modifier = Modifier.fillMaxWidth(),
+    /** 界面语言：格子级读屏文案按语言取词（朗读的"给定 / 填入"也要跟语言走）。 */
+    language: AppLanguage = AppLanguage.ZhCn,
     onCellClick: (cell: Int, precisePointer: Boolean) -> Unit,
 ) {
     Box(modifier = modifier.aspectRatio(1f)) {
@@ -97,6 +102,7 @@ fun BoardCanvas(
             conflicts = conflicts,
             selected = selected,
             paused = paused,
+            strings = stringsFor(language),
             modifier = Modifier.matchParentSize(),
         )
     }
@@ -424,6 +430,7 @@ private fun BoardCellSemantics(
     conflicts: BooleanArray,
     selected: Int?,
     paused: Boolean = false,
+    strings: Strings = stringsFor(AppLanguage.ZhCn),
     modifier: Modifier = Modifier,
 ) {
     // 暂停 = 遮题：整层语义一起清空（clearAndSetSemantics 会连子树一起屏蔽），
@@ -443,7 +450,7 @@ private fun BoardCellSemantics(
                             .weight(1f)
                             .fillMaxHeight()
                             .semantics {
-                                contentDescription = cellA11yLabel(game, pos, notes, conflicts, selected)
+                                contentDescription = cellA11yLabel(strings, game, pos, notes, conflicts, selected)
                             },
                     )
                 }
@@ -459,24 +466,26 @@ private fun BoardCellSemantics(
  * 例：`第 1 行第 1 列，已选中，给定 5`、`第 3 行第 5 列，空，笔记 1、3`、`第 4 行第 2 列，填入 7，与同行列宫重复`。
  */
 internal fun cellA11yLabel(
+    strings: Strings,
     game: Game,
     pos: Int,
     notes: IntArray,
     conflicts: BooleanArray,
     selected: Int?,
 ): String {
-    val head = "第 ${Sudoku.rowOf(pos) + 1} 行第 ${Sudoku.colOf(pos) + 1} 列"
-    val selectedText = if (pos == selected) "，已选中" else ""
+    val head = strings.cellPos.format(Sudoku.rowOf(pos) + 1, Sudoku.colOf(pos) + 1)
+    val selectedText = if (pos == selected) strings.cellSelected else ""
     val value = game.current[pos]
     val body = when {
         value == 0 -> {
             val noteText = notesText(notes[pos])
-            if (noteText.isEmpty()) "，空" else "，空，笔记 $noteText"
+            // 有笔记时是「空，笔记 1、3」——"空"与"笔记"两段都念，玩家才知道这格还能填
+            if (noteText.isEmpty()) strings.cellEmpty else strings.cellEmpty + strings.cellNotes.format(noteText)
         }
-        Sudoku.isGiven(game, pos) -> "，给定 $value"
-        else -> "，填入 $value"
+        Sudoku.isGiven(game, pos) -> strings.cellGiven.format(value)
+        else -> strings.cellFilled.format(value)
     }
-    val conflictText = if (conflicts[pos]) "，与同行列宫重复" else ""
+    val conflictText = if (conflicts[pos]) strings.cellConflict else ""
     return head + selectedText + body + conflictText
 }
 

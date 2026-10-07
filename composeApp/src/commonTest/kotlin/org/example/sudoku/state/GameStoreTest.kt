@@ -33,7 +33,9 @@ class GameStoreTest {
             darkMode = true,
         )
 
-        val decoded = SaveCodec.decode(SaveCodec.encode(SaveFile(settings, SavedGame(game, notes, 123))))
+        val decoded = SaveCodec.decode(
+            SaveCodec.encode(SaveFile(settings = settings, game = SavedGame(game, notes, 123))),
+        )
 
         assertNotNull(decoded)
         assertEquals(settings, decoded.settings, "五项设置应完整还原")
@@ -84,7 +86,7 @@ class GameStoreTest {
         val old = SaveCodec.encode(
             SaveFile(
                 GameSettings(darkMode = true),
-                SavedGame(sampleGame(), IntArray(81), 0),
+                game = SavedGame(sampleGame(), IntArray(81), 0),
             ),
         )
             .lineSequence()

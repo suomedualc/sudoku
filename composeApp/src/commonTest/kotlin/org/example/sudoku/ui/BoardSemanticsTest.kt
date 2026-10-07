@@ -84,4 +84,12 @@ private fun label(
     pos: Int,
     selected: Int? = null,
     conflicts: BooleanArray = BooleanArray(81),
-): String = cellA11yLabel(game = Game0, pos = pos, notes = Notes, conflicts = conflicts, selected = selected)
+): String = cellA11yLabel(
+    // 断言的是中文文案：显式传简体字典（默认语言即中文，读屏体验确定）
+    strings = org.example.sudoku.ui.i18n.ZhStrings,
+    game = Game0,
+    pos = pos,
+    notes = Notes,
+    conflicts = conflicts,
+    selected = selected,
+)

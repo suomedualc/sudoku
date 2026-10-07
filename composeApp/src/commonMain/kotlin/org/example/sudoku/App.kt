@@ -15,6 +15,7 @@ import org.example.sudoku.state.NoopGameStore
 import org.example.sudoku.state.Screen
 import org.example.sudoku.ui.components.InkSnackbarHost
 import org.example.sudoku.ui.components.InkSnackbarHostState
+import org.example.sudoku.ui.i18n.stringsFor
 import org.example.sudoku.ui.screens.GameScreen
 import org.example.sudoku.ui.theme.safeAreaPadding
 import org.example.sudoku.ui.screens.MenuScreen
@@ -59,10 +60,12 @@ fun App(
         }
     }
 
-    // 一次性提示：从事件通道逐条取；相同文案也会逐条送达（状态容器靠自增 id 区分，不会被等值比较吞掉）
+    // 一次性提示：从事件通道逐条取，**按当前语言渲染**再弹墨条（相同文案也会逐条送达，
+    // 状态容器靠自增 id 区分，不会被等值比较吞掉）。语言在循环里现取：切换语言后新提示立即用新语言。
+    val strings = stringsFor(state.language)
     LaunchedEffect(Unit) {
         for (message in viewModel.messages) {
-            snackbarState.showSnackbar(message)
+            snackbarState.showSnackbar(strings.render(message))
         }
     }
 
@@ -81,6 +84,9 @@ fun App(
         when (state.screen) {
             Screen.Menu -> MenuScreen(
                 canResume = viewModel.canResume,
+                stats = state.stats,
+                language = state.language,
+                onLanguageChange = { viewModel.dispatch(GameAction.SetLanguage(it)) },
                 onStart = { viewModel.dispatch(GameAction.NewGame(it)) },
                 onResume = { viewModel.dispatch(GameAction.Navigate(Screen.Game)) },
                 onExit = onExit,

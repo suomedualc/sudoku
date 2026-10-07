@@ -9,6 +9,8 @@ import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.requestFocus
 import androidx.compose.ui.test.runComposeUiTest
 import org.example.sudoku.core.Difficulty
+import org.example.sudoku.state.AppLanguage
+import org.example.sudoku.state.GameStats
 import org.example.sudoku.ui.screens.MenuScreen
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -29,6 +31,9 @@ class TopDrawerUiTest {
         setContent {
             MenuScreen(
                 canResume = false,
+                stats = GameStats(),
+                language = AppLanguage.ZhCn,
+                onLanguageChange = {},
                 onStart = { started = it },
                 onResume = {},
                 onExit = {},
@@ -59,6 +64,9 @@ class TopDrawerUiTest {
         setContent {
             MenuScreen(
                 canResume = false,
+                stats = GameStats(),
+                language = AppLanguage.ZhCn,
+                onLanguageChange = {},
                 onStart = { started = it },
                 onResume = { resumed = true },
                 onExit = {},
@@ -90,6 +98,9 @@ class TopDrawerUiTest {
         setContent {
             MenuScreen(
                 canResume = false,
+                stats = GameStats(),
+                language = AppLanguage.ZhCn,
+                onLanguageChange = {},
                 onStart = { started = it },
                 onResume = {},
                 onExit = { exit = true },
@@ -115,6 +126,9 @@ class TopDrawerUiTest {
         setContent {
             MenuScreen(
                 canResume = false,
+                stats = GameStats(),
+                language = AppLanguage.ZhCn,
+                onLanguageChange = {},
                 onStart = {},
                 onResume = {},
                 onExit = { exit = true },
@@ -123,9 +137,12 @@ class TopDrawerUiTest {
             )
         }
 
-        // 主菜单：↓ 一次即到「退出游戏」（「继续游戏」无存档时置灰，会被跳过；再按一次 ↓ 会绕回「开始游戏」）
+        // 主菜单：入口现在是 5 个（开始 / 继续 / 统计 / 语言 / 退出）——
+        // 「继续游戏」无存档时置灰会被跳过，因此 ↓↓ 到「统计」、再 ↓↓ 才到「退出」
         onNodeWithText("开始游戏").requestFocus()
         onNodeWithText("开始游戏").performKeyInput {
+            pressKey(Key.DirectionDown)
+            pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
             pressKey(Key.Enter)
         }

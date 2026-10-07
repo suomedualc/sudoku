@@ -17,6 +17,8 @@ data class GameSettings(
     val darkMode: Boolean = false,
     /** 键位：五项令牌逗号分隔（见 [KeyMap.encode]）。 */
     val keyMap: KeyMap = KeyMap(),
+    /** 界面语言。 */
+    val language: AppLanguage = AppLanguage.ZhCn,
 )
 
 /** 存档中的一局对弈：题面 / 当前盘 / 答案由 [Game] 承载，外加笔记与已用时。 */
@@ -34,6 +36,8 @@ data class SavedGame(
  */
 data class SaveFile(
     val settings: GameSettings = GameSettings(),
+    /** 终身游玩统计（跨对局累计，随本文件落盘；与偏好分开——它不是"偏好"而是"履历"）。 */
+    val stats: GameStats = GameStats(),
     val game: SavedGame? = null,
 )
 
@@ -71,6 +75,8 @@ object NoopGameStore : GameStore {
  * hintCandidates=0
  * darkMode=0
  * keyMap=DirectionUp,DirectionDown,DirectionLeft,DirectionRight,0   ← 上/下/左/右/擦除 五个键位令牌
+ * language=ZhCn                ← 界面语言
+ * stats=3,1,2450,180,2,2,2,120,0,0,0   ← 统计（逗号分隔的 11 个数，见 GameStats.encode）
  * game=1                       ← 仅当有未完成对局时出现，随后 6 行一并出现
  * difficulty=Easy
  * puzzle=<81 位数字，0 表示空格>
@@ -99,6 +105,8 @@ object SaveCodec {
         appendLine("hintCandidates=${file.settings.hintCandidates.flag()}")
         appendLine("darkMode=${file.settings.darkMode.flag()}")
         appendLine("keyMap=${file.settings.keyMap.encode()}")
+        appendLine("language=${file.settings.language.name}")
+        appendLine("stats=${file.stats.encode()}")
 
         val saved = file.game ?: return@buildString
         val game = saved.game
@@ -129,10 +137,16 @@ object SaveCodec {
             darkMode = fields["darkMode"].toFlag(default = false),
             // 同上：缺少 keyMap 行（旧存档）→ 取默认键位（方向键 + 0 擦除）
             keyMap = KeyMap.decode(fields["keyMap"]),
+            language = AppLanguage.decode(fields["language"]),
         )
         // v1 一定带对局；v2 由 game=1 显式标记（缺失即"只有设置"）
         val hasGame = if (version == MIN_VERSION) true else fields["game"] == "1"
-        SaveFile(settings = settings, game = if (hasGame) fields.toSavedGame() else null)
+        SaveFile(
+            settings = settings,
+            // 缺少 stats 行（旧存档）→ 全 0：统计从这一刻起重新累计
+            stats = GameStats.decode(fields["stats"]),
+            game = if (hasGame) fields.toSavedGame() else null,
+        )
     }.getOrNull()
 
     private fun Map<String, String>.toSavedGame(): SavedGame {

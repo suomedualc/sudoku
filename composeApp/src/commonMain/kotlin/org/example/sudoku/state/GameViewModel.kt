@@ -35,10 +35,10 @@ class GameViewModel(
     var state: GameState by mutableStateOf(restored?.toState() ?: GameState())
         private set
 
-    private val messageChannel = Channel<String>(Channel.BUFFERED)
+    private val messageChannel = Channel<Msg>(Channel.BUFFERED)
 
-    /** 一次性提示流：UI 侧逐条 collect 后弹 Snackbar（相同文案也会逐条送达）。 */
-    val messages: ReceiveChannel<String> get() = messageChannel
+    /** 一次性提示流：UI 侧逐条 collect 后按当前语言渲染成文案再弹墨条（相同文案也会逐条送达）。 */
+    val messages: ReceiveChannel<Msg> get() = messageChannel
 
     /** 计时：锚点 + 累计值，`state.elapsed` 始终由真实时间推导，不再"每秒 +1"。 */
     private var anchorMs: Long? = null
@@ -137,6 +137,7 @@ class GameViewModel(
         store.save(
             SaveFile(
                 settings = state.settings,
+                stats = state.stats,
                 game = if (resumable) SavedGame(game, state.notes, state.elapsed) else null,
             ),
         )
@@ -176,4 +177,6 @@ private fun SaveFile.toState(): GameState = GameState(
     hintCandidates = settings.hintCandidates,
     darkMode = settings.darkMode,
     keyMap = settings.keyMap,
+    language = settings.language,
+    stats = stats,
 )
