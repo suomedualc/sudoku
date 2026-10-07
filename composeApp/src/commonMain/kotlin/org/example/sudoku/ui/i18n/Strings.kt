@@ -3,6 +3,7 @@ package org.example.sudoku.ui.i18n
 import org.example.sudoku.core.Difficulty
 import org.example.sudoku.core.Sudoku
 import org.example.sudoku.state.AppLanguage
+import org.example.sudoku.state.KeyTokens
 import org.example.sudoku.state.Msg
 
 /**
@@ -14,7 +15,8 @@ import org.example.sudoku.state.Msg
  * ③ 纯 Kotlin，可单测（键不会拼错——编译器替你查）。
  *
  * 纪律：**界面上的任何文字都不许直接写字面量**，一律从这里取——
- * 加一个新句子时同时给两种语言，`StringsTest` 会核对两边键一致。
+ * 加一个新句子时中英两份**同批给齐**（没有自动化的键一致性守卫，漏了英文，
+ * 切到 English 就是中文夹英文）。
  */
 interface Strings {
     // —— 首页 ——
@@ -69,7 +71,10 @@ interface Strings {
     val cellNotes: String // "，笔记 %1$s"
     val cellGiven: String // "，给定 %1$d"
     val cellFilled: String // "，填入 %1$d"
-    val cellConflict: String // "，与同行列宫重复"
+    val cellConflict: String
+
+    /** 笔记数字之间的分隔符（中文"、"，英文", "——读屏逐格念笔记时按语言断句）。 */
+    val notesSeparator: String // "，与同行列宫重复"
 
     // —— 暂停遮罩 / 通关抽屉 ——
     val pauseVeilTitle: String
@@ -84,6 +89,8 @@ interface Strings {
 
     // —— 功能区 ——
     val erase: String
+    val undo: String
+    val redo: String
     val toggleNoteMode: String
     val toggleShowNotes: String
     val toggleHintCandidates: String
@@ -91,8 +98,14 @@ interface Strings {
     val candidatesOffHint: String
     val candidatesOnHint: String
 
+    // —— 悬浮输入面板 ——
+    val padNoCandidates: String
+
     // —— 键位设置 ——
     val keymapTitle: String
+    val keySpace: String
+    val keyBackspace: String
+    val keyDel: String
     val keymapHintCapture: String
     val keyCapturing: String
     val keymapReset: String
@@ -134,6 +147,9 @@ interface Strings {
 
     // —— 首页句子 ——
     val sentenceAnother: String
+
+    /** 脑筋急转弯的答案前缀（"答案：" / "Answer: "）。 */
+    val riddleAnswerPrefix: String
 
     // —— 统计的单位 ——
     val secondsUnit: String
@@ -239,6 +255,7 @@ object ZhStrings : Strings {
     override val cellGiven = "，给定 %1\$d"
     override val cellFilled = "，填入 %1\$d"
     override val cellConflict = "，与同行列宫重复"
+    override val notesSeparator = "、"
 
     override val pauseVeilTitle = "已暂停"
     override val winTitle = "通关"
@@ -251,14 +268,20 @@ object ZhStrings : Strings {
     override val winKeys = "Enter 再来一局 · Esc 返回首页"
 
     override val erase = "擦除"
+    override val undo = "撤销"
+    override val redo = "重做"
     override val toggleNoteMode = "笔记模式"
     override val toggleShowNotes = "显示笔记"
     override val toggleHintCandidates = "候选提示"
     override val toggleStrict = "严格模式"
     override val candidatesOffHint = "开：在空格里显示可填数字（半透明灰）"
     override val candidatesOnHint = "空格里的半透明灰数字 = 规则允许的候选"
+    override val padNoCandidates = "本格无可填数字"
 
     override val keymapTitle = "键位设置"
+    override val keySpace = "空格"
+    override val keyBackspace = "退格"
+    override val keyDel = "Del"
     override val keymapHintCapture = "点一下右侧的键位，再按下你想用的键"
     override val keyCapturing = "按下按键…"
     override val keymapReset = "恢复默认键位"
@@ -298,6 +321,7 @@ object ZhStrings : Strings {
     override val statsEmpty = "还没有完成过一局——先去开一局吧"
 
     override val sentenceAnother = "换一句"
+    override val riddleAnswerPrefix = "答案："
 
     override val secondsUnit = "秒"
 
@@ -372,6 +396,7 @@ object EnStrings : Strings {
     override val cellGiven = ", given %1\$d"
     override val cellFilled = ", filled %1\$d"
     override val cellConflict = ", conflicts with peers"
+    override val notesSeparator = ", "
 
     override val pauseVeilTitle = "Paused"
     override val winTitle = "Solved"
@@ -384,14 +409,20 @@ object EnStrings : Strings {
     override val winKeys = "Enter play again · Esc back to menu"
 
     override val erase = "Erase"
+    override val undo = "Undo"
+    override val redo = "Redo"
     override val toggleNoteMode = "Notes"
     override val toggleShowNotes = "Show notes"
     override val toggleHintCandidates = "Candidates"
     override val toggleStrict = "Strict"
     override val candidatesOffHint = "On: allowed digits show up in empty cells (faint grey)"
     override val candidatesOnHint = "Faint grey digits in empty cells = rule-allowed candidates"
+    override val padNoCandidates = "No digit fits here"
 
     override val keymapTitle = "Key bindings"
+    override val keySpace = "Space"
+    override val keyBackspace = "Backspace"
+    override val keyDel = "Del"
     override val keymapHintCapture = "Click a binding, then press the key you want"
     override val keyCapturing = "Press a key…"
     override val keymapReset = "Reset to defaults"
@@ -431,6 +462,7 @@ object EnStrings : Strings {
     override val statsEmpty = "No finished game yet — go start one"
 
     override val sentenceAnother = "Another one"
+    override val riddleAnswerPrefix = "Answer: "
 
     override val secondsUnit = "s"
 
@@ -464,3 +496,21 @@ fun stringsFor(language: AppLanguage): Strings = when (language) {
 
 /** 系统语言（`expect/actual`：桌面读系统 Locale，测试里不走这里）。 */
 expect fun systemAppLanguage(): AppLanguage
+
+/**
+ * 键位令牌 → 界面上显示的短名（键位设置按钮与底部提示行共用）。
+ *
+ * 箭头符号语言无关；"空格 / 退格"这类**词**是界面文字，必须按语言取——
+ * 此前它在 `state/KeyMap.kt` 里返回中文硬编码，英文界面会混出「空格」。
+ * 字母 / 数字令牌原样显示（"W"、"5"）。
+ */
+fun Strings.keyTokenLabel(token: String): String = when (token) {
+    KeyTokens.UP -> "↑"
+    KeyTokens.DOWN -> "↓"
+    KeyTokens.LEFT -> "←"
+    KeyTokens.RIGHT -> "→"
+    KeyTokens.SPACE -> keySpace
+    KeyTokens.BACKSPACE -> keyBackspace
+    KeyTokens.DELETE -> keyDel
+    else -> token
+}

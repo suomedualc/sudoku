@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.sp
 import org.example.sudoku.state.GameAction
 import org.example.sudoku.state.GameState
+import org.example.sudoku.ui.i18n.Strings
 import org.example.sudoku.ui.theme.DesignTokens
 import org.example.sudoku.ui.theme.Ink
 import kotlin.math.roundToInt
@@ -142,6 +143,8 @@ object FloatingPadPolicy {
 fun FloatingInputPad(
     cell: Int,
     enabled: Boolean,
+    /** 字典（"本格无可填数字"提示从这里取）。 */
+    strings: Strings,
     legalMask: Int,
     onDigit: (Int) -> Unit,
     modifier: Modifier = Modifier,
@@ -184,7 +187,7 @@ fun FloatingInputPad(
                             .height(DesignTokens.Sizes.PadKeySize),
                         contentAlignment = Alignment.Center,
                     ) {
-                        InkText(text = "本格无可填数字", style = Ink.Type.Meta.copy(color = Ink.Light))
+                        InkText(text = strings.padNoCandidates, style = Ink.Type.Meta.copy(color = Ink.Light))
                     }
                 } else {
                     digits.chunked(FloatingPadPolicy.MAX_COLUMNS).forEachIndexed { rowIndex, rowDigits ->

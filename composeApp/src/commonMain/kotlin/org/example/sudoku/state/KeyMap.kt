@@ -97,29 +97,20 @@ data class KeyMap(
         /**
          * 存档是**外部输入**：段数不对 / 有空段就整体取默认，
          * 不让一个坏字段把整套键位废掉（与 [String?.toFlag] "宽松取默认"同一条策略）。
+         * 逐项校验 "1–9 拒绑"：被数字占据的槽位回落到该动作的默认键位，
+         * 不让手改 / 损坏的存档绕过 [accepts] 的不变量（否则"按 5"就填不了 5）。
          */
         fun decode(text: String?): KeyMap {
             val parts = text?.split(',')?.map { it.trim() } ?: return DEFAULT
             if (parts.size != 5 || parts.any { it.isEmpty() }) return DEFAULT
+            fun valid(token: String, fallback: String): String = if (token in FILL_DIGITS) fallback else token
             return KeyMap(
-                up = parts[0],
-                down = parts[1],
-                left = parts[2],
-                right = parts[3],
-                erase = parts[4],
+                up = valid(parts[0], KeyTokens.UP),
+                down = valid(parts[1], KeyTokens.DOWN),
+                left = valid(parts[2], KeyTokens.LEFT),
+                right = valid(parts[3], KeyTokens.RIGHT),
+                erase = valid(parts[4], DEFAULT.erase),
             )
         }
     }
-}
-
-/** 令牌 → 界面上显示的短名。纯函数，设置行与底部提示行共用（改一处两处同步）。 */
-fun keyTokenLabel(token: String): String = when (token) {
-    KeyTokens.UP -> "↑"
-    KeyTokens.DOWN -> "↓"
-    KeyTokens.LEFT -> "←"
-    KeyTokens.RIGHT -> "→"
-    KeyTokens.SPACE -> "空格"
-    KeyTokens.BACKSPACE -> "退格"
-    KeyTokens.DELETE -> "Del"
-    else -> token
 }

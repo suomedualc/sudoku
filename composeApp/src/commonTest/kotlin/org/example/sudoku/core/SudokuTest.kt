@@ -45,9 +45,9 @@ class SudokuTest {
             assertEquals(
                 difficulty.targetBlanks,
                 game.puzzle.count { it == 0 },
-                "${difficulty.label} 应挖满目标空格数",
+                "${difficulty.name} 应挖满目标空格数",
             )
-            assertEquals(1, Sudoku.countSolutions(game.puzzle, 2), "${difficulty.label} 题目必须唯一解")
+            assertEquals(1, Sudoku.countSolutions(game.puzzle, 2), "${difficulty.name} 题目必须唯一解")
             assertEquals(game.current.toList(), game.puzzle.toList(), "初始盘面应等于题面")
         }
     }

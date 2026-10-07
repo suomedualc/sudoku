@@ -16,11 +16,14 @@
 #   menu    -- difficulty drawer: Enter opens, Down x2 highlights Hard, Enter starts Hard
 #   exit    -- exit drawer: confirm quit really exits the process
 #   win     -- win drawer: seeded "one empty cell" save -> Hint fills it -> win drawer -> Esc to menu
-#   theme   -- night mode: seeded darkMode=1 save -> board in 夜墨 -> click the corner icon back to 纸墨
+#   theme   -- night mode: seeded darkMode=1 save -> board in night ink -> click the corner icon back
 #   bar     -- floating undo/redo bar follows the pointer (hover top / bottom half of the board)
 #   ux      -- icon tooltips, click-outside clears highlights, given vs filled digits
 #   keys    -- keyboard cursor: starts on the first blank, arrows walk blanks,
 #              filling advances box-first, and falls back to reading order when the box is full
+#   keymap  -- key binding drawer: rebind, backspace clears, hint row follows the settings
+#   stats   -- stats drawer: entries render from the save file
+#   lang    -- language drawer: switch to English and back, whole page re-renders instantly
 #
 # The script backs up and restores the player save (~/.sudoku-ink/save.txt) around
 # the win flow, and kills any leftover process on exit.
@@ -45,6 +48,11 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+# The screenshot writer saves into -OutDir as-is; a missing directory surfaces as an
+# opaque "GDI+ generic error", so make sure it exists up front.
+if (-not (Test-Path -LiteralPath $OutDir)) {
+    New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
+}
 Add-Type -AssemblyName System.Drawing
 Add-Type -TypeDefinition @'
 using System;

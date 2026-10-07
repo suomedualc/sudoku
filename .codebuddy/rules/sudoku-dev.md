@@ -130,7 +130,7 @@
 `GameState` 关键字段：`screen`（**只有 Menu / Game**）、`game`、`selected`、`notes[81]`、
 `noteMode / strictMode / showNotes / hintCandidates`、`elapsed / paused`、`hintUsed / hintsCount`、
 `revealed / settled / won`、`undoStack / redoStack`（快照栈，上限 300）。
-派生属性：`interactive`（Game 屏 + 有对局 + 未暂停 + 未结算 + 未通关）、`settings`（四项偏好投影，供存档）。
+派生属性：`interactive`（Game 屏 + 有对局 + 未暂停 + 未结算 + 未通关）、`settings`（七项偏好投影，供存档）。
 **纯 UI 状态不进 GameState**：例如"悬浮输入面板此刻锚在哪一格"由 `GameScreen` 的 `remember` 持有。
 **一次性提示不在状态里**（第二轮已迁移）：`reduce` 返回 `Reduction(state, message)`。
 
@@ -146,11 +146,12 @@
 | 候选提示 | 切换 `hintCandidates`（默认关，**不动选中格**）。渲染在 `ui`：**所有空格**画 `legalMask` 的**半透明灰**数字（整盘 `remember(game.current)` 缓存），玩家笔记优先 |
 | 提示事件 | 不存在状态里：`reduce` 返回 `Reduction(state, message)`，由 ViewModel 送进事件通道 → Snackbar |
 | 计时 | 秒数由**单调时钟**算出（`SyncElapsed(seconds)`）；仅 Game 屏、未暂停、未结算时接受新值；暂停 / 离开界面 / 窗口最小化都会停表 |
-| 新局 | `NewGame` 重置对局字段（盘面 / 笔记 / 计时 / 提示 / 结算标记），但**继承三项偏好**（`strictMode / showNotes / noteMode`） |
+| 新局 | `NewGame` 重置对局字段（盘面 / 笔记 / 计时 / 提示 / 结算标记），但**继承全部七项偏好**（`strictMode / showNotes / noteMode / hintCandidates / darkMode / keyMap / language`） |
 
-**存档**（`GameStore.kt`，v2）：文件内容 = `SaveFile(settings, game)`——
-**设置常驻**（`GameSettings(strictMode, showNotes, noteMode, hintCandidates)`），对局可选（`SavedGame(game, notes, elapsed)`）。
-`SaveCodec` 纯文本编解码，`v=2` 写出四项设置（+ 有对局时写 `game=1` 与盘面块）；
+**存档**（`GameStore.kt`，v2）：文件内容 = `SaveFile(settings, stats, game)`——
+**设置常驻**（`GameSettings` 七项：strictMode / showNotes / noteMode / hintCandidates / darkMode / keyMap / language），
+统计常驻（`GameStats` 一行 11 个数），对局可选（`SavedGame(game, notes, elapsed)`）。
+`SaveCodec` 纯文本编解码，`v=2` 写出**七项设置 + stats 一行**（+ 有对局时写 `game=1` 与盘面块）；
 `decode` 接受 `v=1..2`，v1 无设置行则取默认值，**解析失败一律返回 `null`（不抛异常）**，读到旧文件下次落盘自动升级。
 `GameViewModel` 启动时 `load()` 恢复盘面 / 笔记 / 计时 / 设置、动作后 `save()`（每 10 秒节流）、
 结算后只把对局移出存档（**偏好保留**）；`canResume` 供首页「继续游戏」使用。
@@ -180,7 +181,7 @@
 | `components/NumberPad.kt` | 数字键盘 | `legalMask: Int?`：`null` = 不区分；非 null 时**线重**区分可填 / 不可填（不禁用） |
 | `components/FloatingPad.kt` | 半透明悬浮输入面板 + `FloatingPadPolicy`（位置 / 尺寸 / 开合纯逻辑） | **只列该格可填数字**（键 48dp、最多 3 列自适应；候选为 0 时给一行提示）；只用 `PointerType` 判定"精确指针"；**不接管焦点**；位置 / 尺寸 / 开合必须是纯函数并有单测 |
 | `components/TopDrawer.kt` | 顶部抽屉（**唯一覆盖层形态**）+ `TopDrawerController` + `TopDrawerKeys` | 全屏遮罩 + 顶部滑入纸片（全宽、限宽 560dp、只有下缘圆角 + 抓手段）；遮罩只在展开时拦指针；键盘仲裁是**纯函数**（有单测）；关闭时 `restoreFocus` 交回焦点；页面根节点必须先调 `drawer.handleKey` |
-| `screens/MenuScreen.kt` | 首页 | **只有三个入口**（开始 / 继续 / 退出）+ 难度抽屉 + 退出确认抽屉 + 底部草图；`MenuCursor` + `onPreviewKeyEvent` 提供 ↑↓ / Enter / Esc（跳过置灰项，鼠标点击同步高亮）；键先过抽屉仲裁 |
+| `screens/MenuScreen.kt` | 首页 | **五个入口**（开始 / 继续 / 查看游玩统计 / 语言 / 退出）+ 难度 / 退出确认 / 统计 / 语言四个抽屉 + 标题下随机句子 + 底部草图；`MenuCursor` + `onPreviewKeyEvent` 提供 ↑↓ / Enter / Esc（跳过置灰项，鼠标点击同步高亮）；键先过抽屉仲裁 |
 | `screens/GameScreen.kt` | 对局页 | 宽屏双栏 / 窄屏滚动；暂停白纸遮题；通关结算抽屉（`WinDrawer` 复用 `TopDrawer`，不可点遮罩关闭）；悬浮面板的锚点格与统一出口 `dispatch`（除选格 / 换格 / 心跳外任何动作都收面板）；键序 **抽屉 → 悬浮面板 Esc → 棋盘**（`handleKeyEvent` 只管棋盘，通关期由 `winDrawerKeys` 接管） |
 | `App.kt` | 装配 | `Box` + `safeAreaPadding()` + 两页导航 + `InkSnackbarHost`；铺 `Ink.Paper`；无顶部栏 |
 
@@ -315,7 +316,8 @@
   `createDistributable` 产出 `binaries/main/app/SudokuInk/`（自带 JRE）。
 - 实机冒烟：`powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1`（先 `createDistributable`）。
   它把窗口 `HWND_TOPMOST` 钉在 (100,100) 1180×900，**每次注入前断言前台是应用**（否则中止），按窗口矩形截图，
-  覆盖**七条流**（难度抽屉 / 退出确认 / 通关抽屉 / `theme` 夜墨 / `bar` 浮动条 / `ux` 交互细节 / `keys` 键盘光标），
+  覆盖**十条流**（`menu` 首页 + 难度抽屉 / `exit` 退出确认 / `win` 通关抽屉 / `theme` 夜墨 / `bar` 浮动条 /
+  `ux` 交互细节 / `keys` 键盘光标 / `keymap` 键位自定义 / `stats` 游玩统计 / `lang` 多语言与随机句子），
   并自动备份恢复 `~/.sudoku-ink/save.txt`；`-Flow <名字>` 可单跑一条。
   **教训**：不置顶就注入按键/点击，桌面有别的窗口时会打到别人的窗口上（点击落到过浏览器）；
   方向键必须带 `KEYEVENTF_EXTENDEDKEY`（漏了表现为"脚本按了、应用没反应"，很容易误判成应用有 bug）；

@@ -51,8 +51,10 @@ fun SentenceStrip(strings: Strings, modifier: Modifier = Modifier) {
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(DesignTokens.Spacing.Xs))
+        // "答案："是界面加的标签（不是收集来的语料），按语言取词；
+        // 出处 / 类别名属于内容本身，保持原文（见 SentenceBook.categoryLabel 的例外说明）
         val source = if (sentence.category == SentenceCategory.Riddle) {
-            "答案：" + sentence.source
+            strings.riddleAnswerPrefix + sentence.source
         } else {
             sentence.source
         }

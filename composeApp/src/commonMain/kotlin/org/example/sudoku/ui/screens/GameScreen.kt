@@ -393,7 +393,7 @@ fun GameScreen(
             visible = drawer.isOpen(DRAWER_KEYMAP),
             onDismiss = { drawer.close() },
             restoreFocus = focusRequester,
-            a11yTitle = "键位设置",
+            a11yTitle = strings.keymapA11y,
         ) {
             KeyMapSheet(
                 strings = strings,
@@ -513,7 +513,7 @@ private fun GameTopBar(
         ) {
             InkText(text = strings.difficulty(game.difficulty), style = Ink.Type.Caption.copy(color = Ink.Grey))
             InkText(
-                text = if (state.paused) "已暂停" else Sudoku.formatDuration(state.elapsed),
+                text = if (state.paused) strings.pausedLabel else Sudoku.formatDuration(state.elapsed),
                 // 计时是数字读数：走 Nunito 且字距为 0——秒数跳动时不会因等宽与否而左右晃
                 style = Ink.digitStyle(Ink.Type.Body.fontSize),
             )
@@ -603,7 +603,7 @@ private fun BoardStage(
     var boardHeight by remember { mutableIntStateOf(0) }
 
     Column(modifier = modifier) {
-        BarSlot(visible = barSide == BarSide.Top) { UndoRedoBar(state, onAction) }
+        BarSlot(visible = barSide == BarSide.Top) { UndoRedoBar(strings, state, onAction) }
 
         // 外层 Box 吃掉剩余空间，内层**强制正方形**——棋盘在任何窗口比例下都必须是方的。
         // 理由不只是好看：`BoardCanvas` 按 `min(宽, 高)` 画网格，而语义层是按"父容器的 1/9"铺的
@@ -660,6 +660,7 @@ private fun BoardStage(
                     FloatingInputPad(
                         cell = padCell,
                         enabled = state.interactive,
+                        strings = strings,
                         // 只列这一格当前可填的数字（笔记模式下也用这份候选——想记"不可能的数字"就用常驻键盘）。
                         // 按盘面缓存：计时每秒触发重组，逐帧扫 81 格白算一遍。
                         legalMask = remember(game.current, padCell) { Sudoku.legalMask(game.current, padCell) },
@@ -670,7 +671,7 @@ private fun BoardStage(
             }
         }
 
-        BarSlot(visible = barSide == BarSide.Bottom) { UndoRedoBar(state, onAction) }
+        BarSlot(visible = barSide == BarSide.Bottom) { UndoRedoBar(strings, state, onAction) }
     }
 }
 
@@ -691,7 +692,11 @@ private fun BarSlot(visible: Boolean, content: @Composable () -> Unit) {
  * 两个按钮的可用性直接跟着撤销 / 重做栈走——栈空即禁用，不用额外状态。
  */
 @Composable
-private fun UndoRedoBar(state: GameState, onAction: (GameAction) -> Unit) {
+private fun UndoRedoBar(
+    strings: Strings,
+    state: GameState,
+    onAction: (GameAction) -> Unit,
+) {
     InkPanel(
         // 按内容收紧宽度（fillWidth = false）：两个按钮撑满整宽会变成横贯棋盘的空白带，
         // 既压不住视觉重心、又抢棋盘的注意力。外层 BarSlot 会把它居中。
@@ -702,13 +707,13 @@ private fun UndoRedoBar(state: GameState, onAction: (GameAction) -> Unit) {
         Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Sm)) {
             InkIconButton(
                 icon = InkIcon.Undo,
-                contentDescription = "撤销",
+                contentDescription = strings.undo,
                 onClick = { onAction(GameAction.Undo) },
                 enabled = state.undoStack.isNotEmpty(),
             )
             InkIconButton(
                 icon = InkIcon.Redo,
-                contentDescription = "重做",
+                contentDescription = strings.redo,
                 onClick = { onAction(GameAction.Redo) },
                 enabled = state.redoStack.isNotEmpty(),
             )

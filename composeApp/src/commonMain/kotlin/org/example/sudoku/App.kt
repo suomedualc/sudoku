@@ -61,11 +61,12 @@ fun App(
     }
 
     // 一次性提示：从事件通道逐条取，**按当前语言渲染**再弹墨条（相同文案也会逐条送达，
-    // 状态容器靠自增 id 区分，不会被等值比较吞掉）。语言在循环里现取：切换语言后新提示立即用新语言。
-    val strings = stringsFor(state.language)
+    // 状态容器靠自增 id 区分，不会被等值比较吞掉）。
+    // 语言必须在循环里**现取**：LaunchedEffect(Unit) 只在首次组合启动，闭包会把首帧的局部值固化——
+    // 若在外面先算好 `strings` 再被捕获，切换语言后新提示仍会用旧语言渲染。
     LaunchedEffect(Unit) {
         for (message in viewModel.messages) {
-            snackbarState.showSnackbar(strings.render(message))
+            snackbarState.showSnackbar(stringsFor(viewModel.state.language).render(message))
         }
     }
 

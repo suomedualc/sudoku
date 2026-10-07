@@ -1,6 +1,11 @@
 # Gradle
 .gradle/
 build/
+# IDE / 编译器自己的产物目录（与 build/ 同类，可随时删除）
+composeApp/bin/
+
+# 本机大体积工作资料（74MB 对话导出等，不入库）
+docs/*.json
 
 # Kotlin
 .kotlin/

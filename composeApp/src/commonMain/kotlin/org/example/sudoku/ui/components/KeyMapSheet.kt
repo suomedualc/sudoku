@@ -17,8 +17,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import org.example.sudoku.state.KeyAction
 import org.example.sudoku.state.KeyMap
-import org.example.sudoku.state.keyTokenLabel
 import org.example.sudoku.ui.i18n.Strings
+import org.example.sudoku.ui.i18n.keyTokenLabel
 import org.example.sudoku.ui.theme.DesignTokens
 import org.example.sudoku.ui.theme.Ink
 
@@ -134,7 +134,7 @@ private fun KeyBindRow(
             style = Ink.Type.Body.copy(color = Ink.Black),
         )
         InkButton(
-            text = if (capturing) strings.keyCapturing else keyTokenLabel(token),
+            text = if (capturing) strings.keyCapturing else strings.keyTokenLabel(token),
             onClick = { if (capturing) onCancelCapture() else onStartCapture(action) },
             // 捕获态用重墨框：它是"这里正在等你"的明确信号，不能只是一个淡淡的框
             emphasized = capturing,
@@ -145,7 +145,7 @@ private fun KeyBindRow(
                     contentDescription = if (capturing) {
                         strings.keyCapCapturing.format(name)
                     } else {
-                        strings.keyCapBound.format(name, keyTokenLabel(token))
+                        strings.keyCapBound.format(name, strings.keyTokenLabel(token))
                     }
                 },
         )
@@ -160,7 +160,7 @@ private fun KeyBindRow(
  */
 @Composable
 fun KeyHintRow(strings: Strings, keyMap: KeyMap, modifier: Modifier = Modifier) {
-    val label = { token: String -> keyTokenLabel(token) }
+    val label = { token: String -> strings.keyTokenLabel(token) }
     val text = buildString {
         append(strings.hintsMove)
         append("「" + label(keyMap.up) + "」「" + label(keyMap.down) + "」")

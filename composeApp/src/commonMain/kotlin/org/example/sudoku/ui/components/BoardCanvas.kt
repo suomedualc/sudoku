@@ -478,7 +478,7 @@ internal fun cellA11yLabel(
     val value = game.current[pos]
     val body = when {
         value == 0 -> {
-            val noteText = notesText(notes[pos])
+            val noteText = notesText(notes[pos], strings.notesSeparator)
             // 有笔记时是「空，笔记 1、3」——"空"与"笔记"两段都念，玩家才知道这格还能填
             if (noteText.isEmpty()) strings.cellEmpty else strings.cellEmpty + strings.cellNotes.format(noteText)
         }
@@ -489,10 +489,13 @@ internal fun cellA11yLabel(
     return head + selectedText + body + conflictText
 }
 
-/** 笔记数字串：`1、3、9`（无笔记时为空串）。 */
-private fun notesText(mask: Int): String {
+/**
+ * 笔记数字串：`1、3、9`（中文）或 `1, 3, 9`（英文）——分隔符按语言取（[Strings.notesSeparator]），
+ * 无笔记时为空串。
+ */
+private fun notesText(mask: Int, separator: String): String {
     val digits = (1..9).filter { digit -> (mask and (1 shl (digit - 1))) != 0 }
-    return digits.joinToString("、")
+    return digits.joinToString(separator)
 }
 
 /** 文本缓存键：数字 + 颜色 + 字号(px) + 是否加粗。 */

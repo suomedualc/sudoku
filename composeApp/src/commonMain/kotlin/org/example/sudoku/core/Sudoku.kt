@@ -18,11 +18,11 @@ private fun bitCount(value: Int): Int {
     return count
 }
 
-enum class Difficulty(val label: String, val targetBlanks: Int) {
-    Easy("简单", 40),
-    Normal("普通", 46),
-    Hard("困难", 52),
-    Expert("大师", 56),
+enum class Difficulty(val targetBlanks: Int) {
+    Easy(40),
+    Normal(46),
+    Hard(52),
+    Expert(56),
 }
 
 data class Game(
@@ -252,7 +252,7 @@ object Sudoku {
         return !conflictFlags(board).any { it }
     }
 
-    /** 该格可填数字的位掩码（排除自身已填值）。 */
+    /** 该格可填数字的位掩码（**包含该格自身值**——"再按同数字 = 清除"依赖这一点）。 */
     fun legalMask(board: Board, pos: Int): Int {
         var used = 0
         for (peer in 0..80) {

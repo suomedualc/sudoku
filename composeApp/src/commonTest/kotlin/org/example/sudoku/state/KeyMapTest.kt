@@ -1,5 +1,8 @@
 package org.example.sudoku.state
 
+import org.example.sudoku.ui.i18n.EnStrings
+import org.example.sudoku.ui.i18n.ZhStrings
+import org.example.sudoku.ui.i18n.keyTokenLabel
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -78,16 +81,27 @@ class KeyMapTest {
         assertEquals(KeyMap.DEFAULT, KeyMap.decode("W"))
         assertEquals(KeyMap.DEFAULT, KeyMap.decode("W,A,S,,X"))
         assertEquals(KeyMap.DEFAULT, KeyMap.decode("W,A,S,D,X,Y"))
+
+        // 1–9 是填数的专属通道（accepts 拒绑）：坏存档把它们绑给别的动作时，
+        // 该槽位回落到默认键位，不让手改 / 损坏的存档绕过不变量
+        val dirty = KeyMap.decode("5,6,7,8,9")
+        assertEquals(KeyMap.DEFAULT, dirty)
+        assertEquals(KeyTokens.UP, KeyMap.decode("5,A,S,D,0").up, "只有撞上 1–9 的槽位回落默认")
+        assertEquals("A", KeyMap.decode("5,A,S,D,0").down)
     }
 
     @Test
     fun labelsAreShortAndReadable() {
-        assertEquals("↑", keyTokenLabel(KeyTokens.UP))
-        assertEquals("↓", keyTokenLabel(KeyTokens.DOWN))
-        assertEquals("←", keyTokenLabel(KeyTokens.LEFT))
-        assertEquals("→", keyTokenLabel(KeyTokens.RIGHT))
-        assertEquals("空格", keyTokenLabel(KeyTokens.SPACE))
-        assertEquals("退格", keyTokenLabel(KeyTokens.BACKSPACE))
-        assertEquals("W", keyTokenLabel("W"), "字母 / 数字原样显示")
+        // 键名是界面文字，已迁到 ui/i18n（Strings 的扩展）：中文"空格 / 退格"、英文 "Space / Backspace"
+        assertEquals("↑", ZhStrings.keyTokenLabel(KeyTokens.UP))
+        assertEquals("↓", ZhStrings.keyTokenLabel(KeyTokens.DOWN))
+        assertEquals("←", ZhStrings.keyTokenLabel(KeyTokens.LEFT))
+        assertEquals("→", ZhStrings.keyTokenLabel(KeyTokens.RIGHT))
+        assertEquals("空格", ZhStrings.keyTokenLabel(KeyTokens.SPACE))
+        assertEquals("退格", ZhStrings.keyTokenLabel(KeyTokens.BACKSPACE))
+        assertEquals("W", ZhStrings.keyTokenLabel("W"), "字母 / 数字原样显示")
+        assertEquals("Space", EnStrings.keyTokenLabel(KeyTokens.SPACE), "英文界面不得混入中文键名")
+        assertEquals("Backspace", EnStrings.keyTokenLabel(KeyTokens.BACKSPACE))
+        assertEquals("Del", EnStrings.keyTokenLabel(KeyTokens.DELETE))
     }
 }
