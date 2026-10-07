@@ -40,7 +40,7 @@
   重置、暂停（白纸遮题，不泄题）、严格模式。
 - **计时**：由单调时钟按真实时间推进；暂停、通关、离开对局页、窗口最小化都会停表。
 - **通关抽屉**：填满正确盘面后从顶部滑下结算抽屉，显示用时 / 难度 / 提示次数，可直接「再来一局」（同难度重开）或返回首页。
-- **偏好与续局**：严格模式 / 显示笔记 / 笔记模式三项偏好跨对局、跨重启保留；
+- **偏好与续局**：严格模式 / 显示笔记 / 笔记模式 / 候选提示**四项**偏好跨对局、跨重启保留；
   未完成的对局自动存盘（桌面 `~/.sudoku-ink/save.txt`），重启后首页即可「继续游戏」。
 - **落笔成局**：新开一局（或载入存档）时，棋盘由淡到浓**显影一次**（160ms）——全站唯一一处"情感化"动效；
   它只作用于绘制层，不影响首帧就能点、就能按键。
@@ -96,8 +96,10 @@ org.example.sudoku
 ├── state/        应用层：GameState / GameAction / GameReducer（纯状态机）
 │                 + GameViewModel（状态容器）· GameStore / SaveCodec（存档端口与编解码）
 ├── ui/
-│   ├── theme/    Ink.kt（纸墨配色 + 手写体 + 手绘原语）· DesignTokens.kt（尺寸）
+│   ├── theme/    Ink.kt（纸墨配色 + 字体 + 手绘原语）· DesignTokens.kt（尺寸 / 线宽 / 动效四档）
+│   │                SafeArea.kt（安全区，expect/actual）· Motion.kt（reduced-motion 与时长策略）
 │   ├── components/  InkWidgets.kt（墨线控件库）· BoardCanvas.kt · NumberPad.kt · FloatingPad.kt（就近输入）
+│   │                TopDrawer.kt（顶部抽屉：覆盖层唯一出口）· InkSnackbar.kt（自绘墨条提示）
 │   ├── screens/  MenuScreen（三入口 + 键盘导航）· GameScreen（双形态 + 通关抽屉 + 键盘）
 │   └── App.kt    页面骨架（Box + 安全区）+ 两页导航 + 自绘墨条提示
 └── entrypoints
@@ -113,7 +115,7 @@ org.example.sudoku
 
 ```powershell
 .\gradlew.bat :composeApp:run                  # 桌面直接运行
-.\gradlew.bat :composeApp:jvmTest --offline    # 单元测试 + UI 测试（77 项）
+.\gradlew.bat :composeApp:jvmTest --offline    # 单元测试 + UI 测试（80 项）
 .\gradlew.bat :composeApp:createDistributable --offline   # 便携版（build/compose/binaries/main/app）
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1   # 实机冒烟（置顶 + 固定坐标，自动截图）
 # 根目录 SudokuInk.lnk 指向上面的便携版，双击即可预览（本机快捷方式，不入库）

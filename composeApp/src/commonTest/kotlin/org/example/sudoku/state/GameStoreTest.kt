@@ -120,6 +120,44 @@ class GameStoreTest {
         assertNull(SaveCodec.decode(negative), "负计时应判为无存档")
     }
 
+    /**
+     * 难度只是个**标签**：它坏了不该让整份存档作废——存档是外部输入，
+     * 与"宽松取默认"（缺行 / 非法值回默认）是同一条策略。
+     */
+    @Test
+    fun codecFallsBackToNormalWhenDifficultyIsUnknown() {
+        val text = SaveCodec.encode(SaveFile(game = SavedGame(sampleGame(), IntArray(81), 7)))
+            .replace("difficulty=Normal", "difficulty=不存在")
+
+        val decoded = SaveCodec.decode(text)
+
+        assertNotNull(decoded, "难度坏掉不该让整份存档作废")
+        val restored = decoded!!.game
+        assertNotNull(restored, "盘面完好时应保住对局")
+        assertEquals(Difficulty.Normal, restored.game.difficulty, "未知难度退回 Normal")
+        assertEquals(7, restored.elapsed, "其余字段应照常还原")
+    }
+
+    /**
+     * 落盘只发生在"改动了可持久数据"的动作上：[GameAction.Select] / [GameAction.Move]
+     * 只改当前选中格，而存档里根本没有这一项——否则每移动一次光标都要重写整个文件。
+     */
+    @Test
+    fun movingCursorDoesNotRewriteSaveFile() {
+        val store = CountingGameStore()
+        val viewModel = GameViewModel(seed = 7, store = store)
+        viewModel.dispatch(GameAction.NewGame(Difficulty.Easy))
+        val afterNewGame = store.saveCount
+
+        repeat(10) { viewModel.dispatch(GameAction.Select(it)) }
+
+        assertEquals(afterNewGame, store.saveCount, "Select 不改动可持久数据，不应触发落盘")
+
+        viewModel.dispatch(GameAction.Select(40))
+        viewModel.dispatch(GameAction.Digit(1))
+        assertTrue(store.saveCount > afterNewGame, "落子改动了盘面，应落盘")
+    }
+
     @Test
     fun settingsSurviveRestartAndNewGame() {
         val store = InMemoryGameStore()
@@ -225,5 +263,17 @@ private class InMemoryGameStore : GameStore {
 
     override fun save(file: SaveFile) {
         this.saved = file
+    }
+}
+
+/** 只数落盘次数的存档：用来断言"什么动作该写盘"。 */
+private class CountingGameStore : GameStore {
+    var saveCount: Int = 0
+        private set
+
+    override fun load(): SaveFile? = null
+
+    override fun save(file: SaveFile) {
+        saveCount++
     }
 }

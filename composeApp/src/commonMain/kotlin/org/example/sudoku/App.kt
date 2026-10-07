@@ -24,7 +24,8 @@ import org.example.sudoku.ui.theme.Ink
  * 应用入口：装配页面骨架与两个页面（首页 / 对局）。
  *
  * 视觉语言是「手写纸 · 简约油墨」，因此：
- * - **没有第三方组件库**：骨架是 `Box` + 标准 `WindowInsets.safeDrawing`，提示是自绘墨条，
+ * - **没有第三方组件库**：骨架是 `Box` + `Modifier.safeAreaPadding()`（安全区按平台声明，
+ *   桌面恒为 0），提示是自绘墨条，
  *   其余全部自绘墨线组件（详见 `docs/02-设计规范.md` §2）；
  * - 背景统一铺 [Ink.Paper]，让纸面从状态栏一直延伸到页面底部。
  *

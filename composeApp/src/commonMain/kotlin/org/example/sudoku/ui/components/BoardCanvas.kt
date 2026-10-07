@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextLayoutResult
@@ -58,6 +59,8 @@ import org.example.sudoku.ui.theme.motionDurationMs
  *
  * @param onCellClick 点击格子：回传格子下标与**是否精确指针**（鼠标 / 触控笔为真，手指为假）。
  *   调用方据此决定要不要弹"悬浮数字面板"——手指会挡住面板，触屏走常驻数字键盘（见 `docs/02` §6）。
+ * @param paused 暂停时**连带遮住读屏**：81 个格子的语义一起清空，只保留整盘的"已暂停"文案。
+ *   否则视觉上盖了白纸，读屏仍能逐格念出答案——遮题要遮得彻底。
  */
 @Composable
 fun BoardCanvas(
@@ -68,6 +71,7 @@ fun BoardCanvas(
     noteMode: Boolean,
     showNotes: Boolean = true,
     hintCandidates: Boolean = false,
+    paused: Boolean = false,
     modifier: Modifier = Modifier.fillMaxWidth(),
     onCellClick: (cell: Int, precisePointer: Boolean) -> Unit,
 ) {
@@ -89,6 +93,7 @@ fun BoardCanvas(
             notes = notes,
             conflicts = conflicts,
             selected = selected,
+            paused = paused,
             modifier = Modifier.matchParentSize(),
         )
     }
@@ -359,10 +364,12 @@ private fun BoardCellSemantics(
     notes: IntArray,
     conflicts: BooleanArray,
     selected: Int?,
+    paused: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    // 用 fillMax*(1/9) 而不是 weight：语义层不需要测量，等分即可，也少一个对 Row/Column 作用域的依赖
-    Column(modifier = modifier) {
+    // 暂停 = 遮题：整层语义一起清空（clearAndSetSemantics 会连子树一起屏蔽），
+    // 读屏此时只能读到父节点的整盘文案（含"已暂停"），不会逐格念出答案。
+    Column(modifier = if (paused) modifier.clearAndSetSemantics {} else modifier) {
         for (row in 0..8) {
             Row(modifier = Modifier.fillMaxHeight(CELL_FRACTION)) {
                 for (col in 0..8) {

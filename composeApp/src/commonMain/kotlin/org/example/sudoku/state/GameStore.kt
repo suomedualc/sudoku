@@ -125,7 +125,10 @@ object SaveCodec {
     }.getOrNull()
 
     private fun Map<String, String>.toSavedGame(): SavedGame {
-        val difficulty = Difficulty.valueOf(getValue("difficulty"))
+        // 难度只是个标签：解析不出来就退回 Normal，别让整局作废。
+        // 与 [String?.toFlag] 的"宽松取默认"是同一条策略——存档是外部输入，不该因为一个字段废掉全部。
+        val difficulty = runCatching { Difficulty.valueOf(getValue("difficulty")) }
+            .getOrDefault(Difficulty.Normal)
         val puzzle = getValue("puzzle").toBoard()
         val current = getValue("current").toBoard()
         val solution = getValue("solution").toBoard()

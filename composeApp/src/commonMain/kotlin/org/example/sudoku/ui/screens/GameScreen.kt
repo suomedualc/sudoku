@@ -163,7 +163,16 @@ fun GameScreen(
         }
     }
 
-    val boardDescription = remember(game, state.selected, state.paused, state.hintCandidates, done, total) {
+    // 读屏文案用到的每个字段都必须是 key：漏掉 noteMode 的话，切换笔记模式后描述会停在旧值
+    val boardDescription = remember(
+        game,
+        state.selected,
+        state.paused,
+        state.noteMode,
+        state.hintCandidates,
+        done,
+        total,
+    ) {
         buildString {
             append("数独棋盘，难度 ${game.difficulty.label}，已填 $done / $total")
             if (state.paused) append("，已暂停")
@@ -352,6 +361,7 @@ private fun BoardArea(
             noteMode = state.noteMode,
             showNotes = state.showNotes,
             hintCandidates = state.hintCandidates,
+            paused = state.paused,
             modifier = Modifier.fillMaxSize().semantics { contentDescription = description },
             onCellClick = onCellClick,
         )
@@ -359,8 +369,9 @@ private fun BoardArea(
             FloatingInputPad(
                 cell = padCell,
                 enabled = state.interactive,
-                // 只列这一格当前可填的数字（笔记模式下也用这份候选——想记"不可能的数字"就用右侧常驻键盘）
-                legalMask = Sudoku.legalMask(game.current, padCell),
+                // 只列这一格当前可填的数字（笔记模式下也用这份候选——想记"不可能的数字"就用右侧常驻键盘）。
+                // 按盘面缓存：计时每秒触发重组，逐帧扫 81 格白算一遍。
+                legalMask = remember(game.current, padCell) { Sudoku.legalMask(game.current, padCell) },
                 onDigit = { onAction(GameAction.Digit(it)) },
             )
         }

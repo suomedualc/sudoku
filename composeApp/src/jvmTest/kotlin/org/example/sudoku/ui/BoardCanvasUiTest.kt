@@ -47,6 +47,27 @@ class BoardCanvasUiTest {
     }
 
     @Test
+    fun pausedBoardHidesCellsFromScreenReader() = runComposeUiTest {
+        // 暂停 = 遮题：视觉上盖了一张白纸，读屏也必须一起遮住，
+        // 否则"暂停"只是骗过眼睛——读屏仍能逐格念出答案。
+        setContent {
+            Box(Modifier.size(BOARD_DP.dp)) {
+                BoardCanvas(
+                    game = game,
+                    selected = null,
+                    notes = notes,
+                    conflicts = BooleanArray(81),
+                    noteMode = false,
+                    paused = true,
+                    onCellClick = { _, _ -> },
+                )
+            }
+        }
+
+        onAllNodesWithContentDescription("列", substring = true).assertCountEquals(0)
+    }
+
+    @Test
     fun selectedCellIsAnnounced() = runComposeUiTest {
         setContent {
             Box(Modifier.size(BOARD_DP.dp)) {

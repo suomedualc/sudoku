@@ -1,4 +1,4 @@
-# 数独（手写纸 · 简约油墨）开发纪律 · v2.5
+# 数独（手写纸 · 简约油墨）开发纪律 · v2.6
 
 > 本文件是"系统层"上下文（自动加载），既是**强制规则**，也是本工程的**开发思路 / 选型依据 / 模块说明 / 迭代计划**的简版。
 > 详细论证见 `docs/01-架构设计.md`、`docs/02-设计规范.md`、`docs/03-开发流程.md`、`docs/05-发展规划.md`。
@@ -65,7 +65,7 @@
     **打包图标与运行时图标必须同源**：jpackage 只把图标嵌进 exe；AWT 窗口默认仍显示 JDK 的 Java 图标，
     因此 `jvmMain/main.kt` 必须显式设置 `window.iconImages`（PNG 经 `jvmMain { resources.srcDir("icons") }` 进 jar）。
 
-**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 77 项）+ **实机冒烟**
+**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 80 项）+ **实机冒烟**
 （`tools/smoke-e2e.ps1`，置顶 + 固定坐标，见 §5）+ **实机试玩**（§6 第 4–5 条）+ 肉眼验收四档窗口。
 
 ---
@@ -83,8 +83,10 @@
 | 7 | **视觉可复现**：手绘感必须确定 | 抖动由 seed 纯函数生成，重绘不闪动；文本测量跨帧缓存 | 用 `Random` 抖动、每次重组重算文本布局 |
 | 8 | **小步可验证** | 每次改动都要能"编译 + 测试 + 四档窗口肉眼验收" | 一次性大改，无法定位回归 |
 
-> 当前认知的诚实标注：第 6 条只做到"外提"，尚未做到"可观测的 Effect 模型"——提示仍是 `message` 字段、
-> 计时仍由心跳累加（真实时间源与事件通道见 §4 P1）。这是已知短板，不是设计目标。
+> 当前认知的诚实标注（**§4 P1 的两项已落地**：真实时间源 + 时钟注入、提示事件通道，见第七轮）：
+> 第 6 条仍只做到"外提"，尚未做到**可观测的 Effect 模型**——提示走 `Channel<String>`、
+> 计时由注入的 `GameClock`（单调时间源）驱动，但**没有统一的副作用日志 / 回放**。
+> 这是已知短板，不是设计目标。
 
 ---
 
@@ -96,13 +98,13 @@
 | 骨架与提示 | **全自绘**（`App.kt` 的 `Box` + `Modifier.safeAreaPadding()` + `InkSnackbarHost`） | 第三方组件库的骨架 | 零额外依赖；提示条的视觉与"不拦截点击"完全可控 | 安全区要自己做平台声明（`expect/actual`，缺了会编译失败，不会静默漏） | 若将来第三方库成熟到可直接复用，只需替换 `App.kt` 的骨架一层，页面代码不动 |
 | 视觉组件 | **自绘墨线组件**（`InkWidgets.kt`） | 第三方组件库的外观组件 | 手写纸风格与填充色块 / Material 圆角的观感冲突；自绘才能做到"折线微弯 + 叠墨 + 五态一致" | 需要自己维护交互态（悬停/按压/焦点/禁用）与无障碍语义 | 若要换观感，只需替换 `InkWidgets` 一层，页面代码不动（组件边界已隔离） |
 | 字体 | **打包字体资源**（霞鹜文楷 + Nunito，OFL 1.1） | 只探系统手写体 | 跨设备 / 跨平台字形一致；数字有真实字重可分层（给定 Medium / 填入 Normal） | 仓库 +24.7MB；再分发需随附 OFL；桌面 `Font` 工厂无 classpath 入口，须落临时文件装载 | Android/Web 需按各端资源机制另做装载（必要时子集化，但子集属"修改版本"，需按 OFL 第 3 条改名） |
-| 棋盘渲染 | Compose `Canvas` 自绘 | 81 个 Composable / 图片贴图 | 81 格一次绘制远轻于 81 个节点；完全控制墨色分层与手绘线条 | 需自己处理测量、字号、缓存与无障碍 | 要做逐格无障碍节点时，改为"语义网格 + Canvas"混合（§4 P2） |
+| 棋盘渲染 | Compose `Canvas` 自绘 | 81 个 Composable / 图片贴图 | 81 格一次绘制远轻于 81 个节点；完全控制墨色分层与手绘线条 | 需自己处理测量、字号、缓存与无障碍 | ✅ **已完成**："语义网格 + Canvas"混合（`BoardCanvas` 内 `BoardCellSemantics` 81 节点，见 §4 P1） |
 | 状态管理 | 自写纯 reducer + `GameViewModel` | ViewModel + Flow / MVI 框架 | 规模小、可单测、可回放、零框架依赖 | 需自己补生命周期、事件通道、派生缓存 | 出现多数据源（战绩 + 每日题）与复杂副作用时，引入 Effect 模型 + Repository（`docs/05` 阶段 D） |
 | 存档 | 端口 + 注入（`GameStore` / `SaveCodec`） | `expect/actual` / DataStore / SQLDelight | `state` 保持零平台依赖；桌面写单文件、测试用内存实现；编解码纯文本可单测 | 需为每个平台写实现；只存对局不存设置 | 需要结构化查询（战绩统计）时换 SQLDelight / DataStore（换实现即可，不动状态机） |
 | 求解 / 出题 | 位掩码 + MRV 回溯 + 贪心挖洞 + 唯一解校验 | 朴素回溯 / 题库资源 | 候选判断 O(1)，出题实测 1–4 ms | 空格数只是上限（大师档实测 22/25 达标） | 做"技巧难度"时新增技巧求解器，出题改为"技巧可解性"驱动 |
-| 计时 | UI 心跳 `delay(1000)` 累加 | `TimeSource.Monotonic` 差值 | 实现最简单、无平台依赖 | 有累积漂移；窗口最小化仍走表；不可测 | **应当改**（§4 P1）：真实时间源 + 时钟注入 |
+| 计时 | UI 心跳 `delay(1000)` 累加 | `TimeSource.Monotonic` 差值 | 实现最简单、无平台依赖 | ✅ **已改**（§4 P1）：真实时间源 + 时钟注入（`GameClock`）+ 最小化停表；漂移已消除 | 无 |
 | 提示反馈 | `Reduction(state, message)` → `Channel<String>` → `InkSnackbarHost` | `SharedFlow` / 第三方提示通道 | 自绘墨条零额外依赖，视觉与"不拦截点击"可控；相同文案也能逐条送达（自增 id 保证，单测守着） | 需 ViewModel 持有 Channel 与收集协程 | 若要做"可撤销的提示条"，在墨条上加操作（`docs/05` §4） |
-| 测试 | `kotlin.test` + 固定种子 | 断言库 / 属性测试 | 零依赖、跨端同一套用例 | 无 UI 自动化 | UI 复杂化后引入 CMP UI 测试（需加依赖并验证可行性） |
+| 测试 | `kotlin.test` + 固定种子 | 断言库 / 属性测试 | 零依赖、跨端同一套用例 | ✅ UI 自动化**已有 10 项**（`TopDrawerUiTest` 4 + `BoardCanvasUiTest` 6） | 变慢时按源集拆分任务 |
 
 ---
 
@@ -159,15 +161,18 @@
   打包标识（ASCII `packageName`）与图标。
 - 第四轮：候选提示（空心数字 + 第 4 项设置）、鼠标/触控笔点空格弹**半透明悬浮输入面板**、
   触屏方案定型（手指不弹浮层，走常驻键盘）。
-仍未做：`legalMask` 是否下沉到状态层（目前按盘面 `remember`）、逐格无障碍语义、
-移动端命中区放大与候选预览条（M2）。
+仍未做：`legalMask` 是否下沉到状态层（目前按盘面 `remember`）、移动端命中区放大与候选预览条（M2）。
+（**逐格无障碍语义已于第七轮完成**：`BoardCellSemantics` 81 节点 + 6 项 UI 测试。）
 
 ### 3.3 `ui/`（表现层，唯一允许调用 Compose 的层）
 
 | 文件 | 职责 | 关键约定 |
 |---|---|---|
 | `theme/Ink.kt` | 纸墨配色、手写体、绘制原语 | **颜色与字体的唯一出口**；`inkLine/inkRoundRect/inkHatch` 抖动用纯函数种子 |
-| `theme/InkFonts.jvm.kt`（jvmMain） | 打包字体装载 + 系统兜底 | 资源落临时文件再 `Font(file)`；正文 = 霞鹜文楷 → 系统楷书；数字 = Nunito + **霞鹜文楷回退链**；失败返回 null（调用方回退通用族） |
+| `theme/InkFonts.jvm.kt`（jvmMain） | 打包字体装载 + 系统兜底 | 资源落**应用数据目录缓存**（`~/.sudoku-ink/fonts/`，按字节数校验）再 `Font(file)`；正文 = 霞鹜文楷 → 系统楷书；数字 = Nunito + **霞鹜文楷回退链**；失败返回 null（调用方回退通用族） |
+| `theme/SafeArea.kt` | 安全区内边距 | `expect/actual`：jvm 恒 0；**新增平台必须补 actual，缺了会编译失败**（不靠自觉） |
+| `theme/Motion.kt` | reduced-motion 判定 + 时长策略 | `expect/actual` + 纯函数 `motionDurationMs(ms, reduceMotion)`；**四档动效全部过它** |
+| `components/InkSnackbar.kt` | 一次性提示 | 自绘墨条；保留"挂起排队"与"相同文案也算新的一条"（自增 id） |
 | `theme/DesignTokens.kt` | 间距 / 圆角 / 断点 / 线宽 | **尺寸的唯一出口**，不含颜色 |
 | `components/InkWidgets.kt` | 墨线控件库 | `InkSurface` 统一五态反馈；`InkText` 是唯一文本出口 |
 | `components/BoardCanvas.kt` | 棋盘墨线绘制 | 分层：纸面 → 墨洗 → 格线 → 数字/笔记 → 选中框；文本缓存 + `rememberUpdatedState` |
@@ -218,7 +223,8 @@
 ## 4. 后续迭代计划（与 `docs/05` §5 里程碑对齐）
 
 **P0（阻塞跨平台）**
-- Android 落地：`sdkmanager "platforms;android-37" "build-tools;37.0.0"` → AGP + `androidTarget()` → `activity-compose` → 图标 → 模拟器验收（含返回键、边到边、`GameStore` 的 Android 实现）。
+- Android 落地：AGP + `androidTarget()` → `activity-compose` → 图标 → **`SafeArea` 的 android actual** → 模拟器验收（含返回键、边到边、`GameStore` 的 Android 实现）。
+  （`compileSdk 37` 的硬约束**已随第三方库移除**，本机 `android-35/36` 即可，不必再装 SDK 37。）
 - 构建环境固化：`JAVA_HOME` 指向 JDK 21（指向 JDK 25 会直接失败）。
 
 **P1（体验与状态机收口，对应 `docs/05` M1 ✅ 已达成）**
@@ -227,8 +233,8 @@
 - ✅ 时钟注入 + 真实时间源：单调时钟 + `SyncElapsed`；窗口最小化 / 切后台自动暂停。
 - ✅ 出题达标：`generate` 重试至目标空格（测试断言 4 档达标）。
 - ✅ 体验项：数字键剩余计数角标、撤销 / 重做可用态。
-- ✅ 设置持久化：`SaveCodec` v2 承载三项偏好、兼容 v1，且跨"再来一局"保留。
-- ✅ 通关墨框 + 再来一局（复用 `InkOverlay` + 落纸动画，未引入新依赖）。
+- ✅ 设置持久化：`SaveCodec` v2 承载**四项**偏好（严格模式 / 显示笔记 / 笔记模式 / 候选提示）、兼容 v1，且跨"再来一局"保留。
+- ✅ 通关墨框 + 再来一局（当轮复用 `InkOverlay` + 落纸动画，未引入新依赖；**第五轮后统一迁到 `TopDrawer`**）。
 - ✅ 首页三入口键盘导航（↑↓ / Enter / Esc，含难度与退出确认面板）。
 - ✅ 打包收口：ASCII `packageName` + vendor/description/图标，`packageMsi` 实测产出安装包。
 - ✅ 候选提示开关：**所有空格**用**半透明灰**数字显示规则允许的候选（第 4 项设置，默认关闭）。
@@ -243,7 +249,7 @@
 **P2（产品化，对应 M3 / M4）**
 - 战绩数据（不再做占位页）：按难度的最佳 / 平均用时、通关率；记录页需按墨线风格重新设计后接入。
 - 「夜墨」反色主题（深底 + 浅墨）与设置页。
-- 第二平台（Web / iOS）+ 逐格无障碍语义。
+- 第二平台（Web / iOS）。（逐格无障碍语义**已于第七轮完成**，不再属于待办。）
 - 难度模型升级为技巧等级（`docs/05` §4 Tier 2）。
 
 **不做**（详见 `docs/05` §6）：不引 DI / 导航 / ORM 框架、不为跨平台提前拆模块、不混用第二套 UI 组件库、
@@ -282,7 +288,7 @@
 - **精准投喂**：先 `@folder composeApp/src/commonMain` 预热，再用 `@file` / `@code` 定位；方法见 `docs/04`。
 - **负面约束随需求一起给**：把本文件 §0 的相关红线直接写进需求里。
 - **提交前自检清单**：
-  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（77 项）；改过 `state/` 或 `core/` 时必须补/改用例；
+  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（80 项）；改过 `state/` 或 `core/` 时必须补/改用例；
      动过字体 / 资源时跑 `BundledFontsTest`（字体在、family 对、中文/数字各归其位、**数字族的中文兜底链还在**）；
      动过棋盘绘制 / 语义层时要跑 `BoardCanvasUiTest`（81 节点 + 点击穿透）；
      动过覆盖层 / 键盘映射时，跑 `tools\smoke-e2e.ps1` 并看截图；

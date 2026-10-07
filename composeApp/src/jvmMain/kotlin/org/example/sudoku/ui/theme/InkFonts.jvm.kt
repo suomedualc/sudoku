@@ -35,11 +35,24 @@ private fun loadResourceFont(resource: String): Font? {
         Ink::class.java.classLoader.getResourceAsStream(resource)?.use { it.readBytes() }
     }.getOrNull() ?: return null
     return runCatching {
-        val file = File.createTempFile("sudoku-ink-font-", ".ttf")
-        file.deleteOnExit()
-        file.writeBytes(bytes)
+        val file = fontCacheFile(resource)
+        // 已缓存且字节数一致就直接复用：字体每次启动都要用，缓存下来省掉约 25MB 的一次性写出。
+        if (!file.isFile || file.length() != bytes.size.toLong()) file.writeBytes(bytes)
         PlatformFont(file = file, weight = FontWeight.Normal, style = FontStyle.Normal)
     }.getOrNull()
+}
+
+/**
+ * 字体缓存位置：`~/.sudoku-ink/fonts/`。
+ *
+ * 早前用 `File.createTempFile` + `deleteOnExit`：每次启动都要重写约 25MB，且进程被强杀时
+ * 临时文件会残留（多开几个实例还会各写一份）。缓存目录里按字节数校验，写一半的坏文件会被重写。
+ */
+private fun fontCacheFile(resource: String): File {
+    val name = resource.substringAfterLast('/')
+    val dir = File(System.getProperty("user.home") ?: ".", ".sudoku-ink/fonts")
+    dir.mkdirs()
+    return File(dir, name)
 }
 
 /**

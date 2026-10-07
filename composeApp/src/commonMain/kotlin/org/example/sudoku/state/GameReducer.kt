@@ -245,7 +245,8 @@ object GameReducer {
             // revealed=true 却 settled=false 的僵尸状态（棋盘已填满却还能继续操作）。
             settled = last.revealed,
             redoStack = state.redoStack.dropLast(1),
-            undoStack = state.undoStack + snapshotOf(state),
+            // 与 pushUndo 同样截断：只截一边的话，来回 undo/redo 会让栈无限增长
+            undoStack = (state.undoStack + snapshotOf(state)).takeLast(UNDO_LIMIT),
         )
         return settle(next, null)
     }

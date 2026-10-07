@@ -55,9 +55,16 @@ class GameViewModel(
         }
         syncAnchor()
 
-        val shouldPersist = action !is GameAction.SyncElapsed || state.elapsed % PERSIST_EVERY_SECONDS == 0
-        if (shouldPersist) persist()
+        // 只有"改动了可持久数据"的动作才落盘：Select / Move 只改当前选中格（存档里根本没有这一项），
+        // 为它们写盘是纯浪费——否则每移动一次光标都要整文件重写。心跳由 syncClock 单独节流。
+        if (persistsToDisk(action)) persist()
     }
+
+    /** 存档里只有 settings + game/notes/elapsed，因此"只改选中格"与"只报时"的动作都不必写盘。 */
+    private fun persistsToDisk(action: GameAction): Boolean =
+        action !is GameAction.Select &&
+            action !is GameAction.Move &&
+            action !is GameAction.SyncElapsed
 
     /**
      * 由 UI 心跳（约 250ms 一次）调用：按真实时间推进计时。

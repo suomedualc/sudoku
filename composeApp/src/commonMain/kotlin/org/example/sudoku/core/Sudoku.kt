@@ -215,23 +215,34 @@ object Sudoku {
         return Game(fallback, fallback.copyOf(), bestSolution, difficulty)
     }
 
+    /**
+     * 27 个分组（9 行 + 9 列 + 9 宫）的下标表，**静态常量**。
+     *
+     * 之前每次调用都用 `buildList` 重建 27 个装箱 `List<Int>`；而本函数在**每次落子**与
+     * **每次判胜**时都会跑，属于最热的几条路径之一。
+     */
+    private val GROUPS: Array<IntArray> = Array(27) { IntArray(9) }.also { g ->
+        for (i in 0..8) for (k in 0..8) g[i][k] = i * 9 + k                       // 行
+        for (i in 0..8) for (k in 0..8) g[9 + i][k] = k * 9 + i                   // 列
+        for (b in 0..8) {                                                          // 宫
+            val r0 = b / 3 * 3
+            val c0 = b % 3 * 3
+            for (k in 0..8) g[18 + b][k] = (r0 + k / 3) * 9 + c0 + k % 3
+        }
+    }
+
     /** 逐格冲突标记：同行 / 同列 / 同宫出现重复数字。 */
     fun conflictFlags(board: Board): BooleanArray {
         val flags = BooleanArray(81)
         val counts = IntArray(10)
-        val groups = buildList {
-            for (i in 0..8) add((0..8).map { i * 9 + it })
-            for (i in 0..8) add((0..8).map { it * 9 + i })
-            for (b in 0..8) {
-                val r0 = b / 3 * 3
-                val c0 = b % 3 * 3
-                add((0..8).map { (r0 + it / 3) * 9 + c0 + it % 3 })
-            }
-        }
-        for (group in groups) {
+        for (group in GROUPS) {
             counts.fill(0)
-            for (pos in group) counts[board[pos]]++
-            for (pos in group) if (board[pos] != 0 && counts[board[pos]] > 1) flags[pos] = true
+            for (idx in 0..8) counts[board[group[idx]]]++
+            for (idx in 0..8) {
+                val pos = group[idx]
+                val value = board[pos]
+                if (value != 0 && counts[value] > 1) flags[pos] = true
+            }
         }
         return flags
     }
