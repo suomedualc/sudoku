@@ -65,7 +65,7 @@
     **打包图标与运行时图标必须同源**：jpackage 只把图标嵌进 exe；AWT 窗口默认仍显示 JDK 的 Java 图标，
     因此 `jvmMain/main.kt` 必须显式设置 `window.iconImages`（PNG 经 `jvmMain { resources.srcDir("icons") }` 进 jar）。
 
-**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 136 项）+ **实机冒烟**
+**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 137 项）+ **实机冒烟**
 （`tools/smoke-e2e.ps1`，置顶 + 固定坐标，见 §5）+ **实机试玩**（§6 第 4–5 条）+ 肉眼验收四档窗口。
 
 ---
@@ -103,7 +103,7 @@
 | 存档 | 端口 + 注入（`GameStore` / `SaveCodec`） | `expect/actual` / DataStore / SQLDelight | `state` 保持零平台依赖；桌面写单文件、测试用内存实现；编解码纯文本可单测 | 需为每个平台写实现；只存对局不存设置 | 需要结构化查询（战绩统计）时换 SQLDelight / DataStore（换实现即可，不动状态机） |
 | 求解 / 出题 | 位掩码 + MRV 回溯 + 贪心挖洞 + 唯一解校验 | 朴素回溯 / 题库资源 | 候选判断 O(1)，出题实测 1–4 ms | 空格数只是上限（大师档实测 22/25 达标） | 做"技巧难度"时新增技巧求解器，出题改为"技巧可解性"驱动 |
 | 计时 | UI 心跳 `delay(1000)` 累加 | `TimeSource.Monotonic` 差值 | 实现最简单、无平台依赖 | ✅ **已改**（§4 P1）：真实时间源 + 时钟注入（`GameClock`）+ 最小化停表；漂移已消除 | 无 |
-| 提示反馈 | `Reduction(state, message)` → `Channel<String>` → `InkSnackbarHost` | `SharedFlow` / 第三方提示通道 | 自绘墨条零额外依赖，视觉与"不拦截点击"可控；相同文案也能逐条送达（自增 id 保证，单测守着） | 需 ViewModel 持有 Channel 与收集协程 | 若要做"可撤销的提示条"，在墨条上加操作（`docs/05` §4） |
+| 提示反馈 | `Reduction(state, message)` → `Channel<String>` → `InkSnackbarHost` | `SharedFlow` / 第三方提示通道 | 自绘墨条零额外依赖，视觉与"不拦截点击"可控；**顶替式**固定时长 2.4s——连续快速点击不会让墨条驻留时间随次数累加；相同文案也算新的一条（自增 id，单测守着） | 需 ViewModel 持有 Channel 与收集协程 | 若要做"可撤销的提示条"，在墨条上加操作（`docs/05` §4） |
 | 测试 | `kotlin.test` + 固定种子 | 断言库 / 属性测试 | 零依赖、跨端同一套用例 | ✅ UI 自动化**已有 13 项**（`TopDrawerUiTest` 4 + `BoardCanvasUiTest` 6 + `GameScreenUiTest` 3） | 变慢时按源集拆分任务 |
 
 ---
@@ -174,7 +174,7 @@
 | `theme/InkFonts.jvm.kt`（jvmMain） | 打包字体装载 + 系统兜底 | 资源落**应用数据目录缓存**（`~/.sudoku-ink/fonts/`，按字节数校验）再 `Font(file)`；正文 = 霞鹜文楷 → 系统楷书；数字 = Nunito + **霞鹜文楷回退链**；失败返回 null（调用方回退通用族） |
 | `theme/SafeArea.kt` | 安全区内边距 | `expect/actual`：jvm 恒 0；**新增平台必须补 actual，缺了会编译失败**（不靠自觉） |
 | `theme/Motion.kt` | reduced-motion 判定 + 时长策略 | `expect/actual` + 纯函数 `motionDurationMs(ms, reduceMotion)`；**四档动效全部过它** |
-| `components/InkSnackbar.kt` | 一次性提示 | 自绘墨条；保留"挂起排队"与"相同文案也算新的一条"（自增 id） |
+| `components/InkSnackbar.kt` | 一次性提示 | 自绘墨条；**顶替式**固定时长 2.4s（连续点击不累加，计时在挂载点协程）；相同文案也算新的一条（自增 id） |
 | `theme/DesignTokens.kt` | 间距 / 圆角 / 断点 / 线宽 | **尺寸的唯一出口**，不含颜色 |
 | `components/InkWidgets.kt` | 墨线控件库 | `InkSurface` 统一五态反馈；`InkText` 是唯一文本出口 |
 | `components/BoardCanvas.kt` | 棋盘墨线绘制 | 分层：纸面 → 墨洗 → 格线 → 数字/笔记 → 选中框；文本缓存 + `rememberUpdatedState` |
@@ -339,7 +339,7 @@
 - **精准投喂**：先 `@folder composeApp/src/commonMain` 预热，再用 `@file` / `@code` 定位；方法见 `docs/04`。
 - **负面约束随需求一起给**：把本文件 §0 的相关红线直接写进需求里。
 - **提交前自检清单**：
-  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（136 项）；改过 `state/` 或 `core/` 时必须补/改用例；
+  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（137 项）；改过 `state/` 或 `core/` 时必须补/改用例；
      动过字体 / 资源时跑 `BundledFontsTest`（字体在、family 对、中文/数字各归其位、**数字族的中文兜底链还在**）；
      动过棋盘绘制 / 语义层时要跑 `BoardCanvasUiTest`（81 节点 + 点击穿透 + 暂停遮读屏）；
      **动过配色必须跑 `InkThemeTest`**（两套主题的前三级都要 ≥ 4.5:1；新增色值必须同时给浅 / 深两套）；

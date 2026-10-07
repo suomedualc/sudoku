@@ -60,13 +60,13 @@ fun App(
         }
     }
 
-    // 一次性提示：从事件通道逐条取，**按当前语言渲染**再弹墨条（相同文案也会逐条送达，
-    // 状态容器靠自增 id 区分，不会被等值比较吞掉）。
-    // 语言必须在循环里**现取**：LaunchedEffect(Unit) 只在首次组合启动，闭包会把首帧的局部值固化——
-    // 若在外面先算好 `strings` 再被捕获，切换语言后新提示仍会用旧语言渲染。
+    // 一次性提示：从事件通道逐条取，**按当前语言渲染**再弹墨条。
+    // 显示是**顶替式**：新提示立即顶掉当前那条并独占固定时长（计时在 InkSnackbarHost 的协程里）——
+    // 连续快速点击（如连按提示键）不会让墨条驻留时间随次数累加；相同文案也算新的一条
+    // （自增 id），不会因等值比较被吞。语言在循环里现取（见下）。
     LaunchedEffect(Unit) {
         for (message in viewModel.messages) {
-            snackbarState.showSnackbar(stringsFor(viewModel.state.language).render(message))
+            snackbarState.show(stringsFor(viewModel.state.language).render(message))
         }
     }
 

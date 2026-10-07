@@ -54,8 +54,9 @@
 - **通关抽屉**：填满正确盘面后从顶部滑下结算抽屉，显示用时 / 难度 / 提示次数，可直接「再来一局」（同难度重开）或返回首页。
 - **游玩统计**：首页「查看游玩统计」——完成 / 放弃对局数、胜率（含墨条可视化）、当前与最长连胜、
   总游玩时长、填数步数、平均每步耗时、提示次数、**各难度最快通关**；随存档持久化。
-- **随机句子**：首页标题下的文案位轮播**内置语料**（名人名言 / 诗词歌赋 / 脑筋急转弯，
-  收集自公开网络资料后打包内置），定时 + 手动换一句，会话内不重复。
+- **随机句子**：首页标题下的文案位轮播**本地语料库**（名人名言 / 诗词歌赋 / 脑筋急转弯，
+  开发期收集自公开网络资料，结构化存为 `corpus/sentences.txt` 随包分发，**运行时从该文件读取**、离线完全可用），
+  定时 + 手动换一句，会话内不重复。
 - **多语言**：首页「语言」入口切换（跟随系统 / 简体中文 / English），**全部可见文字**即时切换、无需重启；
   界面上不写死任何文案，一律走 `ui/i18n/Strings` 字典（reducer 只发语义键）。
 - **偏好与续局**：严格模式 / 显示笔记 / 笔记模式 / 候选提示 / 夜墨模式 / 键位 / **语言**共**七项**偏好跨对局、跨重启保留；
@@ -146,7 +147,7 @@ org.example.sudoku
 
 ```powershell
 .\gradlew.bat :composeApp:run                  # 桌面直接运行
-.\gradlew.bat :composeApp:jvmTest --offline    # 单元测试 + UI 测试（136 项）
+.\gradlew.bat :composeApp:jvmTest --offline    # 单元测试 + UI 测试（137 项）
 .\gradlew.bat :composeApp:createDistributable --offline   # 便携版（build/compose/binaries/main/app）
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1   # 实机冒烟（置顶 + 固定坐标，自动截图）
 # 根目录 SudokuInk.lnk 指向上面的便携版，双击即可预览（本机快捷方式，不入库）

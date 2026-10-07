@@ -35,7 +35,7 @@
 4. **一次性提示走事件**：reducer 只发 `Msg` 语义键（`Reduction(state, message)`）→ ViewModel 事件通道 →
    Snackbar。提示不得塞回 `GameState`；UI 文案不得进 `state/`（见 §3.4 的 `keyTokenLabel` 反例）。
 5. **测试同步义务**：改 `core/` 补 `commonTest` 用例；改 `state/` 补 `GameReducerTest` / `GameStoreTest`（固定种子）；
-   改绘制 / 语义层跑 `BoardCanvasUiTest`；改配色跑 `InkThemeTest`。当前基线 **136 项**（`commonTest` 116 + `jvmTest` 20），
+   改绘制 / 语义层跑 `BoardCanvasUiTest`；改配色跑 `InkThemeTest`。当前基线 **137 项**（`commonTest` 117 + `jvmTest` 20），
    数量变化要解释原因。
 6. **文档同改**：改 `state` 对外类型 / Action / Screen → 同步 `docs/01` §5；改视觉 → `docs/02`；
    改流程 / 测试数 → `docs/03`。**文档漂移按 P2 记**（本项目反复发生，见 §4-M8）。
@@ -127,7 +127,7 @@
 ## 3. 验证命令（审查结论的落地检查）
 
 ```powershell
-.\gradlew.bat :composeApp:jvmTest --offline      # 136 项基线，全绿才允许"无问题"结论
+.\gradlew.bat :composeApp:jvmTest --offline      # 137 项基线，全绿才允许"无问题"结论
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1 [-Flow <名字>]
 # 10 条流：menu / exit / win / theme / bar / ux / keys / keymap / stats / lang（置顶 + 固定坐标，自动截图）
 .\gradlew.bat :composeApp:createDistributable    # 改过运行期行为后重建便携版实机试玩
@@ -161,7 +161,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1 [-Flow <
 
 ## 5. 开放问题清单（2026-10-07 全量复审沉淀；同日已完成一轮修复并全量验证）
 
-> ✅ = 已修复（jvmTest 136 项全绿），CR 时如复现按 P1 报回归。
+> ✅ = 已修复（jvmTest 137 项全绿），CR 时如复现按 P1 报回归。
 
 **已修复（2026-10-07 修复轮）**
 1. ✅ `App.kt` 提示循环语言陈旧捕获——改为循环内 `stringsFor(viewModel.state.language)` 现取。
@@ -184,6 +184,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1 [-Flow <
 14. `androidMain/` 不参与编译（启用 M2 前需补 AGP + `androidTarget()` + activity-compose + SafeArea actual）；
     `MenuScreen` 焦点模型与游标模型并存（Tab 聚焦后 Enter 走游标项）。超出"不影响核心功能"边界，待拍板。
 15. `Strings` 中英键一致性无自动化守卫（本次修复删除了虚假注释；如需真正守卫需引入反射或代码生成，暂缓）。
+
+**第二轮修复（2026-10-07，用户三项需求）**
+16. ✅ 墨条"消失时间随点击次数累加"——显示从"挂起排队"改**顶替式固定时长**（新提示立即顶掉当前条，
+    每条恰停 2.4s；计时在 `InkSnackbarHost` 协程；`InkSnackbarHostUiTest` 用测试时钟钉住）。
+17. ✅ 首页语料升级为**本地语料库文件**（`jvmMain/resources/corpus/sentences.txt`，开发期收集、运行时读取、
+    离线可用；`SentenceCorpusTest` 契约 + actual 三层兜底）；候选提示"灰度小数字画在空格内"经实机验证本已实现。
 
 ---
 
