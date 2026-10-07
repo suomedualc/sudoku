@@ -2,7 +2,7 @@
 
 一份 Kotlin 代码实现的单机数独：`core`（算法）/ `state`（状态机）/ `ui`（表现）三层单向依赖，
 界面为**手写纸 · 简约油墨**——只有纸与墨两种颜色，边框、网格、勾选、冲突排线全部手绘；
-页面骨架、主题上下文与一次性提示由 [miuix](https://github.com/compose-miuix-ui/miuix) 提供。
+页面骨架、控件与一次性提示**全部自绘**，不依赖任何第三方 UI 组件库。
 
 ## 视觉风格
 
@@ -79,12 +79,12 @@
 | 组件 | 版本 | 说明 |
 |---|---|---|
 | Kotlin | 2.4.0 | 由 Gradle 插件拉取 |
-| Compose Multiplatform | 1.11.1 | miuix 0.9.2 直接依赖该版本 |
-| miuix | 0.9.2 | 提供主题 / 骨架 / 提示通道 |
+| Compose Multiplatform | 1.11.1 | 与 Kotlin 2.4.0 由同一版本目录锁定 |
+| 第三方 UI 库 | 无 | 骨架 / 控件 / 提示全部自绘（`docs/02` §3.2） |
 | Gradle | 8.12 | wrapper 已入库，无需本机安装 |
 | JDK | 21（17–24 皆可） | 编译工具链由 `jvmToolchain(21)` 固定 |
 
-三者（Kotlin / CMP / miuix）**强绑定**，必须整体升降级，详见 `docs/03` §2。
+Kotlin 与 CMP 由同一版本目录锁定（2.4.0 + 1.11.1 是已验证搭配），无第三方库强绑定，详见 `docs/03` §2。
 
 ## 架构
 
@@ -97,7 +97,7 @@ org.example.sudoku
 │   ├── theme/    Ink.kt（纸墨配色 + 手写体 + 手绘原语）· DesignTokens.kt（尺寸）
 │   ├── components/  InkWidgets.kt（墨线控件库）· BoardCanvas.kt · NumberPad.kt · FloatingPad.kt（就近输入）
 │   ├── screens/  MenuScreen（三入口 + 键盘导航）· GameScreen（双形态 + 通关抽屉 + 键盘）
-│   └── App.kt    MiuixTheme + Scaffold + 两页导航 + Snackbar
+│   └── App.kt    页面骨架（Box + 安全区）+ 两页导航 + 自绘墨条提示
 └── entrypoints
     ├── androidMain/MainActivity.kt
     └── jvmMain/  main.kt（窗口 1180×900 / 最小 940×720）· platform/FileGameStore.kt · ui/theme/InkFonts.jvm.kt
@@ -132,9 +132,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1   # 实�
 | 目标 | 状态 | 说明 |
 |---|---|---|
 | Desktop / JVM | ✅ | Windows 上完成编译、测试、运行与 MSI 打包验证；三平台图标（`.ico` / `.png` / `.icns`）已就绪 |
-| Android | 接入即用 | miuix 要求 `compileSdk 37`；步骤见 `docs/05` §3.1；自适应图标分层资源已生成（`docs/06` §6） |
-| iOS / macOS | 接入即用 | miuix 已发布对应变体，构建需 macOS 主机；`.icns` 已生成（`docs/06` §7） |
-| Web（wasmJs / js） | 接入即用 | miuix 已发布 Web 变体，可在 Windows 上构建 |
+| Android | 接入即用 | 需 AGP / `androidTarget()` / `activity-compose` 与 `SafeArea` actual（无 compileSdk 硬约束）；步骤见 `docs/05` §3.1；自适应图标分层资源已生成（`docs/06` §6） |
+| iOS / macOS | 接入即用 | 构建需 macOS 主机；`.icns` 已生成（`docs/06` §7） |
+| Web（wasmJs / js） | 接入即用 | 可在 Windows 上构建；需评估 24.7MB 字体资源的体积 |
 
 `core` 与 `state` 两层零平台依赖，新增平台只需补 target、entrypoint 与 `GameStore` 实现，业务代码不动。
 平台策略与顺序见 `docs/05` §3。

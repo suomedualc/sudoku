@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "SudokuMiuix"
+rootProject.name = "SudokuInk"
 include(":composeApp")

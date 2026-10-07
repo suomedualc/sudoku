@@ -1,4 +1,4 @@
-# 数独（手写纸 · 简约油墨）开发纪律 · v2.3
+# 数独（手写纸 · 简约油墨）开发纪律 · v2.4
 
 > 本文件是"系统层"上下文（自动加载），既是**强制规则**，也是本工程的**开发思路 / 选型依据 / 模块说明 / 迭代计划**的简版。
 > 详细论证见 `docs/01-架构设计.md`、`docs/02-设计规范.md`、`docs/03-开发流程.md`、`docs/05-发展规划.md`。
@@ -15,15 +15,15 @@
 2. `state/` **禁止** Compose / 平台 API；`GameReducer` 必须是纯函数（同一 state + action + rng ⇒ 同一结果）。
 3. 改 `core/` 算法必须同步补 `commonTest` 用例；改 `state/` 行为必须补 `GameReducerTest` / `GameStoreTest` 用例（固定种子）。
 4. 改 `state` 对外类型 / Action / `Screen` 必须同步更新 `docs/01-架构设计.md` §5。
-5. 新增依赖或升级版本，必须先在 `gradle/libs.versions.toml` 对齐并登记理由（Kotlin / CMP / miuix 三者强绑定）。
+5. 新增依赖或升级版本，必须先在 `gradle/libs.versions.toml` 对齐并登记理由（Kotlin 与 CMP 由同一版本目录锁定）。
 
 **视觉（手写纸 · 简约油墨）**
 
-6. **只有纸与墨**：任何新组件都不得引入色相（不得出现红/绿/蓝语义色，也不得使用 miuix 的彩色语义色）；
+6. **只有纸与墨**：任何新组件都不得引入色相（不得出现红/绿/蓝语义色，也不得使用第三方库的彩色语义色）；
    层次只能用墨的浓淡（`Ink.Alpha.*`）、线重（`DesignTokens.Stroke.*`）、线型（实线 / 虚线 / 排线）表达。
 7. **颜色与字体只在 `ui/theme/Ink.kt`，尺寸只在 `ui/theme/DesignTokens.kt`**；组件里禁止裸色值与魔法尺寸。
 8. **所有可见控件走自绘墨线组件**（`InkSurface` 家族：`InkButton` / `InkKey` / `InkToggleRow` / `InkPanel`）；
-   引入 miuix 的 `Button / Card / Switch / TopAppBar` 等**外观型组件**属于回退，需先说明理由。
+   引入第三方组件库（如 Material3）的 `Button / Card / Switch / TopAppBar` 等**外观型组件**属于回退，需先说明理由。
 9. **覆盖层一律用 `TopDrawer`**（`ui/components/TopDrawer.kt` + `TopDrawerController`）：难度选择 / 退出确认 / 通关结算
    以及今后任何"请先做决定"的浮层都用它；**禁止** `Dialog` / `Popup` / 自造遮罩 / 第二套覆盖层实现。
    页面根节点必须在 `onPreviewKeyEvent` 里先 `drawer.handleKey(event, drawerKeys)` 再处理自己的键——
@@ -93,15 +93,15 @@
 | 领域 | 选择 | 备选 | 理由 | 代价 / 风险 | 何时应改选 |
 |---|---|---|---|---|---|
 | 语言/框架 | Kotlin + Compose Multiplatform | Flutter / Tauri+Web / 原生双写 | 一份 UI 跨端；`core/state` 零平台依赖可 100% 复用 | 生态小于 Flutter；iOS 构建需 macOS 主机 | 若必须覆盖 iOS 且无 Mac，评估 Flutter（会丢掉现有栈） |
-| 骨架与提示 | miuix（`MiuixTheme` / `Scaffold` / `SnackbarHost`） | 纯 Compose 自建骨架 | 主题上下文、安全区内边距、Snackbar 生命期与无障碍都已成熟 | miuix 标注 experimental，签名可能变 | 若 miuix 长期不更新或被迫升 compileSdk，可改为自建骨架（`Box` + `WindowInsets` + 自绘提示条） |
-| 视觉组件 | **自绘墨线组件**（`InkWidgets.kt`） | miuix `Button/Card/Switch` | 手写纸风格与填充色块 / Material 圆角的观感冲突；自绘才能做到"折线微弯 + 叠墨 + 五态一致" | 需要自己维护交互态（悬停/按压/焦点/禁用）与无障碍语义 | 若将来要"回到 miuix 观感"，只需替换 `InkWidgets` 一层，页面代码不动（组件边界已隔离） |
+| 骨架与提示 | **全自绘**（`App.kt` 的 `Box` + `Modifier.safeAreaPadding()` + `InkSnackbarHost`） | 第三方组件库的骨架 | 零额外依赖；提示条的视觉与"不拦截点击"完全可控 | 安全区要自己做平台声明（`expect/actual`，缺了会编译失败，不会静默漏） | 若将来第三方库成熟到可直接复用，只需替换 `App.kt` 的骨架一层，页面代码不动 |
+| 视觉组件 | **自绘墨线组件**（`InkWidgets.kt`） | 第三方组件库的外观组件 | 手写纸风格与填充色块 / Material 圆角的观感冲突；自绘才能做到"折线微弯 + 叠墨 + 五态一致" | 需要自己维护交互态（悬停/按压/焦点/禁用）与无障碍语义 | 若要换观感，只需替换 `InkWidgets` 一层，页面代码不动（组件边界已隔离） |
 | 字体 | **打包字体资源**（霞鹜文楷 + Nunito，OFL 1.1） | 只探系统手写体 | 跨设备 / 跨平台字形一致；数字有真实字重可分层（给定 Medium / 填入 Normal） | 仓库 +24.7MB；再分发需随附 OFL；桌面 `Font` 工厂无 classpath 入口，须落临时文件装载 | Android/Web 需按各端资源机制另做装载（必要时子集化，但子集属"修改版本"，需按 OFL 第 3 条改名） |
 | 棋盘渲染 | Compose `Canvas` 自绘 | 81 个 Composable / 图片贴图 | 81 格一次绘制远轻于 81 个节点；完全控制墨色分层与手绘线条 | 需自己处理测量、字号、缓存与无障碍 | 要做逐格无障碍节点时，改为"语义网格 + Canvas"混合（§4 P2） |
 | 状态管理 | 自写纯 reducer + `GameViewModel` | ViewModel + Flow / MVI 框架 | 规模小、可单测、可回放、零框架依赖 | 需自己补生命周期、事件通道、派生缓存 | 出现多数据源（战绩 + 每日题）与复杂副作用时，引入 Effect 模型 + Repository（`docs/05` 阶段 D） |
 | 存档 | 端口 + 注入（`GameStore` / `SaveCodec`） | `expect/actual` / DataStore / SQLDelight | `state` 保持零平台依赖；桌面写单文件、测试用内存实现；编解码纯文本可单测 | 需为每个平台写实现；只存对局不存设置 | 需要结构化查询（战绩统计）时换 SQLDelight / DataStore（换实现即可，不动状态机） |
 | 求解 / 出题 | 位掩码 + MRV 回溯 + 贪心挖洞 + 唯一解校验 | 朴素回溯 / 题库资源 | 候选判断 O(1)，出题实测 1–4 ms | 空格数只是上限（大师档实测 22/25 达标） | 做"技巧难度"时新增技巧求解器，出题改为"技巧可解性"驱动 |
 | 计时 | UI 心跳 `delay(1000)` 累加 | `TimeSource.Monotonic` 差值 | 实现最简单、无平台依赖 | 有累积漂移；窗口最小化仍走表；不可测 | **应当改**（§4 P1）：真实时间源 + 时钟注入 |
-| 提示反馈 | `Reduction(state, message)` → `Channel<String>` → `SnackbarHost` | 自绘墨条 / `SharedFlow` | 复用 miuix 的通知通道，零额外依赖；相同文案也能逐条送达（已修） | 需 ViewModel 持有 Channel 与收集协程 | 若要做"可撤销的提示条"，改自绘墨条（`docs/05` §4） |
+| 提示反馈 | `Reduction(state, message)` → `Channel<String>` → `InkSnackbarHost` | `SharedFlow` / 第三方提示通道 | 自绘墨条零额外依赖，视觉与"不拦截点击"可控；相同文案也能逐条送达（自增 id 保证，单测守着） | 需 ViewModel 持有 Channel 与收集协程 | 若要做"可撤销的提示条"，在墨条上加操作（`docs/05` §4） |
 | 测试 | `kotlin.test` + 固定种子 | 断言库 / 属性测试 | 零依赖、跨端同一套用例 | 无 UI 自动化 | UI 复杂化后引入 CMP UI 测试（需加依赖并验证可行性） |
 
 ---
@@ -162,7 +162,7 @@
 仍未做：`legalMask` 是否下沉到状态层（目前按盘面 `remember`）、逐格无障碍语义、
 移动端命中区放大与候选预览条（M2）。
 
-### 3.3 `ui/`（表现层，唯一允许调用 Compose / miuix 的层）
+### 3.3 `ui/`（表现层，唯一允许调用 Compose 的层）
 
 | 文件 | 职责 | 关键约定 |
 |---|---|---|
@@ -176,7 +176,7 @@
 | `components/TopDrawer.kt` | 顶部抽屉（**唯一覆盖层形态**）+ `TopDrawerController` + `TopDrawerKeys` | 全屏遮罩 + 顶部滑入纸片（全宽、限宽 560dp、只有下缘圆角 + 抓手段）；遮罩只在展开时拦指针；键盘仲裁是**纯函数**（有单测）；关闭时 `restoreFocus` 交回焦点；页面根节点必须先调 `drawer.handleKey` |
 | `screens/MenuScreen.kt` | 首页 | **只有三个入口**（开始 / 继续 / 退出）+ 难度抽屉 + 退出确认抽屉 + 底部草图；`MenuCursor` + `onPreviewKeyEvent` 提供 ↑↓ / Enter / Esc（跳过置灰项，鼠标点击同步高亮）；键先过抽屉仲裁 |
 | `screens/GameScreen.kt` | 对局页 | 宽屏双栏 / 窄屏滚动；暂停白纸遮题；通关结算抽屉（`WinDrawer` 复用 `TopDrawer`，不可点遮罩关闭）；悬浮面板的锚点格与统一出口 `dispatch`（除选格 / 换格 / 心跳外任何动作都收面板）；键序 **抽屉 → 悬浮面板 Esc → 棋盘**（`handleKeyEvent` 只管棋盘，通关期由 `winDrawerKeys` 接管） |
-| `App.kt` | 装配 | `MiuixTheme(lightColorScheme())` + `Scaffold` + 两页导航 + Snackbar；铺 `Ink.Paper`；无顶部栏 |
+| `App.kt` | 装配 | `Box` + `safeAreaPadding()` + 两页导航 + `InkSnackbarHost`；铺 `Ink.Paper`；无顶部栏 |
 
 ### 3.4 entrypoints
 
@@ -209,7 +209,7 @@
 | 加一个玩法开关 | ① `GameState` 加字段 ② `GameAction` 加 `Toggle*` ③ reducer 处理 ④ `GameScreen.OptionsPanel` 加一行 `InkToggleRow` ⑤ 若影响规则，加测试 ⑥ 若要落盘，同步 `SaveCodec` |
 | 加一个难度 | ① `Difficulty` 加值 ② （若要求达标）改 `generate` 的重试策略 ③ `MenuScreen` 难度遮罩自动出现（遍历 entries）④ 测试断言实际空格数 |
 | 加一个新屏幕 | ① `Screen` 枚举 ② `App.kt` 的 `when` 分支 ③ 新 Screen 用 `InkPanel` + `InkButton` 组织 ④ 更新 `docs/01` §2 与 `docs/02` §3 |
-| 加一个新平台 | 见 `docs/05` §3.1 / §3.2：确认 miuix 有该平台变体 → 加 target → 写 entrypoint → 实现 `GameStore` → 逐条过输入差异与屏幕档位 |
+| 加一个新平台 | 见 `docs/05` §3.1 / §3.2：加 target → 写 entrypoint → **补 `SafeArea.kt` 的 actual（安全区，缺了编译失败）** → 实现 `GameStore` → 逐条过输入差异与屏幕档位 |
 | 换字体 | 改 `tools/get-fonts.ps1`（URL / 版本）+ `resources/fonts/` 里的文件 + `InkFonts.jvm.kt` 的装载路径，不动任何页面代码 |
 | 改打包标识 / 图标 | ① 视觉改动重跑 `tools/make-icon.ps1`（生成 `composeApp/icons/`）② 改 `nativeDistributions` 里的 `packageName`（**保持 ASCII**）/ `description` / `vendor` ③ 真跑 `packageMsi` 并核对产品名与图标 |
 
