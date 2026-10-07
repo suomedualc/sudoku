@@ -7,6 +7,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +26,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
@@ -33,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
@@ -61,6 +65,7 @@ import org.example.sudoku.ui.theme.Ink
 import org.example.sudoku.ui.theme.inkLine
 import org.example.sudoku.ui.theme.inkRoundRect
 import org.example.sudoku.ui.theme.motionDurationMs
+import org.example.sudoku.ui.theme.prefersReducedMotion
 
 /** 墨字：唯一允许的文本出口，保证全站字体与墨色一致。 */
 @Composable
@@ -499,8 +504,18 @@ fun InkGridSketch(
 /**
  * 图标形状：全部用 [inkLine] 与弧线**自绘**，不引入图标库、不用图标字体。
  *
- * 理由：图标必须与墨线控件同一套笔触（微弯 + 叠墨），位图与字体图标在缩放 / 高 DPI 下会露馅，
- * 而且换不出"手绘"的工艺感（`docs/02` §3.2 的"不引入第三方组件库"同一条纪律）。
+ * 两个理由：① 图标必须与墨线控件同一套笔触（微弯 + 叠墨），位图与字体图标在缩放 / 高 DPI 下会露馅，
+ * 而且换不出"手绘"的工艺感（`docs/02` §3.2 的"不引入第三方组件库"同一条纪律）；
+ * ② 按钮只有 36dp，**每一枚都要"一眼认出功能"**，因此按"骨架差异"而不是"细节差异"来设计：
+ *
+ * | 图标 | 骨架 | 与同类怎么区分 |
+ * |---|---|---|
+ * | 返回 | 一根横杆 + 箭尖 | 唯一**水平**的箭头 |
+ * | 撤销 / 重做 | 半圈弧 + 箭尖 | 互为镜像（一个过顶向左、一个过顶向右） |
+ * | 重置 | **整圈**弧 + 箭尖 | 弧长接近一整圈，与"半圈"的撤销 / 重做一眼分开 |
+ * | 暂停 / 继续 | 两条竖杠 / 一个三角 | 互补的一对（同一位置切换，形状必须相反） |
+ * | 提示 | **灯泡**（灯罩 + 灯座 + 光线） | 通用符号；比"!"更不容易被误读成"警告" |
+ * | 太阳 / 月牙 | 圆 + 光芒 / 缺一段的圆 | 显示的是"点下去会变成什么"，不是当前状态 |
  */
 enum class InkIcon {
     /** ← 返回菜单。 */
@@ -546,20 +561,108 @@ fun InkIconButton(
     enabled: Boolean = true,
     emphasis: Boolean = false,
     size: Dp = DesignTokens.Sizes.IconButton,
+    /**
+     * 悬停时浮出的功能名。**默认就是 [contentDescription]**——它本来就是人话写的功能名，
+     * 再单独造一个字段只会让两者慢慢走偏（按钮读屏念一个词、悬停显示另一个词是最糟的情况）。
+     * 需要更短的写法时才显式传（例如"切回浅色纸面"悬停时缩成"纸面模式"）。
+     */
+    tooltip: String = contentDescription,
+    /**
+     * 提示片相对按钮的对齐（默认贴按钮正下方居中）。**贴窗口边缘的按钮必须显式给方向**，
+     * 否则提示片会被边缘切掉：顶栏最右侧的按钮传 `Alignment.TopEnd`（提示片向左长），
+     * 最左侧的传 `Alignment.TopStart`。
+     * 用"对齐方向"而不是"测量后夹取"：不依赖任何运行时尺寸，也就不会有一帧的错位。
+     */
+    tooltipAlignment: Alignment = Alignment.TopCenter,
 ) {
-    InkSurface(
-        onClick = onClick,
+    var hovered by remember { mutableStateOf(false) }
+    val reduceMotion = prefersReducedMotion()
+    val tipAlpha by animateFloatAsState(
+        targetValue = if (hovered) 1f else 0f,
+        animationSpec = tween(motionDurationMs(DesignTokens.Motion.EnterMs, reduceMotion)),
+        label = "iconTooltip",
+    )
+
+    // 外层**固定尺寸**：提示片是超出按钮范围的浮层，若让父容器按内容测量，
+    // 悬停时按钮就会把顶栏撑高——那正是"布局跳动比功能重复更伤体验"的典型现场。
+    Box(
         modifier = modifier
             .size(size)
-            .semantics { this.contentDescription = contentDescription },
-        seed = remember(icon) { icon.ordinal * 23 + 9 },
-        height = size,
-        enabled = enabled,
-        emphasis = emphasis,
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        // 只观察进出，不消费：按钮自己的 clickable 照常工作
+                        hovered = when (event.type) {
+                            PointerEventType.Enter -> true
+                            PointerEventType.Exit -> false
+                            else -> hovered
+                        }
+                    }
+                }
+            },
     ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            drawInkIcon(icon, if (enabled) Ink.Black else Ink.Faint)
+        InkSurface(
+            onClick = onClick,
+            modifier = Modifier.size(size).semantics { this.contentDescription = contentDescription },
+            seed = remember(icon) { icon.ordinal * 23 + 9 },
+            height = size,
+            enabled = enabled,
+            emphasis = emphasis,
+        ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                drawInkIcon(icon, if (enabled) Ink.Black else Ink.Faint)
+            }
         }
+
+        if (tipAlpha > 0f) {
+            IconTooltip(
+                text = tooltip,
+                modifier = Modifier
+                    // `unbounded = true` 是关键：按钮只有 36dp，若用普通 align，
+                    // 提示片会被**父容器宽度**约束成 36dp——文字被截成"夜…"，
+                    // 看起来像被窗口切掉，其实是量测约束太紧。unbounded 允许它超出父容器，
+                    // 再按 [tooltipAlignment] 决定往哪边长（因此不会溢出窗口）。
+                    .wrapContentSize(tooltipAlignment, unbounded = true)
+                    .offset(y = size + DesignTokens.Spacing.Xs)
+                    .alpha(tipAlpha),
+            )
+        }
+    }
+}
+
+/**
+ * 图标按钮的悬停提示：一张小纸片 + 手绘墨框 + [Ink.Type.Meta] 文字。
+ *
+ * 固定在按钮**正下方**：顶栏按钮下方是棋盘上方的留白，浮动条按钮下方是空白纸面，两边都不压内容。
+ * 它不带 `clickable`，因此**不拦点击**——鼠标移过去时不会挡住底下的东西。
+ */
+@Composable
+private fun IconTooltip(text: String, modifier: Modifier = Modifier) {
+    val seed = remember(text) { text.hashCode() }
+    Box(
+        modifier = modifier
+            .drawBehind {
+                val rect = Rect(1f, 1f, size.width - 1f, size.height - 1f)
+                drawRoundRect(
+                    color = Ink.PaperSheet,
+                    topLeft = rect.topLeft,
+                    size = Size(rect.width, rect.height),
+                    cornerRadius = CornerRadius(DesignTokens.Radius.Mark.toPx()),
+                )
+                inkRoundRect(
+                    rect = rect,
+                    radiusPx = DesignTokens.Radius.Mark.toPx(),
+                    widthPx = DesignTokens.Stroke.Hair.toPx(),
+                    color = Ink.Black,
+                    seed = seed,
+                    alpha = Ink.Alpha.LineSoft,
+                )
+            }
+            .padding(horizontal = DesignTokens.Spacing.Sm, vertical = DesignTokens.Spacing.Xs),
+        contentAlignment = Alignment.Center,
+    ) {
+        InkText(text = text, style = Ink.Type.Meta.copy(color = Ink.Grey))
     }
 }
 
@@ -581,11 +684,14 @@ private fun DrawScope.drawInkIcon(icon: InkIcon, color: Color) {
             inkLine(Offset(c.x - r, c.y), Offset(c.x - r * 0.15f, c.y + r * 0.85f), w, color, 3, a)
         }
 
-        InkIcon.Undo -> drawArcArrow(c, r, w, color, startDeg = 20f, sweepDeg = -220f, alpha = a, seed = 4)
+        // 撤销 / 重做：**互为镜像的半圈弧**（一个过顶向左、一个过顶向右），箭尖落在弧的终点。
+        // 角度约定：0° 在 3 点方向、正值顺时针（屏幕坐标 y 向下，故 270° 是正上方）。
+        InkIcon.Undo -> drawArcArrow(c, r, w, color, startDeg = 0f, sweepDeg = -180f, alpha = a, seed = 4)
 
-        InkIcon.Redo -> drawArcArrow(c, r, w, color, startDeg = 160f, sweepDeg = 220f, alpha = a, seed = 7)
+        InkIcon.Redo -> drawArcArrow(c, r, w, color, startDeg = 180f, sweepDeg = 180f, alpha = a, seed = 7)
 
-        InkIcon.Reset -> drawArcArrow(c, r, w, color, startDeg = 100f, sweepDeg = -300f, alpha = a, seed = 10)
+        // 重置：**接近一整圈**（300°）的弧，与"半圈"的撤销 / 重做一眼分开
+        InkIcon.Reset -> drawArcArrow(c, r, w, color, startDeg = 300f, sweepDeg = -300f, alpha = a, seed = 10)
 
         InkIcon.Pause -> {
             inkLine(Offset(c.x - r * 0.45f, c.y - r * 0.85f), Offset(c.x - r * 0.45f, c.y + r * 0.85f), w, color, 5, a)
@@ -601,11 +707,7 @@ private fun DrawScope.drawInkIcon(icon: InkIcon, color: Color) {
             inkLine(p3, p1, w, color, 11, a)
         }
 
-        InkIcon.Hint -> {
-            // 感叹号：上粗下点，比"灯泡 / 问号"更容易用几笔墨线画清楚
-            inkLine(Offset(c.x, c.y - r * 0.9f), Offset(c.x, c.y + r * 0.25f), w * 1.25f, color, 13, a)
-            drawCircle(color.copy(alpha = a), radius = w * 0.75f, center = Offset(c.x, c.y + r * 0.85f))
-        }
+        InkIcon.Hint -> drawBulb(c, r, w, color, a)
 
         InkIcon.Sun -> {
             drawCircle(color.copy(alpha = a), radius = r * 0.5f, center = c, style = Stroke(width = w, cap = StrokeCap.Round))
@@ -626,6 +728,59 @@ private fun DrawScope.drawInkIcon(icon: InkIcon, color: Color) {
             drawPath(path, color.copy(alpha = a), style = Stroke(width = w, cap = StrokeCap.Round))
         }
     }
+}
+
+/**
+ * 灯泡（"提示"）：灯罩是一个圆，灯座是两条短横加两根短竖，顶上三道短光线。
+ *
+ * 为什么不用"!"：在只有纸与墨的画面上，"!"太容易被读成**警告 / 错误**，而它的实际功能是"给我一个提示"
+ * ——灯泡是这件事的通用符号。代价是笔画多一点，但 36dp 上仍然分得清（灯罩占了一半高度）。
+ */
+private fun DrawScope.drawBulb(
+    center: Offset,
+    radius: Float,
+    width: Float,
+    color: Color,
+    alpha: Float,
+) {
+    val r = radius
+    val bulbR = r * 0.50f
+    val bulbC = Offset(center.x, center.y - r * 0.20f)
+    val baseY = center.y + r * 0.46f
+    val thin = width * 0.85f
+
+    // 三道光线（先画，被灯罩压住也无所谓——都在灯罩外）
+    for ((i, deg) in listOf(-140f, -90f, -40f).withIndex()) {
+        val rad = deg * PI.toFloat() / 180f
+        val dir = Offset(cos(rad), sin(rad))
+        inkLine(
+            from = bulbC + dir * (bulbR + width * 1.4f),
+            to = bulbC + dir * (bulbR + width * 3.2f),
+            widthPx = thin,
+            color = color,
+            seed = 40 + i,
+            alpha = alpha,
+        )
+    }
+    // 灯罩
+    drawCircle(
+        color = color.copy(alpha = alpha),
+        radius = bulbR,
+        center = bulbC,
+        style = Stroke(width = width, cap = StrokeCap.Round),
+    )
+    // 灯座：上下各一条短横，两侧各一根短竖把它们接上灯罩
+    inkLine(Offset(center.x - bulbR * 0.62f, center.y + r * 0.16f), Offset(center.x - bulbR * 0.62f, baseY), thin, color, 44, alpha)
+    inkLine(Offset(center.x + bulbR * 0.62f, center.y + r * 0.16f), Offset(center.x + bulbR * 0.62f, baseY), thin, color, 45, alpha)
+    inkLine(Offset(center.x - bulbR * 0.78f, baseY), Offset(center.x + bulbR * 0.78f, baseY), width, color, 46, alpha)
+    inkLine(
+        Offset(center.x - bulbR * 0.42f, center.y + r * 0.78f),
+        Offset(center.x + bulbR * 0.42f, center.y + r * 0.78f),
+        width,
+        color,
+        47,
+        alpha,
+    )
 }
 
 /**

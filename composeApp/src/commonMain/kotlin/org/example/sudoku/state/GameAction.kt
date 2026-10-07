@@ -19,6 +19,14 @@ sealed interface GameAction {
     /** 夜墨模式开关：深底浅墨（见 [GameState.darkMode]）。 */
     data object ToggleDarkMode : GameAction
 
+    /**
+     * 取消选格：清掉选中框、同行列宫高亮、同数字高亮等一切**临时**标记，让棋盘回到开局时的纯净配色。
+     *
+     * 由"点棋盘以外的空白处"触发。注意**不清**冲突排线——那是对局数据（真的填重了），
+     * 不是临时标记；清掉它等于骗玩家。
+     */
+    data object Deselect : GameAction
+
     data object Hint : GameAction
     data object Reveal : GameAction
     data object Reset : GameAction

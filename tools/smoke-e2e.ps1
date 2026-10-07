@@ -35,7 +35,7 @@ param(
     [int]$Width = 1180,
     [int]$Height = 900,
     [string]$OutDir = $env:TEMP,
-    [ValidateSet('all', 'menu', 'exit', 'win', 'theme', 'bar')]
+    [ValidateSet('all', 'menu', 'exit', 'win', 'theme', 'bar', 'ux')]
     [string]$Flow = 'all'
 )
 
@@ -205,11 +205,13 @@ function Stop-App($p) {
 }
 
 $SIZE = 81
-function Write-OneEmptySave([string]$path, [bool]$dark = $false) {
-    # a complete, valid sudoku grid with only the last cell blank
+function Write-OneEmptySave([string]$path, [bool]$dark = $false, [int]$Blank = 1) {
+    # a complete, valid sudoku grid with only the last $Blank cells blank
+    # ($Blank > 1 时留着不止一格：用来观察"给定数字 vs 玩家填入"的区分，且不触发通关)
     $sol = '534678912672195348198342567859761423426853791713924856961537284287419635345286179'
     if ($sol.Length -ne $SIZE) { throw ('bad seed grid') }
-    $puz = $sol.Substring(0, 80) + '0'
+    if ($Blank -lt 1 -or $Blank -gt 9) { throw ('Blank must be 1..9') }
+    $puz = $sol.Substring(0, ($SIZE - $Blank)) + ('0' * $Blank)
     $notes = (1..$SIZE | ForEach-Object { '0' }) -join ','
     $lines = @('v=2', 'strict=0', 'showNotes=1', 'noteMode=0', 'hintCandidates=0', 'game=1', 'difficulty=Easy')
     # 明暗是第五项偏好，随存档走：写进去就能让应用**开局即夜墨**，省掉一次点击
@@ -298,6 +300,30 @@ try {
         # 鼠标移到棋盘**下半部**：条应搬回棋盘下方
         Send-Hover $p 400 620
         Save-Shot $p 'bar_at_bottom'
+        Stop-App $p
+    }
+
+    if ($Flow -eq 'all' -or $Flow -eq 'ux') {
+        Write-Host '== flow: icon tooltips + click-outside clears the board =='
+        # 留 3 格空白：填掉一格不会通关，这才看得到"给定 vs 玩家填入"的区分
+        Write-OneEmptySave $saveFile -Blank 3
+        $p = Start-App
+        Send-Key $p 'Down' $script:KeyExtended
+        Send-Key $p 'Enter'
+        # ① 悬停顶栏最右侧的明暗切换 → 应在按钮下方浮出功能名
+        Send-Hover $p 1146 59
+        Save-Shot $p 'icon_tooltip'
+        # ② 点棋盘中心 → 选中一格（同行列宫 / 同数字高亮随之出现）
+        Send-Click $p 590 402
+        Save-Shot $p 'cell_selected'
+        # ③ 点棋盘以外的空白纸面 → 选中与一切临时高亮清空，回到开局的干净样子
+        Send-Click $p 150 402
+        Save-Shot $p 'board_cleared'
+        # ④ 选最后一格并用键盘填 9 → 对比"印上去的给定数字"与"写上去的填入数字"
+        Send-Click $p 813 626
+        Send-Key $p 'Digit9'
+        Send-Click $p 150 402
+        Save-Shot $p 'given_vs_filled'
         Stop-App $p
     }
 } catch {

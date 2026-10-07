@@ -43,6 +43,10 @@ object GameReducer {
         is GameAction.Select ->
             Reduction(if (!state.interactive) state else state.copy(selected = action.pos))
 
+        // 取消选格：只清"选中"这一项，棋盘上的临时高亮都从它派生，因此一并消失。
+        // 盘面 / 笔记 / 冲突 / 计时一律不动——要清盘面另有 Reset。
+        GameAction.Deselect -> Reduction(state.copy(selected = null))
+
         is GameAction.Digit -> place(state, action.value)
         is GameAction.Move -> move(state, action.dRow, action.dCol)
 

@@ -27,9 +27,14 @@
 - **首页三个入口**：`开始游戏`（墨框难度面板：简单 40 / 普通 46 / 困难 52 / 大师 56 空）、
   `继续游戏`（无未完成对局时置灰并附说明）、`退出游戏`（二次确认）。无对弈、联网、社交。
 - **棋盘**：9×9 手绘网格，宫线加粗；选中双框、同行列宫淡墨、同值淡墨；冲突格斜排线 + 数字手绘圈；
-  给定数字实墨、玩家填入淡墨、候选数小号淡墨。
-- **数字输入**：选格后点数字键填入；`擦除` 清空；笔记模式记候选（落子自动清理同行列宫候选）；
-  数字键右上角显示"还剩几个"，用完转淡墨框。
+  候选数小号淡墨。**棋盘左右两侧不放任何元素**，题面四周是干净的纸。
+- **给定数字 vs 自己填的**：三重区分，一眼可辨——墨色（给定一墨 / 填入二墨）+
+  字形（给定走**印刷体** Nunito、填入走**手写体**霞鹜文楷，读作"题面是印的、你填的是写的"）+
+  读屏文案（念"给定 5" / "填入 9"）。
+- **数字输入**：选格后点数字键填入；数字键 **1–9 横向一排**、`擦除` 单独一键；
+  笔记模式记候选（落子自动清理同行列宫候选）；键右上角显示"还剩几个"，用完转淡墨框。
+- **点棋盘外的空白** → 选中框与一切临时高亮消失，棋盘回到开局那样干净
+  （**不动盘面、不动冲突排线**——冲突是真填重了，不是临时标记）。
 - **候选提示**（开关，默认关闭）：打开后**每个空格**都用**半透明灰**小字直接写出"按规则仍可填"的数字；
   自己记的笔记是实墨小字，两者靠墨色深浅区分——不靠颜色。落子后同行列宫的候选会同步刷新。
 - **鼠标就近输入**（桌面）：鼠标或触控笔点**空格**，就在该格旁弹出**半透明墨框面板**，
@@ -47,6 +52,7 @@
 - **浮动操作条**：撤销 / 重做贴在棋盘上/下的专用槽里，**跟着鼠标换边**（进棋盘上半部贴上方、下半部贴下方，
   中间有滞回死区，不会来回跳）；条只在槽里出现，绝不压住题面。
 - **顶栏**：返回菜单（左上角图标）· 状态读数（中间）· 提示 / 暂停 / 重置 / 明暗切换（右上角）。
+  图标全部自绘（**不引图标库**、不用图标字体），鼠标悬停任一图标会在其下方浮出功能名。
 - **落笔成局**：新开一局（或载入存档）时，棋盘由淡到浓**显影一次**（160ms）——全站唯一一处"情感化"动效；
   它只作用于绘制层，不影响首帧就能点、就能按键。
 
@@ -104,10 +110,10 @@ org.example.sudoku
 ├── ui/
 │   ├── theme/    Ink.kt（**双主题**纸墨配色 + 字体 + 手绘原语）· DesignTokens.kt（尺寸 / 线宽 / 动效四档）
 │   │                SafeArea.kt（安全区，expect/actual）· Motion.kt（reduced-motion 与时长策略）
-│   ├── components/  InkWidgets.kt（墨线控件库 + 自绘图标）· BoardCanvas.kt · NumberPad.kt · FloatingPad.kt（就近输入）
-│   │                FloatingBarPolicy.kt（浮动条换边判据）· TopDrawer.kt（顶部抽屉：覆盖层唯一出口）
-│   │                InkSnackbar.kt（自绘墨条提示）
-│   ├── screens/  MenuScreen（三入口 + 键盘导航）· GameScreen（**顶栏 + 棋盘舞台 + 控制栏** + 通关抽屉 + 键盘）
+│   ├── components/  InkWidgets.kt（墨线控件库 + 自绘图标 + 悬停功能名）· BoardCanvas.kt · NumberPad.kt（1–9 横向）
+│   │                FloatingPad.kt（就近输入）· FloatingBarPolicy.kt（浮动条换边判据）
+│   │                TopDrawer.kt（顶部抽屉：覆盖层唯一出口）· InkSnackbar.kt（自绘墨条提示）
+│   ├── screens/  MenuScreen（三入口 + 键盘导航）· GameScreen（**顶栏 + 棋盘舞台 + 功能区** + 通关抽屉 + 键盘）
 │   └── App.kt    页面骨架（Box + 安全区）+ 两页导航 + 自绘墨条提示
 └── entrypoints
     ├── androidMain/MainActivity.kt
@@ -122,7 +128,7 @@ org.example.sudoku
 
 ```powershell
 .\gradlew.bat :composeApp:run                  # 桌面直接运行
-.\gradlew.bat :composeApp:jvmTest --offline    # 单元测试 + UI 测试（92 项）
+.\gradlew.bat :composeApp:jvmTest --offline    # 单元测试 + UI 测试（96 项）
 .\gradlew.bat :composeApp:createDistributable --offline   # 便携版（build/compose/binaries/main/app）
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1   # 实机冒烟（置顶 + 固定坐标，自动截图）
 # 根目录 SudokuInk.lnk 指向上面的便携版，双击即可预览（本机快捷方式，不入库）

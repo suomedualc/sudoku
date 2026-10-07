@@ -1,4 +1,4 @@
-# 数独（手写纸 · 简约油墨）开发纪律 · v2.7
+# 数独（手写纸 · 简约油墨）开发纪律 · v2.8
 
 > 本文件是"系统层"上下文（自动加载），既是**强制规则**，也是本工程的**开发思路 / 选型依据 / 模块说明 / 迭代计划**的简版。
 > 详细论证见 `docs/01-架构设计.md`、`docs/02-设计规范.md`、`docs/03-开发流程.md`、`docs/05-发展规划.md`。
@@ -65,7 +65,7 @@
     **打包图标与运行时图标必须同源**：jpackage 只把图标嵌进 exe；AWT 窗口默认仍显示 JDK 的 Java 图标，
     因此 `jvmMain/main.kt` 必须显式设置 `window.iconImages`（PNG 经 `jvmMain { resources.srcDir("icons") }` 进 jar）。
 
-**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 92 项）+ **实机冒烟**
+**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 96 项）+ **实机冒烟**
 （`tools/smoke-e2e.ps1`，置顶 + 固定坐标，见 §5）+ **实机试玩**（§6 第 4–5 条）+ 肉眼验收四档窗口。
 
 ---
@@ -190,7 +190,7 @@
 | `jvmMain` | `main.kt`（1180×900 / 最小 940×720）· `platform/FileGameStore.kt`（`~/.sudoku-ink/save.txt`）· `ui/theme/InkFonts.jvm.kt` | ✅ 已启用 |
 | `androidMain` | `MainActivity` + `AndroidManifest`（主题已改系统内置） | ⏸ 未参与编译：缺 `androidTarget()` 与 `compileSdk 37`（`docs/05` §3.1） |
 
-### 3.5 九个容易踩的坑
+### 3.5 十二个容易踩的坑
 
 1. `GameState` / `Game` 里是 `IntArray`，`data class` 的 `equals` 对数组是**引用比较**——不要用 `==` 做业务判断。
 2. `Snapshot` 必须覆盖"所有会被改的字段"（漏一个就会出现 `hintUsed` 回退而 `hintsCount` 不回退这类矛盾）。
@@ -210,14 +210,23 @@
    **单测抓不到**，只有真机把鼠标移进棋盘才暴露。容器尺寸要用 `onSizeChanged` 记账，然后在事件循环里读。
 9. **`SaveFile.toState()` 是逐字段映射**：新增一项偏好忘了加进去，就会出现"存盘里有、重启后没了"，
    而编码 / 解码 / UI 三处都看不出问题。`GameStoreTest.settingsSurviveRestartAndNewGame` 会在漏写时失败。
+10. **语义网格不能用 `fillMax*(1f/9f)` 等分**：Column / Row 给子项的是**"剩余"**空间，
+    `fillMax*` 于是逐行（逐列）缩水，9 行只铺满约 **65%**，结果是"读屏念第 5 行第 5 列、点下去选中第 4 行第 4 列"。
+    用 `weight(1f)`。**偏差越往后越大**——验证必须点**最后一格**，点前几行会正好蒙对（`BoardCanvasUiTest` 已改为拿末格当哨兵）。
+11. **悬停判据不要只认 `PointerEventType.Move`**：指针**刚进入**容器时 Compose 报的是 `Enter`、之后才是 `Move`，
+    只认 `Move` 会漏掉"一步跨进棋盘"（实机 `SetCursorPos` 正是这种），表现为"鼠标明明在上半部却没反应"。
+    用 `change.pressed == false`（未按下 = 悬停），顺带排除手指拖动。
+12. **浮在按钮外的提示片必须用 `wrapContentSize(align, unbounded = true)`**：否则会被**按钮自己的 36dp 宽度**
+    约束截断成"夜…"（看着像被窗口切掉，其实是量测约束太紧）；并按 `tooltipAlignment` 决定往哪边长。
 
 ### 3.6 常见改动指引
 
 | 想做的事 | 步骤 |
 |---|---|
 | 改配色 / 线宽 | 只改 `Ink`（颜色墨阶）或 `DesignTokens.Stroke`（线宽），不要在组件里写死；**改色值必须同时给浅 / 深两套**并重算对比度（跑 `InkThemeTest`）；改完过一遍四档窗口 |
-| 加一个玩法开关 | ① `GameState` 加字段 ② `GameAction` 加 `Toggle*` ③ reducer 处理 ④ `GameScreen.OptionsPanel` 加一行 `InkToggleRow` ⑤ 若影响规则，加测试 ⑥ 若要落盘，同步 `SaveCodec`（编码 + 解码 + 格式注释）⑦ **同步 `GameViewModel` 的 `SaveFile.toState()`**（见 §3.5 第 9 条） |
-| 加一个图标 | ① `InkIcon` 加枚举值 ② `drawInkIcon` 里用 `inkLine` / 弧线自绘（**不引图标库、不用图标字体**）③ 用 `InkIconButton` 承载，说明走 `contentDescription`（读屏读"撤销"，不读"一个圆圈带箭头"） |
+| 加一个玩法开关 | ① `GameState` 加字段 ② `GameAction` 加 `Toggle*` ③ reducer 处理 ④ `GameScreen.ToggleRow` 加一项（**棋盘下方开关行**，四项一排）⑤ 若影响规则，加测试 ⑥ 若要落盘，同步 `SaveCodec`（编码 + 解码 + 格式注释）⑦ **同步 `GameViewModel` 的 `SaveFile.toState()`**（见 §3.5 第 9 条） |
+| 加一个图标 | ① `InkIcon` 加枚举值 ② `drawInkIcon` 里用 `inkLine` / 弧线自绘（**不引图标库、不用图标字体**）③ 用 `InkIconButton` 承载，说明走 `contentDescription`（读屏读"撤销"，不读"一个圆圈带箭头"）——悬停提示默认就取它；只有需要更短文案时才显式传 `tooltip` ④ **贴窗口边缘的按钮必须传 `tooltipAlignment`**（否则提示片被窗口切掉） |
+| 改棋盘语义网格 | 只能用 `weight(1f)` 等分，**禁止 `fillMax*(1f/9f)`**——Column / Row 给子项的是"剩余"空间，逐格缩水会让读屏报的格子与实际错位（见 §3.5 第 10 条）。改完跑 `BoardCanvasUiTest`（它点的是**最后一格**哨兵） |
 | 加一个难度 | ① `Difficulty` 加值 ② （若要求达标）改 `generate` 的重试策略 ③ `MenuScreen` 难度遮罩自动出现（遍历 entries）④ 测试断言实际空格数 |
 | 加一个新屏幕 | ① `Screen` 枚举 ② `App.kt` 的 `when` 分支 ③ 新 Screen 用 `InkPanel` + `InkButton` 组织 ④ 更新 `docs/01` §2 与 `docs/02` §3 |
 | 加一个新平台 | 见 `docs/05` §3.1 / §3.2：加 target → 写 entrypoint → **补 `SafeArea.kt` 的 actual（安全区，缺了编译失败）** → 实现 `GameStore` → 逐条过输入差异与屏幕档位 |
@@ -294,7 +303,7 @@
 - **精准投喂**：先 `@folder composeApp/src/commonMain` 预热，再用 `@file` / `@code` 定位；方法见 `docs/04`。
 - **负面约束随需求一起给**：把本文件 §0 的相关红线直接写进需求里。
 - **提交前自检清单**：
-  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（92 项）；改过 `state/` 或 `core/` 时必须补/改用例；
+  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（96 项）；改过 `state/` 或 `core/` 时必须补/改用例；
      动过字体 / 资源时跑 `BundledFontsTest`（字体在、family 对、中文/数字各归其位、**数字族的中文兜底链还在**）；
      动过棋盘绘制 / 语义层时要跑 `BoardCanvasUiTest`（81 节点 + 点击穿透 + 暂停遮读屏）；
      **动过配色必须跑 `InkThemeTest`**（两套主题的前三级都要 ≥ 4.5:1；新增色值必须同时给浅 / 深两套）；

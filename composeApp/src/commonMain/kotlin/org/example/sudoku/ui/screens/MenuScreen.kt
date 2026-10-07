@@ -268,10 +268,13 @@ fun MenuScreen(
         InkIconButton(
             icon = if (darkMode) InkIcon.Sun else InkIcon.Moon,
             contentDescription = if (darkMode) "切回浅色纸面" else "切换到夜墨模式",
+            // 悬停提示用短名；贴右边缘因此提示片向左长
+            tooltip = if (darkMode) "纸面模式" else "夜墨模式",
             onClick = onToggleDark,
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(DesignTokens.Spacing.Md),
+            tooltipAlignment = Alignment.TopEnd,
         )
 
         TopDrawer(

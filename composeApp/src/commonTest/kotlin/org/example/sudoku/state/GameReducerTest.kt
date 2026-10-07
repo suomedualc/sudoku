@@ -253,4 +253,32 @@ class GameReducerTest {
         assertFalse(state.paused)
         assertTrue(state.game!!.current.contentEquals(state.game!!.puzzle))
     }
+
+    /**
+     * "点棋盘以外的空白处 → 棋盘回到干净样子"：只清 `selected`——选中框、同行列宫高亮、
+     * 同数字高亮都是从它派生出来的，清掉它就都没了。
+     *
+     * **盘面 / 笔记 / 计时 / 提示次数一律不动**：要清盘面另有 [GameAction.Reset]。
+     * 顺带说明冲突排线为什么也不清——那是对局数据（真的填重了），不是临时标记。
+     */
+    @Test
+    fun deselectClearsOnlyTemporaryMarks() {
+        val pos = firstEmpty(newGame())
+        var state = reduce(newGame(), GameAction.Select(pos))
+        state = reduce(state, GameAction.Digit(4))
+        state = reduce(state, GameAction.SyncElapsed(42))
+        state = reduce(state, GameAction.Hint)
+
+        val boardBefore = state.game!!.current.copyOf()
+        val hintsBefore = state.hintsCount
+        val undoBefore = state.undoStack.size
+
+        state = reduce(state, GameAction.Deselect)
+
+        assertNull(state.selected, "选中的格子应被清掉")
+        assertTrue(boardBefore.contentEquals(state.game!!.current), "盘面不动：清的是高亮，不是玩家填进去的数")
+        assertEquals(42, state.elapsed, "计时不动")
+        assertEquals(hintsBefore, state.hintsCount, "提示次数不动")
+        assertEquals(undoBefore, state.undoStack.size, "撤销栈不动：撤销仍然能回到上一步")
+    }
 }

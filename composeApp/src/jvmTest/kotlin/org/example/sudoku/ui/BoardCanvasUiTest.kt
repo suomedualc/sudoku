@@ -103,10 +103,13 @@ class BoardCanvasUiTest {
             }
         }
 
-        // 语义层盖在画布之上，但不得吞掉点击——点第 2 行第 2 列（下标 10）
-        onNodeWithContentDescription("第 2 行第 2 列，给定 7")
+        // 语义层盖在画布之上，但不得吞掉点击。
+        // 这里点的是**最后一格**（下标 80），不是随便挑一格：语义网格曾经因为
+        // `fillMaxHeight(1/9)` 逐行缩水只铺满约 65%，而当时这条用例点的是第 2 行第 2 列——
+        // 前两三行的偏差还不到一格，正好蒙对。**偏差是越往后越大**，因此必须拿末尾的格子当哨兵。
+        onNodeWithContentDescription("第 9 行第 9 列，填入 9")
             .performTouchInput { click(center) }
-        assertEquals(10, clicked, "语义层不能吃掉点击：点第 2 行第 2 列应回传下标 10")
+        assertEquals(80, clicked, "语义格必须与画出来的格对齐：点第 9 行第 9 列应回传下标 80")
     }
 
     @Test
@@ -128,9 +131,9 @@ class BoardCanvasUiTest {
             }
         }
 
-        onNodeWithContentDescription("第 2 行第 2 列，给定 7")
+        onNodeWithContentDescription("第 9 行第 9 列，填入 9")
             .performTouchInput { click(center) }
-        assertEquals(10, clicked, "显影期间（时钟未推进，alpha 仍为 0）点击仍须生效")
+        assertEquals(80, clicked, "显影期间（时钟未推进，alpha 仍为 0）点击仍须生效")
     }
 
     @Composable

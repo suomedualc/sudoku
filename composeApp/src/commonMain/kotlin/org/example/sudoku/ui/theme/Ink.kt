@@ -163,8 +163,13 @@ object Ink {
         weight: FontWeight = FontWeight.Normal,
         letterSpacing: TextUnit = 0.sp,
         lineHeight: TextUnit = TextUnit.Unspecified,
+        /**
+         * 字形。默认 [FontDigits]（Nunito，印刷体）；棋盘里玩家**自己填的**数字传 [FontText]
+         * （霞鹜文楷，手写体）——见 [BoardCanvas]："题面是印的，你填的是写的"。
+         */
+        family: FontFamily = FontDigits,
     ) = TextStyle(
-        fontFamily = FontDigits,
+        fontFamily = family,
         fontSize = size,
         color = color,
         fontWeight = weight,

@@ -254,13 +254,23 @@ private fun BoardCanvasDrawing(
             val r = cellRect(pos)
             val value = game.current[pos]
             if (value != 0) {
+                // 「题面是印的，你填的是写的」——两类数字用**三种信号**分开，任取其一都看得出来：
+                //   ① 墨的浓淡：给定用一墨（最浓），玩家填入用二墨；
+                //   ② 字形：给定走数字族 Nunito（印刷体），玩家填入走正文族霞鹜文楷（手写体）；
+                //   ③ 读屏文案（cellA11yLabel）也分别念「给定」/「填入」。
+                // 用字形而不是字重，是因为包里只打了一份 Nunito（Regular）：请求 Bold 会退回系统字体，
+                // 反而让"给定数字"换了一副字形，看起来像 bug。
                 val isGiven = Sudoku.isGiven(game, pos)
                 val color = if (isGiven) Ink.Black else Ink.Grey
                 val fontSizePx = cellPx * 0.52f
                 val layout = valueCache.cached(InkTextKey(value, color.value, fontSizePx.toInt(), isGiven)) {
                     textMeasurer.measure(
                         value.toString(),
-                        Ink.digitStyle(fontSizePx.toSp(), color, if (isGiven) FontWeight.Medium else FontWeight.Normal),
+                        Ink.digitStyle(
+                            fontSizePx.toSp(),
+                            color,
+                            family = if (isGiven) Ink.FontDigits else Ink.FontText,
+                        ),
                     )
                 }
                 val topLeft = Offset(
@@ -371,12 +381,17 @@ private fun BoardCellSemantics(
     // 读屏此时只能读到父节点的整盘文案（含"已暂停"），不会逐格念出答案。
     Column(modifier = if (paused) modifier.clearAndSetSemantics {} else modifier) {
         for (row in 0..8) {
-            Row(modifier = Modifier.fillMaxHeight(CELL_FRACTION)) {
+            // 用 `weight(1f)` 而不是 `fillMaxHeight(1f/9f)`：**Column 给子项的是"剩余"空间**，
+            // `fillMaxHeight(1/9)` 于是逐行缩水（9 行只铺满约 65%），语义格与画出来的格就错位了——
+            // 读屏念"第 5 行第 5 列"，读屏用户点下去却选到第 4 行第 4 列。
+            // 这个 bug 长期没被发现，是因为 `BoardCanvasUiTest` 只点了**第 2 行第 2 列**：
+            // 前两三行的偏差还不到一格，正好蒙对。`weight` 按固定总量等分，不受顺序影响。
+            Row(modifier = Modifier.weight(1f)) {
                 for (col in 0..8) {
                     val pos = row * 9 + col
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth(CELL_FRACTION)
+                            .weight(1f)
                             .fillMaxHeight()
                             .semantics {
                                 contentDescription = cellA11yLabel(game, pos, notes, conflicts, selected)
@@ -446,6 +461,3 @@ private fun MutableMap<InkTextKey, TextLayoutResult>.cached(
 }
 
 private const val MAX_CACHE_ENTRIES = 256
-
-/** 语义层把棋盘等分的系数（1/9）。 */
-private const val CELL_FRACTION = 1f / 9f

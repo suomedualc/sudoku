@@ -2,7 +2,6 @@ package org.example.sudoku.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -18,8 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -31,7 +29,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
@@ -43,6 +40,7 @@ import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -75,12 +73,19 @@ import org.example.sudoku.ui.theme.Ink
 private const val DRAWER_WIN = "game.win"
 
 /**
+ * 棋盘之外那层可点空白的测试标签。
+ *
+ * 它只在测试里被点到——UI 测试没法"点一个没有节点的地方"，而"点空白处应该清掉选中"
+ * 这条行为必须能自动验收（靠肉眼看高亮有没有消失太不可靠）。
+ */
+internal const val BoardBackdropTag = "game.boardBackdrop"
+
+/**
  * 对局界面（手写纸 · 油墨）。
  *
- * 布局自适应：
- * - **宽屏**（宽 ≥ [DesignTokens.Sizes.WideBreakpoint] 且宽 > 高）：棋盘左 + 控制右，棋盘取可用高宽的正方形；
- * - **窄屏**：纵向排布并整体可滚动，棋盘占满宽度。
- * 两种形态都保证"数字键盘与棋盘同屏可见"，空间不足时宁可滚动也不压缩键盘。
+ * 布局：**纵向三段式**——顶栏 → 棋盘舞台 → 功能区（数字键一行 + 开关一行）。
+ * 棋盘**左右两侧不放任何东西**，题面四周因此是干净的纸；棋盘与功能区同宽并居中，
+ * 整页只有一条自上而下的中轴，视线不用左右来回找。
  *
  * 输入方式：
  * - 鼠标 / 触屏点选；**鼠标 / 触控笔点空格**会就地弹出半透明悬浮数字面板（[FloatingInputPad]），
@@ -101,7 +106,6 @@ fun GameScreen(
     val game = state.game ?: return
     val (done, total) = progress
     val focusRequester = remember { FocusRequester() }
-    val scrollState = rememberScrollState()
     val drawer = rememberTopDrawerController()
 
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
@@ -139,6 +143,17 @@ fun GameScreen(
     val onCellClick: (Int, Boolean) -> Unit = { cell, precisePointer ->
         padCell = FloatingPadPolicy.nextOnCellClick(padCell, state, cell, precisePointer)
         onAction(GameAction.Select(cell))
+    }
+
+    /**
+     * 把棋盘恢复成"刚开局"的干净样子：收起悬浮面板 + 取消选格。
+     *
+     * 选中框、同行列宫高亮、同数字高亮都是从 `selected` 派生出来的，清掉它就全没了。
+     * **冲突排线不清**——那是对局数据（真的填重了），不是临时标记，清掉等于骗玩家。
+     */
+    val clearBoard: () -> Unit = {
+        padCell = null
+        onAction(GameAction.Deselect)
     }
 
     /** Esc 先收悬浮面板：第一次 Esc 只关浮层，再按才走"暂停 / 继续"。 */
@@ -202,59 +217,47 @@ fun GameScreen(
             }
             .focusable(),
     ) {
-        val wide = maxWidth >= DesignTokens.Sizes.WideBreakpoint && maxWidth > maxHeight
+        val pad = DesignTokens.Spacing.Md
+        // 功能区的高度（数字键一行 + 偏好开关一行）：棋盘必须避开它，否则会被挤成一条
+        val functionsHeight =
+            DesignTokens.Sizes.KeyHeight + DesignTokens.Spacing.Sm + DesignTokens.Sizes.CompactItemHeight
+        // 纵向必须为这些让出位置：顶栏 + 上下留白 + 棋盘上下的两条浮动条槽 +
+        // 棋盘与功能区之间的间距 + 功能区 + 底部提示条
+        val reserved =
+            DesignTokens.Sizes.TopBarHeight +
+                pad * 2 +
+                DesignTokens.Sizes.FloatingBarSlot * 2 +
+                pad +
+                functionsHeight +
+                DesignTokens.Sizes.SnackbarReserve
+        val boardSide = minOf(
+            maxWidth - pad * 2,
+            (maxHeight - reserved).coerceAtLeast(DesignTokens.Sizes.BoardMinSize),
+        )
 
         Column(modifier = Modifier.fillMaxSize()) {
             // 顶栏：左「返回菜单」· 中状态读数 · 右「提示 / 暂停 / 重置 + 明暗切换」
             GameTopBar(game, state, done, total, dispatch)
 
-            if (wide) {
-                Row(
+            // 内容区：**纵向一列**——棋盘 → 数字键 → 偏好开关，整体居中。
+            // 棋盘**左右不再有任何元素**（此前右侧还立着 360dp 的控制栏），题面四周彻底空出来。
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                // 铺满的"空白层"，就垫在内容**下面**：点它 = 把棋盘恢复干净。
+                // 为什么用"下层兄弟"而不是在外层挂手势：命中测试对兄弟是**命中即剪枝**——
+                // 点到棋盘 / 按键 / 开关时命中的是上层那些节点，空白层根本不会进事件链；
+                // 只有点在空隙上（棋盘四周、两排之间的间距）才会落到它。
+                // 此前在外层用 `awaitFirstDown(requireUnconsumed = true)`，虽然行为也对，
+                // 但那多出来的父级指针节点会吃掉棋盘的悬停事件（浮动条因此不再跟随鼠标）——
+                // 这个坑是实机冒烟 `-Flow bar` 抓到的。
+                Box(
                     modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(DesignTokens.Spacing.Md),
-                    horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Md),
-                ) {
-                    BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                        // 顶部对齐并预留提示条高度：这样 Snackbar 弹出时不会压住棋盘最后一行
-                        val side = minOf(
-                            maxWidth,
-                            (maxHeight - DesignTokens.Sizes.SnackbarReserve)
-                                .coerceAtLeast(DesignTokens.Sizes.BoardMinSize),
-                        )
-                        BoardStage(
-                            game = game,
-                            state = state,
-                            conflicts = conflicts,
-                            description = boardDescription,
-                            padCell = padCell,
-                            onAction = dispatch,
-                            onCellClick = onCellClick,
-                            expandVertically = true,
-                            modifier = Modifier.align(Alignment.TopCenter).size(side),
-                        )
-                    }
-                    Column(
-                        modifier = Modifier
-                            .width(DesignTokens.Sizes.ControlPanel)
-                            .fillMaxHeight()
-                            .verticalScroll(rememberScrollState())
-                            // 点控制栏的空白处也收面板（点到开关 / 按钮时由 dispatch 收）
-                            .pointerInput(Unit) { detectTapGestures { padCell = null } },
-                    ) {
-                        PadPanel(game, state, dispatch)
-                        Spacer(Modifier.height(DesignTokens.Spacing.Md))
-                        OptionsPanel(state, dispatch)
-                    }
-                }
-            } else {
+                        .matchParentSize()
+                        .testTag(BoardBackdropTag)
+                        .pointerInput(Unit) { detectTapGestures { clearBoard() } },
+                )
                 Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .verticalScroll(scrollState)
-                        .padding(DesignTokens.Spacing.Md),
+                    modifier = Modifier.fillMaxSize().padding(pad),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     BoardStage(
                         game = game,
@@ -265,17 +268,18 @@ fun GameScreen(
                         onAction = dispatch,
                         onCellClick = onCellClick,
                         expandVertically = false,
-                        modifier = Modifier.fillMaxWidth(),
+                        // 只定**宽度**：高度由内容（两条浮动条槽 + 正方形棋盘）决定，
+                        // 用 size() 会把棋盘压扁——这正是"容器不是方的 → 读屏与实际错位"的来源。
+                        modifier = Modifier.width(boardSide),
                     )
-                    Spacer(Modifier.height(DesignTokens.Spacing.Md))
-                    // 只在"面板区"收浮层：这里不含棋盘，不会与棋盘的点击手势抢事件，
-                    // 也不会挡住棋盘上的拖动滚动（窄屏需要靠拖动棋盘来滚页面）。
-                    Column(modifier = Modifier.pointerInput(Unit) { detectTapGestures { padCell = null } }) {
-                        PadPanel(game, state, dispatch)
-                        Spacer(Modifier.height(DesignTokens.Spacing.Md))
-                        OptionsPanel(state, dispatch)
-                    }
-                    Spacer(Modifier.height(DesignTokens.Spacing.Sm))
+                    Spacer(Modifier.height(pad))
+                    // 功能区与棋盘**同宽**：整页因此是一条自上而下的中轴，视线不用左右找
+                    FunctionArea(
+                        game = game,
+                        state = state,
+                        onAction = dispatch,
+                        modifier = Modifier.width(boardSide),
+                    )
                 }
             }
         }
@@ -375,6 +379,8 @@ private fun GameTopBar(
             icon = InkIcon.Back,
             contentDescription = "返回菜单",
             onClick = { onAction(GameAction.Navigate(Screen.Menu)) },
+            // 贴左边缘：提示片向右长，否则会被窗口左边缘切掉
+            tooltipAlignment = Alignment.TopStart,
         )
 
         // 中间用 weight 占满，把右侧控制组顶到最右
@@ -398,28 +404,35 @@ private fun GameTopBar(
             )
         }
 
+        // 右侧这一组**都贴右边缘**：提示片一律向左长，才不会被窗口右边缘切掉
         InkIconButton(
             icon = InkIcon.Hint,
             contentDescription = "提示",
             onClick = { onAction(GameAction.Hint) },
             enabled = !state.settled && !state.paused,
+            tooltipAlignment = Alignment.TopEnd,
         )
         InkIconButton(
             icon = if (state.paused) InkIcon.Play else InkIcon.Pause,
             contentDescription = if (state.paused) "继续" else "暂停",
             onClick = { onAction(if (state.paused) GameAction.Resume else GameAction.Pause) },
             enabled = !state.settled,
+            tooltipAlignment = Alignment.TopEnd,
         )
         InkIconButton(
             icon = InkIcon.Reset,
             contentDescription = "重置本局",
             onClick = { onAction(GameAction.Reset) },
             enabled = !state.settled && !state.paused,
+            tooltipAlignment = Alignment.TopEnd,
         )
         InkIconButton(
             icon = if (state.darkMode) InkIcon.Sun else InkIcon.Moon,
             contentDescription = if (state.darkMode) "切回浅色纸面" else "切换到夜墨模式",
+            // 悬停提示用短名：读屏描述可以啰嗦（"切回浅色纸面"），浮出来的标签要一眼看完
+            tooltip = if (state.darkMode) "纸面模式" else "夜墨模式",
             onClick = { onAction(GameAction.ToggleDarkMode) },
+            tooltipAlignment = Alignment.TopEnd,
         )
     }
 }
@@ -473,14 +486,24 @@ private fun BoardStage(
                 modifier = Modifier
                     .aspectRatio(1f)
                     .onSizeChanged { boardHeight = it.height }
-                    // 只观察 Move（悬停移动），不消费任何事件——棋盘的点击照常
+                    // 只看"指针在哪"，不消费任何事件——棋盘的点击照常
                     .pointerInput(Unit) {
                         awaitPointerEventScope {
                             while (true) {
                                 val event = awaitPointerEvent()
-                                if (event.type != PointerEventType.Move) continue
-                                val y = event.changes.firstOrNull()?.position?.y ?: continue
-                                barSide = FloatingBarPolicy.next(barSide, y, 0f, boardHeight.toFloat())
+                                // 判据用"**没按下**"而不是"事件类型 == Move"：
+                                // 指针**刚进入**容器时 Compose 报的是 Enter、之后才是 Move，
+                                // 只认 Move 就会漏掉"一步跨进棋盘"的情形（实机 `SetCursorPos` 正是这种），
+                                // 表现为"鼠标明明在棋盘上半部，条却不动"。未按下 = 悬停，对两种类型都成立；
+                                // 手指拖动时 pressed = true，因此不会拿拖动的位置去挪条。
+                                val change = event.changes.firstOrNull() ?: continue
+                                if (change.pressed) continue
+                                barSide = FloatingBarPolicy.next(
+                                    previous = barSide,
+                                    pointerY = change.position.y,
+                                    boardTop = 0f,
+                                    boardHeight = boardHeight.toFloat(),
+                                )
                             }
                         }
                     },
@@ -579,78 +602,83 @@ private fun PauseVeil(onAction: (GameAction) -> Unit) {
     }
 }
 
-/** 数字键盘面板：键盘 + 当前模式提示（填数 / 笔记）。 */
+/**
+ * 功能区：**纵向排列**——先数字键一行，再偏好开关一行。
+ *
+ * 此前数字键盘与开关立在棋盘**右侧**（360dp），现在挪到棋盘**下方**并压成两行：
+ * 棋盘左右两侧因此彻底空出来，整页只有一条自上而下的中轴，视线不用左右来回找。
+ * 撤走的不是功能——撤销 / 重做在棋盘上下的浮动条，提示 / 暂停 / 重置 / 菜单在顶栏，
+ * 四项偏好就在下面这一行里。
+ */
 @Composable
-private fun PadPanel(game: Game, state: GameState, onAction: (GameAction) -> Unit) {
-    InkPanel(
-        padding = PaddingValues(DesignTokens.Spacing.Md),
-        seed = 55,
-    ) {
-        InkText(
-            text = if (state.noteMode) "笔记模式：点数字记候选" else "点数字填入选中格",
-            modifier = Modifier.fillMaxWidth(),
-            style = Ink.Type.Meta.copy(color = Ink.Light),
-        )
-        Spacer(Modifier.height(DesignTokens.Spacing.Sm))
-        // 笔记模式下不限制（要能记"不可能的数字"）；其余按盘面 + 选中格缓存——
-        // 计时每秒触发一次重组，不缓存就是每秒白扫一遍 81 格。
-        // 注意把判空放进 remember 的 key 里，而不是在分支里各调一次 remember。
-        val legalMask = remember(game.current, state.selected, state.noteMode) {
-            if (state.noteMode) null else state.selected?.let { Sudoku.legalMask(game.current, it) }
-        }
-        // 每个数字还剩几个：只在盘面变化时重算（心跳不触发重组计算）
-        val remaining = remember(game) {
-            IntArray(9) { digit -> 9 - game.current.count { it == digit + 1 } }
-        }
-        NumberPad(
-            legalMask = legalMask,
-            enabled = state.interactive,
-            remaining = remaining,
-            onDigit = { onAction(GameAction.Digit(it)) },
-            onErase = { onAction(GameAction.Digit(0)) },
-        )
+private fun FunctionArea(
+    game: Game,
+    state: GameState,
+    onAction: (GameAction) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Sm)) {
+        NumberRow(game, state, onAction)
+        ToggleRow(state, onAction)
     }
 }
 
-/** 玩法开关 + 对局操作。 */
+/** 第一排：1–9 横向一排 + 擦除（[NumberPad]）。 */
 @Composable
-private fun OptionsPanel(state: GameState, onAction: (GameAction) -> Unit) {
-    InkPanel(
-        padding = PaddingValues(DesignTokens.Spacing.Md),
-        seed = 41,
-    ) {
+private fun NumberRow(game: Game, state: GameState, onAction: (GameAction) -> Unit) {
+    // 笔记模式下不限制（要能记"不可能的数字"）；其余按盘面 + 选中格缓存——
+    // 计时每秒触发一次重组，不缓存就是每秒白扫一遍 81 格。
+    // 注意把判空放进 remember 的 key 里，而不是在分支里各调一次 remember。
+    val legalMask = remember(game.current, state.selected, state.noteMode) {
+        if (state.noteMode) null else state.selected?.let { Sudoku.legalMask(game.current, it) }
+    }
+    // 每个数字还剩几个：只在盘面变化时重算（心跳不触发重组计算）
+    val remaining = remember(game) {
+        IntArray(9) { digit -> 9 - game.current.count { it == digit + 1 } }
+    }
+    NumberPad(
+        legalMask = legalMask,
+        enabled = state.interactive,
+        remaining = remaining,
+        onDigit = { onAction(GameAction.Digit(it)) },
+        onErase = { onAction(GameAction.Digit(0)) },
+    )
+}
+
+/**
+ * 第二排：四项偏好**一行**排开。
+ *
+ * 竖着排要占 4×42 ≈ 170dp，棋盘就得再矮 130dp——而它们是"设一次就不管"的开关，
+ * 不值得拿棋盘的尺寸去换。横排后整条功能区只有 102dp。
+ * 代价是每项宽度只有棋盘宽的 1/4：标签一律 4 个字以内，`maxLines = 1` 兜住更长的文案。
+ */
+@Composable
+private fun ToggleRow(state: GameState, onAction: (GameAction) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Sm)) {
         InkToggleRow(
             label = "笔记模式",
             checked = state.noteMode,
             onCheckedChange = { onAction(GameAction.ToggleNoteMode) },
+            modifier = Modifier.weight(1f),
         )
         InkToggleRow(
             label = "显示笔记",
             checked = state.showNotes,
             onCheckedChange = { onAction(GameAction.ToggleShowNotes) },
+            modifier = Modifier.weight(1f),
         )
         InkToggleRow(
             label = "候选提示",
             checked = state.hintCandidates,
             onCheckedChange = { onAction(GameAction.ToggleHintCandidates) },
-        )
-        InkText(
-            text = if (state.hintCandidates) {
-                "空格里的半透明灰数字 = 规则允许的候选"
-            } else {
-                "开：在空格里显示可填数字（半透明灰）"
-            },
-            modifier = Modifier.fillMaxWidth().padding(bottom = DesignTokens.Spacing.Xs),
-            style = Ink.Type.Meta.copy(color = Ink.Light),
+            modifier = Modifier.weight(1f),
         )
         InkToggleRow(
             label = "严格模式",
             checked = state.strictMode,
             onCheckedChange = { enabled -> onAction(GameAction.ToggleStrict(enabled)) },
+            modifier = Modifier.weight(1f),
         )
-        // 这里曾经挤着 6 个按钮（撤销 / 重做 / 提示 / 暂停 / 重置 / 菜单）。
-        // 现在：撤销 · 重做 → 棋盘上下的浮动条；提示 · 暂停 · 重置 → 顶栏；返回菜单 → 顶栏左上角图标。
-        // 面板只留"偏好开关"，棋盘四周因此干净下来。
     }
 }
 

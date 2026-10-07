@@ -1,18 +1,20 @@
 package org.example.sudoku.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import org.example.sudoku.ui.theme.DesignTokens
 import org.example.sudoku.ui.theme.Ink
 
 /**
- * 数字键盘（墨线版）：3×3 数字 + 擦除。
+ * 数字键盘（墨线版）：**1–9 横向一排** + 擦除。
+ *
+ * 为什么改成横排：此前是 3×3 九宫格，看着"像棋盘"，于是棋盘旁边多了一块同样密的东西，
+ * 视线一直在两处跳——而数字键盘的作用是**输入框**，不是第二块题面。
+ * 一排 1–9 才是"条状输入条"的读法，眼睛从上往下走一次就能找到数字。
  *
  * 设计约定：
  * - [legalMask] 为 `null` 表示**不做可填性区分**（未选格，或笔记模式——笔记本就不受同行列宫限制），
@@ -32,39 +34,34 @@ fun NumberPad(
     /** 每个数字还剩几个未填（索引 0..8 对应数字 1..9）；传 null 则不显示角标。 */
     remaining: IntArray? = null,
 ) {
-    Column(modifier = modifier) {
-        repeat(3) { rowIndex ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Sm),
-            ) {
-                repeat(3) { colIndex ->
-                    val digit = rowIndex * 3 + colIndex + 1
-                    val count = remaining?.getOrNull(digit - 1)
-                    val usedUp = count != null && count <= 0
-                    val legal = legalMask == null || (legalMask and (1 shl (digit - 1))) != 0
-                    InkKey(
-                        text = digit.toString(),
-                        onClick = { onDigit(digit) },
-                        modifier = Modifier.weight(1f),
-                        enabled = enabled,
-                        // "用完了"用淡墨框 + 角标 0 表达，而不是靠颜色
-                        emphasis = !usedUp && legalMask != null && legal,
-                        soft = usedUp || (legalMask != null && !legal),
-                        badge = count?.toString(),
-                        digit = true,
-                    )
-                }
-            }
-            if (rowIndex < 2) Spacer(modifier = Modifier.height(DesignTokens.Spacing.Sm))
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Sm),
+    ) {
+        for (digit in 1..9) {
+            val count = remaining?.getOrNull(digit - 1)
+            val usedUp = count != null && count <= 0
+            val legal = legalMask == null || (legalMask and (1 shl (digit - 1))) != 0
+            InkKey(
+                text = digit.toString(),
+                onClick = { onDigit(digit) },
+                modifier = Modifier.weight(1f),
+                enabled = enabled,
+                // "用完了"用淡墨框 + 角标 0 表达，而不是靠颜色
+                emphasis = !usedUp && legalMask != null && legal,
+                soft = usedUp || (legalMask != null && !legal),
+                badge = count?.toString(),
+                digit = true,
+            )
         }
-        Spacer(modifier = Modifier.height(DesignTokens.Spacing.Sm))
+        // 「擦除」单独占固定宽（见 DesignTokens.Sizes.EraseKeyWidth）：它是两个汉字，
+        // 跟着 1–9 一起等分会被压得比数字键还窄，读起来就不像"擦除"了。
         InkKey(
             text = "擦除",
             onClick = onErase,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.width(DesignTokens.Sizes.EraseKeyWidth),
             enabled = enabled,
-            height = DesignTokens.Sizes.CompactItemHeight,
+            height = DesignTokens.Sizes.KeyHeight,
             fontSize = Ink.Type.Body.fontSize,
         )
     }
