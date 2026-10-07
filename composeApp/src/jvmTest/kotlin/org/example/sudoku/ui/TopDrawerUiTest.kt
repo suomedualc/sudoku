@@ -32,6 +32,8 @@ class TopDrawerUiTest {
                 onStart = { started = it },
                 onResume = {},
                 onExit = {},
+                darkMode = false,
+                onToggleDark = {},
             )
         }
 
@@ -60,6 +62,8 @@ class TopDrawerUiTest {
                 onStart = { started = it },
                 onResume = { resumed = true },
                 onExit = {},
+                darkMode = false,
+                onToggleDark = {},
             )
         }
 
@@ -89,6 +93,8 @@ class TopDrawerUiTest {
                 onStart = { started = it },
                 onResume = {},
                 onExit = { exit = true },
+                darkMode = false,
+                onToggleDark = {},
             )
         }
 
@@ -112,6 +118,8 @@ class TopDrawerUiTest {
                 onStart = {},
                 onResume = {},
                 onExit = { exit = true },
+                darkMode = false,
+                onToggleDark = {},
             )
         }
 

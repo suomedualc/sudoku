@@ -65,6 +65,20 @@ object DesignTokens {
         /** 对局页为底部提示条（Snackbar）预留的高度，避免提示盖住棋盘最后一行。 */
         val SnackbarReserve: Dp = 64.dp
 
+        /** 顶栏图标按钮的边长（返回菜单 / 暂停 / 重置 / 明暗切换）。 */
+        val IconButton: Dp = 36.dp
+
+        /** 顶栏高度：图标按钮 + 上下呼吸。 */
+        val TopBarHeight: Dp = 56.dp
+
+        /**
+         * 棋盘上/下为"浮动操作条"（撤销 / 重做）预留的槽高。
+         *
+         * 为什么留槽而不是让条压在棋盘上：条会随鼠标在棋盘上下之间移动，
+         * 压着棋子就会挡住正在看的那一行。**上下各留一个槽**，条在两者之间搬。
+         */
+        val FloatingBarSlot: Dp = 48.dp
+
         /** 选择框 / 棋盘外框的内缩。 */
         val BoardInset: Dp = 4.dp
 

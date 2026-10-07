@@ -153,6 +153,12 @@ private fun monotonicClock(): () -> Long {
  * 存档 → 初始状态：恢复盘面 / 笔记 / 计时 / 设置，但仍然停在首页（由玩家点「继续游戏」进入）。
  * 只有设置、没有对局时也能正常启动（`game == null` ⇒ 首页「继续游戏」置灰）。
  */
+/**
+ * 存档 → 初始状态。
+ *
+ * ⚠️ 逐字段映射：**新增一项偏好必须同步加在这里**（`GameStoreTest.settingsSurviveRestartAndNewGame`
+ * 会在漏写时失败——它正是为此存在的）。
+ */
 private fun SaveFile.toState(): GameState = GameState(
     screen = Screen.Menu,
     game = game?.game,
@@ -162,4 +168,5 @@ private fun SaveFile.toState(): GameState = GameState(
     showNotes = settings.showNotes,
     noteMode = settings.noteMode,
     hintCandidates = settings.hintCandidates,
+    darkMode = settings.darkMode,
 )

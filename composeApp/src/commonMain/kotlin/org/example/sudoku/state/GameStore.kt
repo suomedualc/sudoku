@@ -4,7 +4,7 @@ import org.example.sudoku.core.Difficulty
 import org.example.sudoku.core.Game
 
 /**
- * **跨对局保留**的偏好：严格模式 / 显示笔记 / 笔记模式 / 候选提示。
+ * **跨对局保留**的偏好：严格模式 / 显示笔记 / 笔记模式 / 候选提示 / 夜墨模式。
  *
  * 它们是"设置"而不是"对局状态"——换一局、重置、通关都不应该把它们清回默认值，
  * 因此随存档一起落盘（[SaveCodec] v2），并在新开一局时由 reducer 显式继承。
@@ -14,6 +14,7 @@ data class GameSettings(
     val showNotes: Boolean = true,
     val noteMode: Boolean = false,
     val hintCandidates: Boolean = false,
+    val darkMode: Boolean = false,
 )
 
 /** 存档中的一局对弈：题面 / 当前盘 / 答案由 [Game] 承载，外加笔记与已用时。 */
@@ -66,6 +67,7 @@ object NoopGameStore : GameStore {
  * showNotes=1
  * noteMode=0
  * hintCandidates=0
+ * darkMode=0
  * game=1                       ← 仅当有未完成对局时出现，随后 6 行一并出现
  * difficulty=Easy
  * puzzle=<81 位数字，0 表示空格>
@@ -92,6 +94,7 @@ object SaveCodec {
         appendLine("showNotes=${file.settings.showNotes.flag()}")
         appendLine("noteMode=${file.settings.noteMode.flag()}")
         appendLine("hintCandidates=${file.settings.hintCandidates.flag()}")
+        appendLine("darkMode=${file.settings.darkMode.flag()}")
 
         val saved = file.game ?: return@buildString
         val game = saved.game
@@ -118,6 +121,8 @@ object SaveCodec {
             noteMode = fields["noteMode"].toFlag(default = false),
             // v1 文件、以及 v2 早期文件都没有这一行 → 取默认值（关闭）
             hintCandidates = fields["hintCandidates"].toFlag(default = false),
+            // 同上：缺少 darkMode 行的旧存档按"浅色纸面"读，符合升级前的观感
+            darkMode = fields["darkMode"].toFlag(default = false),
         )
         // v1 一定带对局；v2 由 game=1 显式标记（缺失即"只有设置"）
         val hasGame = if (version == MIN_VERSION) true else fields["game"] == "1"

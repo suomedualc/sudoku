@@ -40,13 +40,22 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 import org.example.sudoku.ui.theme.DesignTokens
 import org.example.sudoku.ui.theme.Ink
 import org.example.sudoku.ui.theme.inkLine
@@ -314,7 +323,9 @@ fun InkToggleRow(
  * 墨线面板：白纸面 + 手绘边框（替代 Material 风格卡片）。
  *
  * - [paperAlpha] < 1 时纸面半透明：用于**悬浮数字面板**，让底下的网格隐约可见（读作"浮着的一层薄纸"）；
- * - [doubleStroke] 为真时再叠一圈错位淡墨描边，用**线**表达"浮起"（墨线语言里没有阴影）。
+ * - [doubleStroke] 为真时再叠一圈错位淡墨描边，用**线**表达"浮起"（墨线语言里没有阴影）；
+ * - [fillWidth] 默认撑满可用宽（正常的面板）。**浮动操作条**（撤销 / 重做）要传 `false`：
+ *   它只有两个按钮，撑满整宽会变成一条横贯棋盘的空白带，既压不住视觉重心、又抢棋盘的注意力。
  */
 @Composable
 fun InkPanel(
@@ -323,11 +334,12 @@ fun InkPanel(
     seed: Int = 1,
     paperAlpha: Float = 1f,
     doubleStroke: Boolean = false,
+    fillWidth: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(
         modifier = modifier
-            .fillMaxWidth()
+            .then(if (fillWidth) Modifier.fillMaxWidth() else Modifier)
             .drawBehind {
                 val rect = Rect(2f, 2f, size.width - 2f, size.height - 2f)
                 val radiusPx = DesignTokens.Radius.Panel.toPx()
@@ -479,5 +491,183 @@ fun InkGridSketch(
                 )
             }
         }
+    }
+}
+
+// ───────────────────────────── 自绘图标 ─────────────────────────────
+
+/**
+ * 图标形状：全部用 [inkLine] 与弧线**自绘**，不引入图标库、不用图标字体。
+ *
+ * 理由：图标必须与墨线控件同一套笔触（微弯 + 叠墨），位图与字体图标在缩放 / 高 DPI 下会露馅，
+ * 而且换不出"手绘"的工艺感（`docs/02` §3.2 的"不引入第三方组件库"同一条纪律）。
+ */
+enum class InkIcon {
+    /** ← 返回菜单。 */
+    Back,
+
+    /** ↶ 撤销。 */
+    Undo,
+
+    /** ↷ 重做。 */
+    Redo,
+
+    /** ‖ 暂停。 */
+    Pause,
+
+    /** ▶ 继续。 */
+    Play,
+
+    /** ↺ 重置本局。 */
+    Reset,
+
+    /** ！ 提示（求一个候选数字）。 */
+    Hint,
+
+    /** 月牙：夜墨模式。 */
+    Moon,
+
+    /** 太阳：浅色纸面。 */
+    Sun,
+}
+
+/**
+ * 图标按钮：方形墨线按钮 + 手绘图标，复用 [InkSurface] 的完整五态反馈。
+ *
+ * 用于对局页顶栏（返回菜单 / 暂停 / 重置 / 明暗切换）与棋盘上下的浮动操作条（撤销 / 重做）。
+ * 图标只做形状、文字说明走 `contentDescription`——读屏读的是"撤销"，不是"一个圆圈带箭头"。
+ */
+@Composable
+fun InkIconButton(
+    icon: InkIcon,
+    contentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    emphasis: Boolean = false,
+    size: Dp = DesignTokens.Sizes.IconButton,
+) {
+    InkSurface(
+        onClick = onClick,
+        modifier = modifier
+            .size(size)
+            .semantics { this.contentDescription = contentDescription },
+        seed = remember(icon) { icon.ordinal * 23 + 9 },
+        height = size,
+        enabled = enabled,
+        emphasis = emphasis,
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            drawInkIcon(icon, if (enabled) Ink.Black else Ink.Faint)
+        }
+    }
+}
+
+/**
+ * 画图标：所有坐标都按 [DrawScope.size] 归一化，因此换尺寸不用改路径。
+ * 线宽也跟着尺寸走，小按钮上不会糊成一坨。
+ */
+private fun DrawScope.drawInkIcon(icon: InkIcon, color: Color) {
+    val s = size.minDimension
+    val c = center
+    val r = s * 0.26f
+    val w = (s * 0.07f).coerceAtLeast(1.1f)
+    val a = Ink.Alpha.Line
+
+    when (icon) {
+        InkIcon.Back -> {
+            inkLine(Offset(c.x + r, c.y), Offset(c.x - r, c.y), w, color, 1, a)
+            inkLine(Offset(c.x - r, c.y), Offset(c.x - r * 0.15f, c.y - r * 0.85f), w, color, 2, a)
+            inkLine(Offset(c.x - r, c.y), Offset(c.x - r * 0.15f, c.y + r * 0.85f), w, color, 3, a)
+        }
+
+        InkIcon.Undo -> drawArcArrow(c, r, w, color, startDeg = 20f, sweepDeg = -220f, alpha = a, seed = 4)
+
+        InkIcon.Redo -> drawArcArrow(c, r, w, color, startDeg = 160f, sweepDeg = 220f, alpha = a, seed = 7)
+
+        InkIcon.Reset -> drawArcArrow(c, r, w, color, startDeg = 100f, sweepDeg = -300f, alpha = a, seed = 10)
+
+        InkIcon.Pause -> {
+            inkLine(Offset(c.x - r * 0.45f, c.y - r * 0.85f), Offset(c.x - r * 0.45f, c.y + r * 0.85f), w, color, 5, a)
+            inkLine(Offset(c.x + r * 0.45f, c.y - r * 0.85f), Offset(c.x + r * 0.45f, c.y + r * 0.85f), w, color, 6, a)
+        }
+
+        InkIcon.Play -> {
+            val p1 = Offset(c.x - r * 0.5f, c.y - r * 0.85f)
+            val p2 = Offset(c.x - r * 0.5f, c.y + r * 0.85f)
+            val p3 = Offset(c.x + r * 0.9f, c.y)
+            inkLine(p1, p2, w, color, 8, a)
+            inkLine(p2, p3, w, color, 9, a)
+            inkLine(p3, p1, w, color, 11, a)
+        }
+
+        InkIcon.Hint -> {
+            // 感叹号：上粗下点，比"灯泡 / 问号"更容易用几笔墨线画清楚
+            inkLine(Offset(c.x, c.y - r * 0.9f), Offset(c.x, c.y + r * 0.25f), w * 1.25f, color, 13, a)
+            drawCircle(color.copy(alpha = a), radius = w * 0.75f, center = Offset(c.x, c.y + r * 0.85f))
+        }
+
+        InkIcon.Sun -> {
+            drawCircle(color.copy(alpha = a), radius = r * 0.5f, center = c, style = Stroke(width = w, cap = StrokeCap.Round))
+            repeat(8) { i ->
+                val rad = i * PI.toFloat() / 4f
+                val dir = Offset(cos(rad), sin(rad))
+                inkLine(c + dir * (r * 0.78f), c + dir * (r * 1.15f), w, color, 12 + i, a)
+            }
+        }
+
+        InkIcon.Moon -> {
+            // 月牙 = 外弧（缺一段的圆）接内弧（偏移的圆）再闭合，一次成形的双弧路径
+            val path = Path().apply {
+                arcTo(Rect(c.x - r, c.y - r, c.x + r, c.y + r), 60f, 250f, true)
+                arcTo(Rect(c.x - r * 0.9f, c.y - r * 1.05f, c.x + r * 1.1f, c.y + r * 0.95f), 310f, -250f, false)
+                close()
+            }
+            drawPath(path, color.copy(alpha = a), style = Stroke(width = w, cap = StrokeCap.Round))
+        }
+    }
+}
+
+/**
+ * 带箭头的圆弧（撤销 / 重做 / 重置只差角度参数）。
+ *
+ * [startDeg] / [sweepDeg] 与 `drawArc` 同义（0° 在 3 点方向、正值顺时针）。
+ * 箭头画在**弧的终点**，朝向由该点切线决定：顺时针 `+90°`、逆时针 `-90°`。
+ */
+private fun DrawScope.drawArcArrow(
+    center: Offset,
+    radius: Float,
+    width: Float,
+    color: Color,
+    startDeg: Float,
+    sweepDeg: Float,
+    alpha: Float,
+    seed: Int,
+) {
+    val box = Rect(center.x - radius, center.y - radius, center.x + radius, center.y + radius)
+    drawArc(
+        color = color.copy(alpha = alpha),
+        startAngle = startDeg,
+        sweepAngle = sweepDeg,
+        useCenter = false,
+        topLeft = box.topLeft,
+        size = Size(box.width, box.height),
+        style = Stroke(width = width, cap = StrokeCap.Round),
+    )
+    val endDeg = startDeg + sweepDeg
+    val rad = endDeg * PI.toFloat() / 180f
+    val tip = Offset(center.x + radius * cos(rad), center.y + radius * sin(rad))
+    val tangent = endDeg + if (sweepDeg > 0f) 90f else -90f
+    val back = tangent + 180f
+    for ((i, spread) in listOf(-35f, 35f).withIndex()) {
+        val wingRad = (back + spread) * PI.toFloat() / 180f
+        inkLine(
+            from = tip,
+            to = Offset(tip.x + radius * 0.55f * cos(wingRad), tip.y + radius * 0.55f * sin(wingRad)),
+            widthPx = width,
+            color = color,
+            seed = seed + i,
+            alpha = alpha,
+        )
     }
 }

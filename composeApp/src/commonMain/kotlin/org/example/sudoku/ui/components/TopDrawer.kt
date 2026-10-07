@@ -205,7 +205,8 @@ fun TopDrawer(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Ink.Black.copy(alpha = Ink.Alpha.Mask * progress))
+                // 用 Ink.Scrim 而不是 Ink.Black：夜墨模式下 Black 是近白色，拿它当遮罩会变成一层白光
+                .background(Ink.Scrim.copy(alpha = Ink.Scrim.alpha * progress))
                 .then(
                     if (visible) {
                         Modifier.clickable(

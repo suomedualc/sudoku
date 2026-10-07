@@ -11,6 +11,7 @@ import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -140,6 +141,37 @@ class FloatingPadPolicyTest {
         assertFalse(
             FloatingPadPolicy.shouldOpen(GameState(), empty, precisePointer = true),
             "还没开局不弹",
+        )
+    }
+
+    @Test
+    fun clickingTheOpenCellAgainClosesThePad() {
+        val state = GameReducer.reduce(
+            GameState(),
+            GameAction.NewGame(Difficulty.Easy),
+            Random(20261006L),
+        ).state
+        val first = (0..80).first { state.game!!.current[it] == 0 }
+        val second = (0..80).first { it != first && state.game!!.current[it] == 0 }
+        val given = (0..80).first { state.game!!.current[it] != 0 }
+
+        assertEquals(first, FloatingPadPolicy.nextOnCellClick(null, state, first, true), "首次点空格 → 打开")
+        assertNull(
+            FloatingPadPolicy.nextOnCellClick(first, state, first, true),
+            "再点一次同一格 → 收起（否则只能靠 Esc 关，是交互死角）",
+        )
+        assertEquals(
+            second,
+            FloatingPadPolicy.nextOnCellClick(first, state, second, true),
+            "已开着时点另一个空格 → 直接换过去",
+        )
+        assertNull(
+            FloatingPadPolicy.nextOnCellClick(first, state, given, true),
+            "点给定格 → 只选中，面板收起",
+        )
+        assertNull(
+            FloatingPadPolicy.nextOnCellClick(null, state, first, false),
+            "手指点击不弹（任何时候都不弹）",
         )
     }
 }

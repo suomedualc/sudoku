@@ -35,6 +35,8 @@ import org.example.sudoku.core.Difficulty
 import org.example.sudoku.ui.components.InkButton
 import org.example.sudoku.ui.components.InkDivider
 import org.example.sudoku.ui.components.InkGridSketch
+import org.example.sudoku.ui.components.InkIcon
+import org.example.sudoku.ui.components.InkIconButton
 import org.example.sudoku.ui.components.InkText
 import org.example.sudoku.ui.components.InkTitleFrame
 import org.example.sudoku.ui.components.TopDrawer
@@ -80,6 +82,8 @@ fun MenuScreen(
     onStart: (Difficulty) -> Unit,
     onResume: () -> Unit,
     onExit: () -> Unit,
+    darkMode: Boolean,
+    onToggleDark: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val drawer = rememberTopDrawerController()
@@ -259,6 +263,16 @@ fun MenuScreen(
 
             Spacer(Modifier.height(DesignTokens.Spacing.Xl))
         }
+
+        // 右上角：明暗切换。与对局页顶栏用同一枚图标、同一个位置——切页时它不会"跳走"。
+        InkIconButton(
+            icon = if (darkMode) InkIcon.Sun else InkIcon.Moon,
+            contentDescription = if (darkMode) "切回浅色纸面" else "切换到夜墨模式",
+            onClick = onToggleDark,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(DesignTokens.Spacing.Md),
+        )
 
         TopDrawer(
             visible = drawer.isOpen(DRAWER_DIFFICULTY),

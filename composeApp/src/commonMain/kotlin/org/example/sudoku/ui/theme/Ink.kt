@@ -1,5 +1,6 @@
 package org.example.sudoku.ui.theme
 
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
@@ -32,27 +33,64 @@ import kotlin.math.sin
  */
 object Ink {
     /**
-     * 纸：三层，由下往上**逐层变白**，用"纸的深浅"而不是阴影表达层级。
+     * 当前是否「夜墨」模式（深底浅墨）。
+     *
+     * 为什么用**快照状态**而不是 CompositionLocal：`Ink.*` 也会被 `DrawScope` 里的绘制原语读到
+     * （例如 `Canvas { drawRect(color = Ink.PaperSheet) }`），CompositionLocal 在绘制阶段取不到；
+     * 快照状态在组合与绘制两处都能订阅，改一次值即自动重组 + 重绘。
+     * 唯一写入点是 `App.kt` 的主题同步。
+     */
+    private val darkFlag = mutableStateOf(false)
+
+    /** 当前是否夜墨模式。 */
+    val isDark: Boolean get() = darkFlag.value
+
+    /** 切换明暗。由 `App.kt` 按 `state.darkMode` 同步，别在别处调用。 */
+    fun setDark(enabled: Boolean) {
+        darkFlag.value = enabled
+    }
+
+    /**
+     * 纸：三层，由下往上**逐层变亮**，用"纸的深浅"而不是阴影表达层级。
      * - [Paper] 页面底纸（最暖、最暗）；
      * - [PaperShade] 压印 / 底纹（比底纸更暗一档，用于"凹下去"的面）；
      * - [PaperSheet] 上层纸片（棋盘、抽屉、浮层、暂停遮挡——读作"上面又铺了一张纸"）。
+     *
+     * 明暗两套都保持"上层更亮"，所以"又铺了一张纸"的层级读法在两个主题里一致。
      */
-    val Paper = Color(0xFFF7F5F0)
-    val PaperShade = Color(0xFFEDE9DF)
-    val PaperSheet = Color(0xFFFFFFFF)
+    val Paper: Color get() = Color(if (isDark) DarkPaper else LightPaper)
+    val PaperShade: Color get() = Color(if (isDark) DarkPaperShade else LightPaperShade)
+    val PaperSheet: Color get() = Color(if (isDark) DarkPaperSheet else LightPaperSheet)
 
     /**
      * 墨：四级浓淡（全站唯一的分层手段）。
      *
-     * 每一级都要能**当正文用**，因此都满足 WCAG 2.1 AA（小字 ≥ 4.5:1）：
-     * 对纸面实测 Black 15.97:1 / Grey 8.35:1 / Light 5.31:1；最淡的 [Faint] 只用于
-     * **禁用态文字**（WCAG 对禁用控件不要求对比度，它的"淡"正是要表达不可用）。
-     * 改任何一个色值前先跑一次对比度核算（`docs/07` §5 有量算脚本）。
+     * ⚠️ 名字表示的是**墨的层级**（一墨最深 → 四墨最淡），不是绝对色值：夜墨模式下
+     * 它们是"深底上的浅墨"，一墨反而接近白色。正因为这个反转，
+     * `Ink.Black.copy(alpha = …)` 这类"落一层淡墨"的写法在两个主题里都成立。
+     *
+     * 前三级都要能**当正文用**，因此都满足 WCAG 2.1 AA（小字 ≥ 4.5:1）。
+     * 对**棋盘纸**（[PaperSheet]）实测：
+     * - 纸墨：Black 17.40:1 / Grey 9.10:1 / Light 5.79:1 / Faint 3.62:1
+     * - 夜墨：Black 14.44:1 / Grey 9.71:1 / Light 6.32:1 / Faint 3.48:1
+     *
+     * 最淡的 [Faint] 在两个主题里都只用于**禁用态文字**（WCAG 对禁用控件不要求对比度，
+     * 它的"淡"正是要表达不可用）；两套的 Faint 特意调到观感一致（≈3.5:1）。
+     * 改任何一个色值前先重算一遍对比度（`docs/07` §5 有量算脚本）。
      */
-    val Black = Color(0xFF1B1A17)
-    val Grey = Color(0xFF4B4843)
-    val Light = Color(0xFF6A655C)
-    val Faint = Color(0xFF8B867C)
+    val Black: Color get() = Color(if (isDark) DarkInk1 else LightInk1)
+    val Grey: Color get() = Color(if (isDark) DarkInk2 else LightInk2)
+    val Light: Color get() = Color(if (isDark) DarkInk3 else LightInk3)
+    val Faint: Color get() = Color(if (isDark) DarkInk4 else LightInk4)
+
+    /**
+     * 模态遮罩：把纸**压暗**（覆盖层打开时，再乘展开进度）。
+     *
+     * 单独开一个令牌是因为它**不能**跟随 [Black]：夜墨模式下 [Black] 是近白色，
+     * 拿它当遮罩会变成一层"白光"。而且深底上要更大的浓度才有同样的"退后"效果，
+     * 所以两套主题的 alpha 也不一样。
+     */
+    val Scrim: Color get() = Color.Black.copy(alpha = if (isDark) DarkScrim else Alpha.Mask)
 
     /** 墨的浓淡层级（唯一的分层手段）。 */
     object Alpha {
@@ -147,25 +185,50 @@ object Ink {
      * - 行高全部显式给定（此前全站 0 处），多行文本才有稳定节奏。
      */
     object Type {
+        // 六档都写成 getter 而不是 val：`style()` 会**把颜色烤进 TextStyle**，
+        // 若在 object 初始化时算好一次，切换夜墨模式后正文会停在旧墨色（深底上等于看不见）。
+        // 写成 getter 每次读取都按当前主题构造——代价是一次小对象分配，换来零调用点改动。
+
         /** 角标 / 脚注 / 键位提示。 */
-        val Meta = style(12.sp, letterSpacing = 1.6.sp, lineHeight = 18.sp)
+        val Meta: TextStyle get() = style(12.sp, letterSpacing = 1.6.sp, lineHeight = 18.sp)
 
         /** 副说明 / 次要信息 / 紧凑按钮文字。 */
-        val Caption = style(14.sp, letterSpacing = 0.8.sp, lineHeight = 22.sp)
+        val Caption: TextStyle get() = style(14.sp, letterSpacing = 0.8.sp, lineHeight = 22.sp)
 
         /** 正文 / 按钮 / 数字键。 */
-        val Body = style(16.sp, letterSpacing = 0.6.sp, lineHeight = 24.sp)
+        val Body: TextStyle get() = style(16.sp, letterSpacing = 0.6.sp, lineHeight = 24.sp)
 
         /** 抽屉 / 面板标题、强调按钮。 */
-        val Title = style(20.sp, letterSpacing = 2.0.sp, lineHeight = 30.sp)
+        val Title: TextStyle get() = style(20.sp, letterSpacing = 2.0.sp, lineHeight = 30.sp)
 
         /** 页面主标题、状态大字（如"已暂停"）。 */
-        val Headline = style(28.sp, letterSpacing = 4.0.sp, lineHeight = 40.sp)
+        val Headline: TextStyle get() = style(28.sp, letterSpacing = 4.0.sp, lineHeight = 40.sp)
 
         /** 首页主标识（全站唯一超大字，极疏排，当作图形而非文字使用）。 */
-        val Display = style(40.sp, letterSpacing = 6.0.sp, lineHeight = 56.sp)
+        val Display: TextStyle get() = style(40.sp, letterSpacing = 6.0.sp, lineHeight = 56.sp)
     }
 }
+
+// ── 明「纸墨」：纸 = 暖白，墨 = 近黑（由下往上逐层变亮） ──
+private const val LightPaper: Long = 0xFFF7F5F0
+private const val LightPaperShade: Long = 0xFFEDE9DF
+private const val LightPaperSheet: Long = 0xFFFFFFFF
+private const val LightInk1: Long = 0xFF1B1A17
+private const val LightInk2: Long = 0xFF4B4843
+private const val LightInk3: Long = 0xFF6A655C
+private const val LightInk4: Long = 0xFF8B867C
+
+// ── 暗「夜墨」：纸 = 暖近黑，墨 = 暖近白；层级方向与「明」一致（上层纸更亮、墨更浅） ──
+private const val DarkPaper: Long = 0xFF121110
+private const val DarkPaperShade: Long = 0xFF0B0A09
+private const val DarkPaperSheet: Long = 0xFF1E1C17
+private const val DarkInk1: Long = 0xFFF0ECE3
+private const val DarkInk2: Long = 0xFFC9C3B8
+private const val DarkInk3: Long = 0xFFA39D93
+private const val DarkInk4: Long = 0xFF767068
+
+/** 夜墨模式的模态遮罩浓度：深底上要更大才有同样的"退后"效果。 */
+private const val DarkScrim = 0.46f
 
 /** 由平台提供正文字体（桌面加载打包的霞鹜文楷，失败再探系统楷书）；取不到返回 null，[Ink.FontText] 回退衬线体。 */
 expect fun textFontFamily(): FontFamily?

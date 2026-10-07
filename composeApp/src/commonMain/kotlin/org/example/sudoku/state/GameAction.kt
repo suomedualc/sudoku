@@ -16,6 +16,9 @@ sealed interface GameAction {
     /** 候选提示开关：选中格里显示规则允许的数字（见 [GameState.hintCandidates]）。 */
     data object ToggleHintCandidates : GameAction
 
+    /** 夜墨模式开关：深底浅墨（见 [GameState.darkMode]）。 */
+    data object ToggleDarkMode : GameAction
+
     data object Hint : GameAction
     data object Reveal : GameAction
     data object Reset : GameAction

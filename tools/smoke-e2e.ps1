@@ -35,7 +35,7 @@ param(
     [int]$Width = 1180,
     [int]$Height = 900,
     [string]$OutDir = $env:TEMP,
-    [ValidateSet('all', 'menu', 'exit', 'win')]
+    [ValidateSet('all', 'menu', 'exit', 'win', 'theme', 'bar')]
     [string]$Flow = 'all'
 )
 
@@ -104,8 +104,11 @@ function Assert-Foreground($p) {
 }
 
 function Test-ShotLooksLikeTheApp($bmp) {
-    # 纸墨风格：整屏大面积是纸白。锁屏或被别的窗口盖住时整帧偏暗，
+    # 纸墨风格：整屏大面积是纸。锁屏或被别的窗口盖住时整帧会偏到"中间灰"，
     # 这种截图没有验收价值——与其事后发现，不如当场报出来。
+    #
+    # 两套主题都要接受：明「纸墨」整屏偏亮（均值 ≥ 90），暗「夜墨」整屏偏暗（均值 8–45）。
+    # 落在两者之间的"中间灰"仍然可疑——那正是被别的窗口盖住 / 锁屏的样子。
     $sum = 0.0
     $n = 0
     for ($i = 0; $i -lt 10; $i++) {
@@ -117,7 +120,8 @@ function Test-ShotLooksLikeTheApp($bmp) {
             $n++
         }
     }
-    return (($sum / $n) -ge 90)
+    $mean = $sum / $n
+    return (($mean -ge 90) -or ($mean -ge 8 -and $mean -le 45))
 }
 
 function Save-Shot($p, [string]$name) {
@@ -169,6 +173,15 @@ function Send-Click($p, [int]$x, [int]$y, [int]$waitMs = 700) {
     Start-Sleep -Milliseconds $waitMs
 }
 
+function Send-Hover($p, [int]$x, [int]$y, [int]$waitMs = 500) {
+    # 只移动指针、不点击：验证"浮动操作条随鼠标换边"这类**只在悬停时**发生的行为
+    Assert-Foreground $p
+    $r = New-Object RectE2E
+    [WinE2E]::GetWindowRect($p.MainWindowHandle, [ref]$r) | Out-Null
+    [WinE2E]::SetCursorPos(($r.L + $x), ($r.T + $y)) | Out-Null
+    Start-Sleep -Milliseconds $waitMs
+}
+
 function Start-App {
     if (-not [System.IO.File]::Exists($ExePath)) {
         throw ("exe not found: " + $ExePath + " -- run: gradlew.bat :composeApp:createDistributable --offline")
@@ -192,13 +205,15 @@ function Stop-App($p) {
 }
 
 $SIZE = 81
-function Write-OneEmptySave([string]$path) {
+function Write-OneEmptySave([string]$path, [bool]$dark = $false) {
     # a complete, valid sudoku grid with only the last cell blank
     $sol = '534678912672195348198342567859761423426853791713924856961537284287419635345286179'
     if ($sol.Length -ne $SIZE) { throw ('bad seed grid') }
     $puz = $sol.Substring(0, 80) + '0'
     $notes = (1..$SIZE | ForEach-Object { '0' }) -join ','
     $lines = @('v=2', 'strict=0', 'showNotes=1', 'noteMode=0', 'hintCandidates=0', 'game=1', 'difficulty=Easy')
+    # 明暗是第五项偏好，随存档走：写进去就能让应用**开局即夜墨**，省掉一次点击
+    $lines += ('darkMode=' + $(if ($dark) { '1' } else { '0' }))
     $lines += ('puzzle=' + $puz)
     $lines += ('current=' + $puz)
     $lines += ('solution=' + $sol)
@@ -253,6 +268,36 @@ try {
         Save-Shot $p 'win_drawer'
         Send-Key $p 'Escape'                      # drawer Esc -> back to menu
         Save-Shot $p 'menu_after_escape'
+        Stop-App $p
+    }
+
+    if ($Flow -eq 'all' -or $Flow -eq 'theme') {
+        Write-Host '== flow: night mode (夜墨) =='
+        # 存档里直接带 darkMode=1：开局即夜墨，不用先点一次开关
+        Write-OneEmptySave $saveFile $true
+        $p = Start-App
+        Save-Shot $p 'menu_night'  # 首页右上角也应有明暗切换（与对局页同一位置）
+        Send-Key $p 'Down' $script:KeyExtended    # "Resume game"
+        Send-Key $p 'Enter'
+        Save-Shot $p 'board_night'
+        # 点顶栏最右侧的明暗切换 → 应回到浅色纸面（这一步同时验证按钮位置与命中区）
+        Send-Click $p 1146 59
+        Save-Shot $p 'board_day_after_toggle'
+        Stop-App $p
+    }
+
+    if ($Flow -eq 'all' -or $Flow -eq 'bar') {
+        Write-Host '== flow: floating bar follows the pointer =='
+        Write-OneEmptySave $saveFile
+        $p = Start-App
+        Send-Key $p 'Down' $script:KeyExtended
+        Send-Key $p 'Enter'
+        # 鼠标移到棋盘**上半部**：条应搬到棋盘上方
+        Send-Hover $p 400 220
+        Save-Shot $p 'bar_at_top'
+        # 鼠标移到棋盘**下半部**：条应搬回棋盘下方
+        Send-Hover $p 400 620
+        Save-Shot $p 'bar_at_bottom'
         Stop-App $p
     }
 } catch {

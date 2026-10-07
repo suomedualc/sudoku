@@ -36,6 +36,7 @@ object GameReducer {
                 showNotes = state.showNotes,
                 noteMode = state.noteMode,
                 hintCandidates = state.hintCandidates,
+                darkMode = state.darkMode,
             ),
         )
 
@@ -49,6 +50,11 @@ object GameReducer {
         is GameAction.ToggleStrict -> Reduction(state.copy(strictMode = action.enabled))
         GameAction.ToggleShowNotes -> Reduction(state.copy(showNotes = !state.showNotes))
         GameAction.ToggleHintCandidates -> toggleHintCandidates(state)
+        // 夜墨只换配色，不动任何对局字段（进棋盘前的首页也能切，所以不要求 interactive）
+        GameAction.ToggleDarkMode -> Reduction(
+            state.copy(darkMode = !state.darkMode),
+            if (!state.darkMode) "夜墨模式：开" else "夜墨模式：关",
+        )
 
         GameAction.Hint -> hint(state)
         GameAction.Reveal -> reveal(state)

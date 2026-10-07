@@ -30,12 +30,13 @@ class GameStoreTest {
             showNotes = false,
             noteMode = true,
             hintCandidates = true,
+            darkMode = true,
         )
 
         val decoded = SaveCodec.decode(SaveCodec.encode(SaveFile(settings, SavedGame(game, notes, 123))))
 
         assertNotNull(decoded)
-        assertEquals(settings, decoded.settings, "三项设置应完整还原")
+        assertEquals(settings, decoded.settings, "五项设置应完整还原")
         val restored = decoded.game
         assertNotNull(restored)
         assertTrue(restored.game.puzzle.contentEquals(game.puzzle), "题面应完整还原")
@@ -75,6 +76,26 @@ class GameStoreTest {
         assertNotNull(decoded, "缺少候选提示设置的旧文件仍应可读")
         assertFalse(decoded.settings.hintCandidates, "缺行取默认：关闭")
         assertNotNull(decoded.game)
+    }
+
+    /** 同理：本轮之前写下的存档没有 `darkMode` 行，应读成**浅色纸面**（升级前的观感）。 */
+    @Test
+    fun codecDefaultsDarkModeToOffWhenLineIsMissing() {
+        val old = SaveCodec.encode(
+            SaveFile(
+                GameSettings(darkMode = true),
+                SavedGame(sampleGame(), IntArray(81), 0),
+            ),
+        )
+            .lineSequence()
+            .filterNot { it.startsWith("darkMode=") }
+            .joinToString("\n")
+
+        val decoded = SaveCodec.decode(old)
+
+        assertNotNull(decoded, "缺少夜墨设置的旧文件仍应可读")
+        assertFalse(decoded.settings.darkMode, "缺行取默认：浅色纸面")
+        assertNotNull(decoded.game, "设置缺行不该连累对局")
     }
 
     /** v1 存档没有设置行，应能读出来并取默认设置（老用户的存档不能因为升级而作废）。 */
@@ -166,18 +187,21 @@ class GameStoreTest {
         first.dispatch(GameAction.ToggleStrict(true))
         first.dispatch(GameAction.ToggleShowNotes)
         first.dispatch(GameAction.ToggleHintCandidates)
+        first.dispatch(GameAction.ToggleDarkMode)
 
         // 模拟重启
         val second = GameViewModel(seed = 9, store = store)
         assertTrue(second.state.strictMode, "严格模式应随存档保留")
         assertFalse(second.state.showNotes, "显示笔记应随存档保留")
         assertTrue(second.state.hintCandidates, "候选提示应随存档保留")
+        assertTrue(second.state.darkMode, "夜墨模式应随存档保留")
 
         // 新开一局不应把偏好重置回默认值
         second.dispatch(GameAction.NewGame(Difficulty.Easy))
         assertTrue(second.state.strictMode, "新开一局应继承偏好")
         assertFalse(second.state.showNotes, "新开一局应继承偏好")
         assertTrue(second.state.hintCandidates, "新开一局应继承偏好")
+        assertTrue(second.state.darkMode, "新开一局应继承偏好")
         assertNotNull(store.load()?.settings, "偏好应继续落盘")
     }
 

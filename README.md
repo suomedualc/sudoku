@@ -40,8 +40,13 @@
   重置、暂停（白纸遮题，不泄题）、严格模式。
 - **计时**：由单调时钟按真实时间推进；暂停、通关、离开对局页、窗口最小化都会停表。
 - **通关抽屉**：填满正确盘面后从顶部滑下结算抽屉，显示用时 / 难度 / 提示次数，可直接「再来一局」（同难度重开）或返回首页。
-- **偏好与续局**：严格模式 / 显示笔记 / 笔记模式 / 候选提示**四项**偏好跨对局、跨重启保留；
+- **偏好与续局**：严格模式 / 显示笔记 / 笔记模式 / 候选提示 / 夜墨模式**五项**偏好跨对局、跨重启保留；
   未完成的对局自动存盘（桌面 `~/.sudoku-ink/save.txt`），重启后首页即可「继续游戏」。
+- **两套主题**：纸墨（浅色纸面）/ 夜墨（深底浅墨），首页与对局页**右上角同一枚图标**切换；
+  不跟随系统深色——两套都是成品设计，各自校准到 WCAG AA（详见 `docs/02` §11）。
+- **浮动操作条**：撤销 / 重做贴在棋盘上/下的专用槽里，**跟着鼠标换边**（进棋盘上半部贴上方、下半部贴下方，
+  中间有滞回死区，不会来回跳）；条只在槽里出现，绝不压住题面。
+- **顶栏**：返回菜单（左上角图标）· 状态读数（中间）· 提示 / 暂停 / 重置 / 明暗切换（右上角）。
 - **落笔成局**：新开一局（或载入存档）时，棋盘由淡到浓**显影一次**（160ms）——全站唯一一处"情感化"动效；
   它只作用于绘制层，不影响首帧就能点、就能按键。
 
@@ -62,7 +67,8 @@
 - **格子级语义**：棋盘暴露 9×9 = 81 个语义节点，读屏可逐格朗读「第 R 行第 C 列 + 选中 + 给定/填入/空+笔记 + 冲突」；
   整盘另有汇总节点（难度 / 进度 / 是否暂停 / 是否笔记模式）。格子刻意不进 Tab 序（键盘模型是方向键选格），
   也刻意不朗读系统候选（冗余通道，会把行列与值淹没）。
-- **对比度**：墨四级都保证小字可当正文用（对三种纸底实测，主墨 15.97:1、次墨 8.35:1、三级墨 5.31:1，均达 WCAG AA 以上）。
+- **对比度**：**两套主题各自达标**（对棋盘纸实测）：主墨 17.40:1 / 次墨 9.10:1 / 三级墨 5.79:1（纸墨），
+  14.44:1 / 9.71:1 / 6.32:1（夜墨），均达 WCAG AA 以上；最淡的一级只用于禁用态文字。
 - **减少动态效果**：系统开关打开时动画时长一律为 0（瞬时就位，不做半速；开局显影也含在内）；
   也可用 `SUDOKU_REDUCE_MOTION=true` 或 `-Dsudoku.reduceMotion=true` 强制开启。
 - 详见 `docs/02-设计规范.md` §7 / §9。
@@ -96,11 +102,12 @@ org.example.sudoku
 ├── state/        应用层：GameState / GameAction / GameReducer（纯状态机）
 │                 + GameViewModel（状态容器）· GameStore / SaveCodec（存档端口与编解码）
 ├── ui/
-│   ├── theme/    Ink.kt（纸墨配色 + 字体 + 手绘原语）· DesignTokens.kt（尺寸 / 线宽 / 动效四档）
+│   ├── theme/    Ink.kt（**双主题**纸墨配色 + 字体 + 手绘原语）· DesignTokens.kt（尺寸 / 线宽 / 动效四档）
 │   │                SafeArea.kt（安全区，expect/actual）· Motion.kt（reduced-motion 与时长策略）
-│   ├── components/  InkWidgets.kt（墨线控件库）· BoardCanvas.kt · NumberPad.kt · FloatingPad.kt（就近输入）
-│   │                TopDrawer.kt（顶部抽屉：覆盖层唯一出口）· InkSnackbar.kt（自绘墨条提示）
-│   ├── screens/  MenuScreen（三入口 + 键盘导航）· GameScreen（双形态 + 通关抽屉 + 键盘）
+│   ├── components/  InkWidgets.kt（墨线控件库 + 自绘图标）· BoardCanvas.kt · NumberPad.kt · FloatingPad.kt（就近输入）
+│   │                FloatingBarPolicy.kt（浮动条换边判据）· TopDrawer.kt（顶部抽屉：覆盖层唯一出口）
+│   │                InkSnackbar.kt（自绘墨条提示）
+│   ├── screens/  MenuScreen（三入口 + 键盘导航）· GameScreen（**顶栏 + 棋盘舞台 + 控制栏** + 通关抽屉 + 键盘）
 │   └── App.kt    页面骨架（Box + 安全区）+ 两页导航 + 自绘墨条提示
 └── entrypoints
     ├── androidMain/MainActivity.kt
@@ -115,7 +122,7 @@ org.example.sudoku
 
 ```powershell
 .\gradlew.bat :composeApp:run                  # 桌面直接运行
-.\gradlew.bat :composeApp:jvmTest --offline    # 单元测试 + UI 测试（80 项）
+.\gradlew.bat :composeApp:jvmTest --offline    # 单元测试 + UI 测试（92 项）
 .\gradlew.bat :composeApp:createDistributable --offline   # 便携版（build/compose/binaries/main/app）
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1   # 实机冒烟（置顶 + 固定坐标，自动截图）
 # 根目录 SudokuInk.lnk 指向上面的便携版，双击即可预览（本机快捷方式，不入库）

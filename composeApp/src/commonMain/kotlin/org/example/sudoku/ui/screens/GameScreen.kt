@@ -23,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -30,6 +31,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
@@ -50,11 +53,14 @@ import org.example.sudoku.core.Sudoku
 import org.example.sudoku.state.GameAction
 import org.example.sudoku.state.GameState
 import org.example.sudoku.state.Screen
+import org.example.sudoku.ui.components.BarSide
 import org.example.sudoku.ui.components.BoardCanvas
+import org.example.sudoku.ui.components.FloatingBarPolicy
 import org.example.sudoku.ui.components.FloatingInputPad
 import org.example.sudoku.ui.components.FloatingPadPolicy
 import org.example.sudoku.ui.components.InkButton
-import org.example.sudoku.ui.components.InkDivider
+import org.example.sudoku.ui.components.InkIcon
+import org.example.sudoku.ui.components.InkIconButton
 import org.example.sudoku.ui.components.InkPanel
 import org.example.sudoku.ui.components.InkText
 import org.example.sudoku.ui.components.InkTitleFrame
@@ -131,7 +137,7 @@ fun GameScreen(
     }
 
     val onCellClick: (Int, Boolean) -> Unit = { cell, precisePointer ->
-        padCell = if (FloatingPadPolicy.shouldOpen(state, cell, precisePointer)) cell else null
+        padCell = FloatingPadPolicy.nextOnCellClick(padCell, state, cell, precisePointer)
         onAction(GameAction.Select(cell))
     }
 
@@ -198,21 +204,59 @@ fun GameScreen(
     ) {
         val wide = maxWidth >= DesignTokens.Sizes.WideBreakpoint && maxWidth > maxHeight
 
-        if (wide) {
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(DesignTokens.Spacing.Md),
-                horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Md),
-            ) {
-                BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                    // 顶部对齐并预留提示条高度：这样 Snackbar 弹出时不会压住棋盘最后一行
-                    val side = minOf(
-                        maxWidth,
-                        (maxHeight - DesignTokens.Sizes.SnackbarReserve)
-                            .coerceAtLeast(DesignTokens.Sizes.BoardMinSize),
-                    )
-                    BoardArea(
+        Column(modifier = Modifier.fillMaxSize()) {
+            // 顶栏：左「返回菜单」· 中状态读数 · 右「提示 / 暂停 / 重置 + 明暗切换」
+            GameTopBar(game, state, done, total, dispatch)
+
+            if (wide) {
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(DesignTokens.Spacing.Md),
+                    horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Md),
+                ) {
+                    BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                        // 顶部对齐并预留提示条高度：这样 Snackbar 弹出时不会压住棋盘最后一行
+                        val side = minOf(
+                            maxWidth,
+                            (maxHeight - DesignTokens.Sizes.SnackbarReserve)
+                                .coerceAtLeast(DesignTokens.Sizes.BoardMinSize),
+                        )
+                        BoardStage(
+                            game = game,
+                            state = state,
+                            conflicts = conflicts,
+                            description = boardDescription,
+                            padCell = padCell,
+                            onAction = dispatch,
+                            onCellClick = onCellClick,
+                            expandVertically = true,
+                            modifier = Modifier.align(Alignment.TopCenter).size(side),
+                        )
+                    }
+                    Column(
+                        modifier = Modifier
+                            .width(DesignTokens.Sizes.ControlPanel)
+                            .fillMaxHeight()
+                            .verticalScroll(rememberScrollState())
+                            // 点控制栏的空白处也收面板（点到开关 / 按钮时由 dispatch 收）
+                            .pointerInput(Unit) { detectTapGestures { padCell = null } },
+                    ) {
+                        PadPanel(game, state, dispatch)
+                        Spacer(Modifier.height(DesignTokens.Spacing.Md))
+                        OptionsPanel(state, dispatch)
+                    }
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .verticalScroll(scrollState)
+                        .padding(DesignTokens.Spacing.Md),
+                ) {
+                    BoardStage(
                         game = game,
                         state = state,
                         conflicts = conflicts,
@@ -220,52 +264,19 @@ fun GameScreen(
                         padCell = padCell,
                         onAction = dispatch,
                         onCellClick = onCellClick,
-                        modifier = Modifier.align(Alignment.TopCenter).size(side),
+                        expandVertically = false,
+                        modifier = Modifier.fillMaxWidth(),
                     )
-                }
-                Column(
-                    modifier = Modifier
-                        .width(DesignTokens.Sizes.ControlPanel)
-                        .fillMaxHeight()
-                        .verticalScroll(rememberScrollState())
-                        // 点控制栏的空白处也收面板（点到开关 / 按钮时由 dispatch 收）
-                        .pointerInput(Unit) { detectTapGestures { padCell = null } },
-                ) {
-                    StatusLine(game, state, done, total)
                     Spacer(Modifier.height(DesignTokens.Spacing.Md))
-                    PadPanel(game, state, dispatch)
-                    Spacer(Modifier.height(DesignTokens.Spacing.Md))
-                    OptionsPanel(state, dispatch)
+                    // 只在"面板区"收浮层：这里不含棋盘，不会与棋盘的点击手势抢事件，
+                    // 也不会挡住棋盘上的拖动滚动（窄屏需要靠拖动棋盘来滚页面）。
+                    Column(modifier = Modifier.pointerInput(Unit) { detectTapGestures { padCell = null } }) {
+                        PadPanel(game, state, dispatch)
+                        Spacer(Modifier.height(DesignTokens.Spacing.Md))
+                        OptionsPanel(state, dispatch)
+                    }
+                    Spacer(Modifier.height(DesignTokens.Spacing.Sm))
                 }
-            }
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(scrollState)
-                    .padding(DesignTokens.Spacing.Md),
-            ) {
-                StatusLine(game, state, done, total)
-                Spacer(Modifier.height(DesignTokens.Spacing.Md))
-                BoardArea(
-                    game = game,
-                    state = state,
-                    conflicts = conflicts,
-                    description = boardDescription,
-                    padCell = padCell,
-                    onAction = dispatch,
-                    onCellClick = onCellClick,
-                    modifier = Modifier.fillMaxWidth().aspectRatio(1f),
-                )
-                Spacer(Modifier.height(DesignTokens.Spacing.Md))
-                // 只在"面板区"收浮层：这里不含棋盘，不会与棋盘的点击手势抢事件，
-                // 也不会挡住棋盘上的拖动滚动（窄屏需要靠拖动棋盘来滚页面）。
-                Column(modifier = Modifier.pointerInput(Unit) { detectTapGestures { padCell = null } }) {
-                    PadPanel(game, state, dispatch)
-                    Spacer(Modifier.height(DesignTokens.Spacing.Md))
-                    OptionsPanel(state, dispatch)
-                }
-                Spacer(Modifier.height(DesignTokens.Spacing.Sm))
             }
         }
 
@@ -336,77 +347,43 @@ private fun WinRow(label: String, value: String) {
 }
 
 /**
- * 棋盘区域：棋盘 + 悬浮数字面板 + 暂停遮挡（暂停时用白纸盖住题面，不能继续读题）。
+ * 顶栏：**全局操作只有一个出口**。
  *
- * 悬浮面板与棋盘放在同一个 Box 里，因此**共用同一套 9×9 像素坐标**，
- * 面板定位不需要额外的坐标换算（窄屏滚动时也会跟着棋盘一起移动）。
+ * 左「返回菜单」· 中「状态读数」· 右「提示 / 暂停 / 重置 + 明暗切换」。
+ * 把控制集中到棋盘上方的一横条，是为了让棋盘四周干净下来——核心区只留给题面。
+ * 「撤销 / 重做」是**高频且跟随操作**的一类，另行做成棋盘的浮动条（见 [BoardStage]）。
+ *
+ * 状态读数从原来的"右上角一列"改到顶栏中间：它不属于操作，属于"看一眼"，横排更省高度。
  */
 @Composable
-private fun BoardArea(
+private fun GameTopBar(
     game: Game,
     state: GameState,
-    conflicts: BooleanArray,
-    description: String,
-    padCell: Int?,
+    done: Int,
+    total: Int,
     onAction: (GameAction) -> Unit,
-    onCellClick: (Int, Boolean) -> Unit,
-    modifier: Modifier = Modifier,
 ) {
-    Box(modifier = modifier) {
-        BoardCanvas(
-            game = game,
-            selected = state.selected,
-            notes = state.notes,
-            conflicts = conflicts,
-            noteMode = state.noteMode,
-            showNotes = state.showNotes,
-            hintCandidates = state.hintCandidates,
-            paused = state.paused,
-            modifier = Modifier.fillMaxSize().semantics { contentDescription = description },
-            onCellClick = onCellClick,
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(DesignTokens.Sizes.TopBarHeight)
+            .padding(horizontal = DesignTokens.Spacing.Md),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Sm),
+    ) {
+        InkIconButton(
+            icon = InkIcon.Back,
+            contentDescription = "返回菜单",
+            onClick = { onAction(GameAction.Navigate(Screen.Menu)) },
         )
-        if (padCell != null && state.interactive) {
-            FloatingInputPad(
-                cell = padCell,
-                enabled = state.interactive,
-                // 只列这一格当前可填的数字（笔记模式下也用这份候选——想记"不可能的数字"就用右侧常驻键盘）。
-                // 按盘面缓存：计时每秒触发重组，逐帧扫 81 格白算一遍。
-                legalMask = remember(game.current, padCell) { Sudoku.legalMask(game.current, padCell) },
-                onDigit = { onAction(GameAction.Digit(it)) },
-            )
-        }
-        if (state.paused) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Ink.PaperSheet),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                InkText(text = "已暂停", style = Ink.Type.Headline)
-                Spacer(Modifier.height(DesignTokens.Spacing.Lg))
-                InkButton(
-                    text = "继续",
-                    onClick = { onAction(GameAction.Resume) },
-                    modifier = Modifier.width(DesignTokens.Sizes.OverlayButtonWidth),
-                    emphasized = true,
-                    compact = true,
-                )
-            }
-        }
-    }
-}
 
-/** 状态行：难度 / 计时 / 提示次数 / 进度，下方压一条手绘分隔线。 */
-@Composable
-private fun StatusLine(game: Game, state: GameState, done: Int, total: Int) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+        // 中间用 weight 占满，把右侧控制组顶到最右
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Bottom,
+            modifier = Modifier.weight(1f).padding(horizontal = DesignTokens.Spacing.Sm),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Md),
         ) {
-            InkText(text = game.difficulty.label, style = Ink.Type.Body.copy(color = Ink.Grey))
+            InkText(text = game.difficulty.label, style = Ink.Type.Caption.copy(color = Ink.Grey))
             InkText(
                 text = if (state.paused) "已暂停" else Sudoku.formatDuration(state.elapsed),
                 // 计时是数字读数：走 Nunito 且字距为 0——秒数跳动时不会因等宽与否而左右晃
@@ -420,8 +397,185 @@ private fun StatusLine(game: Game, state: GameState, done: Int, total: Int) {
                 style = Ink.digitStyle(Ink.Type.Body.fontSize, color = Ink.Grey),
             )
         }
-        Spacer(Modifier.height(DesignTokens.Spacing.Sm))
-        InkDivider(seed = 5)
+
+        InkIconButton(
+            icon = InkIcon.Hint,
+            contentDescription = "提示",
+            onClick = { onAction(GameAction.Hint) },
+            enabled = !state.settled && !state.paused,
+        )
+        InkIconButton(
+            icon = if (state.paused) InkIcon.Play else InkIcon.Pause,
+            contentDescription = if (state.paused) "继续" else "暂停",
+            onClick = { onAction(if (state.paused) GameAction.Resume else GameAction.Pause) },
+            enabled = !state.settled,
+        )
+        InkIconButton(
+            icon = InkIcon.Reset,
+            contentDescription = "重置本局",
+            onClick = { onAction(GameAction.Reset) },
+            enabled = !state.settled && !state.paused,
+        )
+        InkIconButton(
+            icon = if (state.darkMode) InkIcon.Sun else InkIcon.Moon,
+            contentDescription = if (state.darkMode) "切回浅色纸面" else "切换到夜墨模式",
+            onClick = { onAction(GameAction.ToggleDarkMode) },
+        )
+    }
+}
+
+/**
+ * 棋盘舞台：**浮动操作条 + 棋盘 + 悬浮数字面板 + 暂停遮挡**。
+ *
+ * 三点说明：
+ * 1. 上下各留一条 [DesignTokens.Sizes.FloatingBarSlot] 的槽专供浮动条——条会随鼠标换边，
+ *    若压在棋盘上就会挡住正在看的那一行；
+ * 2. 悬浮面板与棋盘在同一个 Box 里，因此**共用同一套 9×9 像素坐标**，定位不用额外换算
+ *    （窄屏滚动时也会跟着棋盘一起移动）；
+ * 3. 换边判定在本组件内完成：拿鼠标相对**本容器**的纵坐标算比例（[FloatingBarPolicy]），
+ *    这样宽屏 / 窄屏都不需要外界传入任何坐标。
+ */
+@Composable
+private fun BoardStage(
+    game: Game,
+    state: GameState,
+    conflicts: BooleanArray,
+    description: String,
+    padCell: Int?,
+    onAction: (GameAction) -> Unit,
+    onCellClick: (Int, Boolean) -> Unit,
+    expandVertically: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    var barSide by remember { mutableStateOf(FloatingBarPolicy.Default) }
+    // 棋盘容器高度单独记账：**不要在 pointerInput 协程里直接读 `size.height`**——
+    // 协程在首次布局之前就启动，那时读到的是 0；而它只在 key 变化时重启，
+    // 于是会一直拿着 0（策略里 `boardHeight <= 0` = "量不到，保持原样"），表现为"条永远不动"。
+    // 这个 bug 单测抓不到，只有在真机上把鼠标移进棋盘才会暴露。
+    var boardHeight by remember { mutableIntStateOf(0) }
+
+    Column(modifier = modifier) {
+        BarSlot(visible = barSide == BarSide.Top) { UndoRedoBar(state, onAction) }
+
+        // 外层 Box 吃掉剩余空间，内层**强制正方形**——棋盘在任何窗口比例下都必须是方的。
+        // 理由不只是好看：`BoardCanvas` 按 `min(宽, 高)` 画网格，而语义层是按"父容器的 1/9"铺的
+        // （`BoardCellSemantics` 用 `matchParentSize` + `fillMax*`），容器一旦不是方的，
+        // 读屏报出的格子就会与眼睛看到的格子错位。
+        Box(
+            modifier = if (expandVertically) {
+                Modifier.fillMaxWidth().weight(1f)
+            } else {
+                Modifier.fillMaxWidth().aspectRatio(1f)
+            },
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(
+                modifier = Modifier
+                    .aspectRatio(1f)
+                    .onSizeChanged { boardHeight = it.height }
+                    // 只观察 Move（悬停移动），不消费任何事件——棋盘的点击照常
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                if (event.type != PointerEventType.Move) continue
+                                val y = event.changes.firstOrNull()?.position?.y ?: continue
+                                barSide = FloatingBarPolicy.next(barSide, y, 0f, boardHeight.toFloat())
+                            }
+                        }
+                    },
+            ) {
+                BoardCanvas(
+                    game = game,
+                    selected = state.selected,
+                    notes = state.notes,
+                    conflicts = conflicts,
+                    noteMode = state.noteMode,
+                    showNotes = state.showNotes,
+                    hintCandidates = state.hintCandidates,
+                    paused = state.paused,
+                    modifier = Modifier.fillMaxSize().semantics { contentDescription = description },
+                    onCellClick = onCellClick,
+                )
+                if (padCell != null && state.interactive) {
+                    FloatingInputPad(
+                        cell = padCell,
+                        enabled = state.interactive,
+                        // 只列这一格当前可填的数字（笔记模式下也用这份候选——想记"不可能的数字"就用常驻键盘）。
+                        // 按盘面缓存：计时每秒触发重组，逐帧扫 81 格白算一遍。
+                        legalMask = remember(game.current, padCell) { Sudoku.legalMask(game.current, padCell) },
+                        onDigit = { onAction(GameAction.Digit(it)) },
+                    )
+                }
+                if (state.paused) PauseVeil(onAction)
+            }
+        }
+
+        BarSlot(visible = barSide == BarSide.Bottom) { UndoRedoBar(state, onAction) }
+    }
+}
+
+/** 棋盘上 / 下为浮动条预留的槽：条只在这一条带子里出现，绝不压住题面。 */
+@Composable
+private fun BarSlot(visible: Boolean, content: @Composable () -> Unit) {
+    Box(
+        modifier = Modifier.fillMaxWidth().height(DesignTokens.Sizes.FloatingBarSlot),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (visible) content()
+    }
+}
+
+/**
+ * 撤销 / 重做：贴在棋盘上或下的浮动条，位置由 [FloatingBarPolicy] 跟着鼠标决定。
+ *
+ * 两个按钮的可用性直接跟着撤销 / 重做栈走——栈空即禁用，不用额外状态。
+ */
+@Composable
+private fun UndoRedoBar(state: GameState, onAction: (GameAction) -> Unit) {
+    InkPanel(
+        // 按内容收紧宽度（fillWidth = false）：两个按钮撑满整宽会变成横贯棋盘的空白带，
+        // 既压不住视觉重心、又抢棋盘的注意力。外层 BarSlot 会把它居中。
+        padding = PaddingValues(horizontal = DesignTokens.Spacing.Sm, vertical = DesignTokens.Spacing.Xs),
+        seed = 77,
+        fillWidth = false,
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Sm)) {
+            InkIconButton(
+                icon = InkIcon.Undo,
+                contentDescription = "撤销",
+                onClick = { onAction(GameAction.Undo) },
+                enabled = state.undoStack.isNotEmpty(),
+            )
+            InkIconButton(
+                icon = InkIcon.Redo,
+                contentDescription = "重做",
+                onClick = { onAction(GameAction.Redo) },
+                enabled = state.redoStack.isNotEmpty(),
+            )
+        }
+    }
+}
+
+/** 暂停遮挡：用一张纸盖住题面——"暂停"意味着不能继续读题（读屏同步遮住，见 [BoardCanvas]）。 */
+@Composable
+private fun PauseVeil(onAction: (GameAction) -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Ink.PaperSheet),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        InkText(text = "已暂停", style = Ink.Type.Headline)
+        Spacer(Modifier.height(DesignTokens.Spacing.Lg))
+        InkButton(
+            text = "继续",
+            onClick = { onAction(GameAction.Resume) },
+            modifier = Modifier.width(DesignTokens.Sizes.OverlayButtonWidth),
+            emphasized = true,
+            compact = true,
+        )
     }
 }
 
@@ -438,10 +592,11 @@ private fun PadPanel(game: Game, state: GameState, onAction: (GameAction) -> Uni
             style = Ink.Type.Meta.copy(color = Ink.Light),
         )
         Spacer(Modifier.height(DesignTokens.Spacing.Sm))
-        val legalMask = if (state.noteMode || state.selected == null) {
-            null
-        } else {
-            Sudoku.legalMask(game.current, state.selected)
+        // 笔记模式下不限制（要能记"不可能的数字"）；其余按盘面 + 选中格缓存——
+        // 计时每秒触发一次重组，不缓存就是每秒白扫一遍 81 格。
+        // 注意把判空放进 remember 的 key 里，而不是在分支里各调一次 remember。
+        val legalMask = remember(game.current, state.selected, state.noteMode) {
+            if (state.noteMode) null else state.selected?.let { Sudoku.legalMask(game.current, it) }
         }
         // 每个数字还剩几个：只在盘面变化时重算（心跳不触发重组计算）
         val remaining = remember(game) {
@@ -493,48 +648,9 @@ private fun OptionsPanel(state: GameState, onAction: (GameAction) -> Unit) {
             checked = state.strictMode,
             onCheckedChange = { enabled -> onAction(GameAction.ToggleStrict(enabled)) },
         )
-        Spacer(Modifier.height(DesignTokens.Spacing.Sm))
-        InkDivider(seed = 42)
-        Spacer(Modifier.height(DesignTokens.Spacing.Md))
-        Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Sm)) {
-            InkButton(
-                "撤销",
-                { onAction(GameAction.Undo) },
-                Modifier.weight(1f),
-                enabled = state.undoStack.isNotEmpty(),
-                compact = true,
-            )
-            InkButton(
-                "重做",
-                { onAction(GameAction.Redo) },
-                Modifier.weight(1f),
-                enabled = state.redoStack.isNotEmpty(),
-                compact = true,
-            )
-            InkButton(
-                "提示",
-                { onAction(GameAction.Hint) },
-                Modifier.weight(1f),
-                compact = true,
-                emphasized = true,
-            )
-        }
-        Spacer(Modifier.height(DesignTokens.Spacing.Sm))
-        Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Sm)) {
-            InkButton(
-                if (state.paused) "继续" else "暂停",
-                { onAction(if (state.paused) GameAction.Resume else GameAction.Pause) },
-                Modifier.weight(1f),
-                compact = true,
-            )
-            InkButton("重置", { onAction(GameAction.Reset) }, Modifier.weight(1f), compact = true)
-            InkButton(
-                "菜单",
-                { onAction(GameAction.Navigate(Screen.Menu)) },
-                Modifier.weight(1f),
-                compact = true,
-            )
-        }
+        // 这里曾经挤着 6 个按钮（撤销 / 重做 / 提示 / 暂停 / 重置 / 菜单）。
+        // 现在：撤销 · 重做 → 棋盘上下的浮动条；提示 · 暂停 · 重置 → 顶栏；返回菜单 → 顶栏左上角图标。
+        // 面板只留"偏好开关"，棋盘四周因此干净下来。
     }
 }
 

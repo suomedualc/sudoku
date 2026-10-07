@@ -1,4 +1,4 @@
-# 数独（手写纸 · 简约油墨）开发纪律 · v2.6
+# 数独（手写纸 · 简约油墨）开发纪律 · v2.7
 
 > 本文件是"系统层"上下文（自动加载），既是**强制规则**，也是本工程的**开发思路 / 选型依据 / 模块说明 / 迭代计划**的简版。
 > 详细论证见 `docs/01-架构设计.md`、`docs/02-设计规范.md`、`docs/03-开发流程.md`、`docs/05-发展规划.md`。
@@ -65,7 +65,7 @@
     **打包图标与运行时图标必须同源**：jpackage 只把图标嵌进 exe；AWT 窗口默认仍显示 JDK 的 Java 图标，
     因此 `jvmMain/main.kt` 必须显式设置 `window.iconImages`（PNG 经 `jvmMain { resources.srcDir("icons") }` 进 jar）。
 
-**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 80 项）+ **实机冒烟**
+**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 92 项）+ **实机冒烟**
 （`tools/smoke-e2e.ps1`，置顶 + 固定坐标，见 §5）+ **实机试玩**（§6 第 4–5 条）+ 肉眼验收四档窗口。
 
 ---
@@ -168,7 +168,7 @@
 
 | 文件 | 职责 | 关键约定 |
 |---|---|---|
-| `theme/Ink.kt` | 纸墨配色、手写体、绘制原语 | **颜色与字体的唯一出口**；`inkLine/inkRoundRect/inkHatch` 抖动用纯函数种子 |
+| `theme/Ink.kt` | **双主题**纸墨配色、手写体、绘制原语 | **颜色与字体的唯一出口**：色值与 `Type` 六档一律写成 **getter**（快照状态驱动），禁止 `val X = Color(...)` 缓存，否则切主题后停在旧色；遮罩必须用 `Ink.Scrim` 而非 `Ink.Black.copy`；`inkLine/inkRoundRect/inkHatch` 抖动用纯函数种子 |
 | `theme/InkFonts.jvm.kt`（jvmMain） | 打包字体装载 + 系统兜底 | 资源落**应用数据目录缓存**（`~/.sudoku-ink/fonts/`，按字节数校验）再 `Font(file)`；正文 = 霞鹜文楷 → 系统楷书；数字 = Nunito + **霞鹜文楷回退链**；失败返回 null（调用方回退通用族） |
 | `theme/SafeArea.kt` | 安全区内边距 | `expect/actual`：jvm 恒 0；**新增平台必须补 actual，缺了会编译失败**（不靠自觉） |
 | `theme/Motion.kt` | reduced-motion 判定 + 时长策略 | `expect/actual` + 纯函数 `motionDurationMs(ms, reduceMotion)`；**四档动效全部过它** |
@@ -190,7 +190,7 @@
 | `jvmMain` | `main.kt`（1180×900 / 最小 940×720）· `platform/FileGameStore.kt`（`~/.sudoku-ink/save.txt`）· `ui/theme/InkFonts.jvm.kt` | ✅ 已启用 |
 | `androidMain` | `MainActivity` + `AndroidManifest`（主题已改系统内置） | ⏸ 未参与编译：缺 `androidTarget()` 与 `compileSdk 37`（`docs/05` §3.1） |
 
-### 3.5 七个容易踩的坑
+### 3.5 九个容易踩的坑
 
 1. `GameState` / `Game` 里是 `IntArray`，`data class` 的 `equals` 对数组是**引用比较**——不要用 `==` 做业务判断。
 2. `Snapshot` 必须覆盖"所有会被改的字段"（漏一个就会出现 `hintUsed` 回退而 `hintsCount` 不回退这类矛盾）。
@@ -205,13 +205,19 @@
    （标题栏与任务栏都是它）。必须在 `main.kt` 里设置 `window.iconImages`；而且读资源要用
    `Class.getResourceAsStream("/sudoku-32.png")`——`ClassLoader.getResourceAsStream` **不接受前导 `/`**，
    会静默返回 null，于是"设了图标却没生效"。
+8. **在 `pointerInput` 协程里直接读 `size.height` 会拿到 0**：协程在首次布局**之前**就启动，
+   且只在 key 变化时重启，于是会一直拿着 0，表现为悬停 / 换边逻辑"永远不动"。
+   **单测抓不到**，只有真机把鼠标移进棋盘才暴露。容器尺寸要用 `onSizeChanged` 记账，然后在事件循环里读。
+9. **`SaveFile.toState()` 是逐字段映射**：新增一项偏好忘了加进去，就会出现"存盘里有、重启后没了"，
+   而编码 / 解码 / UI 三处都看不出问题。`GameStoreTest.settingsSurviveRestartAndNewGame` 会在漏写时失败。
 
 ### 3.6 常见改动指引
 
 | 想做的事 | 步骤 |
 |---|---|
-| 改配色 / 线宽 | 只改 `Ink`（颜色墨阶）或 `DesignTokens.Stroke`（线宽），不要在组件里写死；改完过一遍四档窗口 |
-| 加一个玩法开关 | ① `GameState` 加字段 ② `GameAction` 加 `Toggle*` ③ reducer 处理 ④ `GameScreen.OptionsPanel` 加一行 `InkToggleRow` ⑤ 若影响规则，加测试 ⑥ 若要落盘，同步 `SaveCodec` |
+| 改配色 / 线宽 | 只改 `Ink`（颜色墨阶）或 `DesignTokens.Stroke`（线宽），不要在组件里写死；**改色值必须同时给浅 / 深两套**并重算对比度（跑 `InkThemeTest`）；改完过一遍四档窗口 |
+| 加一个玩法开关 | ① `GameState` 加字段 ② `GameAction` 加 `Toggle*` ③ reducer 处理 ④ `GameScreen.OptionsPanel` 加一行 `InkToggleRow` ⑤ 若影响规则，加测试 ⑥ 若要落盘，同步 `SaveCodec`（编码 + 解码 + 格式注释）⑦ **同步 `GameViewModel` 的 `SaveFile.toState()`**（见 §3.5 第 9 条） |
+| 加一个图标 | ① `InkIcon` 加枚举值 ② `drawInkIcon` 里用 `inkLine` / 弧线自绘（**不引图标库、不用图标字体**）③ 用 `InkIconButton` 承载，说明走 `contentDescription`（读屏读"撤销"，不读"一个圆圈带箭头"） |
 | 加一个难度 | ① `Difficulty` 加值 ② （若要求达标）改 `generate` 的重试策略 ③ `MenuScreen` 难度遮罩自动出现（遍历 entries）④ 测试断言实际空格数 |
 | 加一个新屏幕 | ① `Screen` 枚举 ② `App.kt` 的 `when` 分支 ③ 新 Screen 用 `InkPanel` + `InkButton` 组织 ④ 更新 `docs/01` §2 与 `docs/02` §3 |
 | 加一个新平台 | 见 `docs/05` §3.1 / §3.2：加 target → 写 entrypoint → **补 `SafeArea.kt` 的 actual（安全区，缺了编译失败）** → 实现 `GameStore` → 逐条过输入差异与屏幕档位 |
@@ -288,9 +294,10 @@
 - **精准投喂**：先 `@folder composeApp/src/commonMain` 预热，再用 `@file` / `@code` 定位；方法见 `docs/04`。
 - **负面约束随需求一起给**：把本文件 §0 的相关红线直接写进需求里。
 - **提交前自检清单**：
-  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（80 项）；改过 `state/` 或 `core/` 时必须补/改用例；
+  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（92 项）；改过 `state/` 或 `core/` 时必须补/改用例；
      动过字体 / 资源时跑 `BundledFontsTest`（字体在、family 对、中文/数字各归其位、**数字族的中文兜底链还在**）；
-     动过棋盘绘制 / 语义层时要跑 `BoardCanvasUiTest`（81 节点 + 点击穿透）；
+     动过棋盘绘制 / 语义层时要跑 `BoardCanvasUiTest`（81 节点 + 点击穿透 + 暂停遮读屏）；
+     **动过配色必须跑 `InkThemeTest`**（两套主题的前三级都要 ≥ 4.5:1；新增色值必须同时给浅 / 深两套）；
      动过覆盖层 / 键盘映射时，跑 `tools\smoke-e2e.ps1` 并看截图；
   2. 无新增色相、无裸色值 / 魔法尺寸（§0 6–8）；
   3. 四档窗口肉眼验收：1180×900 / 800×600 / 500×1000 / 1024×768；

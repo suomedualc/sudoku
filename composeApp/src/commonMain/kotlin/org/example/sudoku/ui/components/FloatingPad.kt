@@ -106,6 +106,20 @@ object FloatingPadPolicy {
         val game = state.game ?: return false
         return game.current[cell] == 0
     }
+
+    /**
+     * 点击某格之后，面板应处于哪一格（`null` = 关闭）。
+     *
+     * 在 [shouldOpen] 之外多做一件事：**再点一次当前已开面板的格子 → 收起**（toggle）。
+     * 否则面板只能靠 `Esc`、或点到棋盘外的面板区才关得掉——但在棋盘上"再点一下"才是
+     * 最顺手的收起手势，缺了它就成了交互死角（面板一直在那儿挡着格子）。
+     */
+    fun nextOnCellClick(
+        current: Int?,
+        state: GameState,
+        cell: Int,
+        precisePointer: Boolean,
+    ): Int? = if (current == cell) null else if (shouldOpen(state, cell, precisePointer)) cell else null
 }
 
 /**

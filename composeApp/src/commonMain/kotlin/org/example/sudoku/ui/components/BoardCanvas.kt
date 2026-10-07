@@ -434,7 +434,7 @@ private data class InkTextKey(
  * 候选数字的墨色：**半透明灰**。
  * 与玩家笔记（[Ink.Light] 实墨）拉开层次——候选是"系统算出来的背景信息"，笔记是"自己写下的判断"。
  */
-private val CandidateColor = Ink.Grey.copy(alpha = Ink.Alpha.Hint)
+private val CandidateColor: Color get() = Ink.Grey.copy(alpha = Ink.Alpha.Hint)
 
 /** 带容量保护的跨帧文本测量缓存（连续拖拽缩放窗口时不会无限增长）。 */
 private fun MutableMap<InkTextKey, TextLayoutResult>.cached(

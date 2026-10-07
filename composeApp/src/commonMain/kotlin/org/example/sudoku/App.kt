@@ -47,6 +47,10 @@ fun App(
     val state = viewModel.state
     val snackbarState = remember { InkSnackbarHostState() }
 
+    // 主题同步：把偏好推给 Ink。放在**最前面**，保证同一帧里后面所有子组件读到的都是新配色，
+    // 不会出现"先按浅色画一帧再翻成夜墨"的闪烁；值没变时不写，避免无谓的状态失效。
+    if (Ink.isDark != state.darkMode) Ink.setDark(state.darkMode)
+
     // 计时心跳：约 250ms 校对一次；真正的秒数由单调时钟算出（不再"每秒 +1"，长局不漂移）
     LaunchedEffect(Unit) {
         while (true) {
@@ -80,6 +84,8 @@ fun App(
                 onStart = { viewModel.dispatch(GameAction.NewGame(it)) },
                 onResume = { viewModel.dispatch(GameAction.Navigate(Screen.Game)) },
                 onExit = onExit,
+                darkMode = state.darkMode,
+                onToggleDark = { viewModel.dispatch(GameAction.ToggleDarkMode) },
             )
 
             Screen.Game -> GameScreen(

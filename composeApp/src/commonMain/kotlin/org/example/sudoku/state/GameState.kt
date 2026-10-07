@@ -45,6 +45,14 @@ data class GameState(
      * 与 [noteMode] / [strictMode] / [showNotes] 一样跨对局保留并随存档落盘。
      */
     val hintCandidates: Boolean = false,
+    /**
+     * 夜墨模式（深底浅墨）。
+     *
+     * 与 [hintCandidates] 一样是**跨对局保留的偏好**：属于"这台机器上习惯怎么看"，
+     * 换局 / 重置 / 通关都不清空，并随存档落盘。真正的配色由 `Ink` 承载（见 `ui/theme/Ink.kt`），
+     * 这里只存"选哪一套"。
+     */
+    val darkMode: Boolean = false,
     val elapsed: Int = 0,
     val paused: Boolean = false,
     val hintUsed: Boolean = false,
@@ -60,7 +68,7 @@ data class GameState(
         get() = screen == Screen.Game && game != null && !paused && !settled && !won
 
     /**
-     * 跨对局保留的偏好（`strictMode` / `showNotes` / `noteMode` / `hintCandidates`）。
+     * 跨对局保留的偏好（`strictMode` / `showNotes` / `noteMode` / `hintCandidates` / `darkMode`）。
      * 换局、重置、通关都不清空，并由 [GameViewModel] 随存档落盘。
      */
     val settings: GameSettings
@@ -69,5 +77,6 @@ data class GameState(
             showNotes = showNotes,
             noteMode = noteMode,
             hintCandidates = hintCandidates,
+            darkMode = darkMode,
         )
 }
