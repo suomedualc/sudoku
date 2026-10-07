@@ -47,8 +47,34 @@ object SentenceBook {
 
 /**
  * 从打包的**本地语料库文件**读入全部句子（`expect/actual`：
- * 桌面读 `resources/corpus/sentences.txt`；启用移动端时由各平台资产目录提供）。
- *
- * 实现必须兜底：语料读不出来时返回至少一条，绝不让首页开天窗或崩在 `Random.nextInt(0)`。
+ * 桌面读 `resources/corpus/sentences.txt`；Android 读 `assets/corpus/sentences.txt`）。
  */
-internal expect fun loadSentenceCorpus(): List<Sentence>
+internal expect fun readSentenceCorpusText(): String?
+
+/** 加载 = 平台读文本 + **平台无关**的解析（解析在这里，各端 actual 只负责拿到字符串）。 */
+internal fun loadSentenceCorpus(): List<Sentence> = parseSentenceCorpus(readSentenceCorpusText())
+
+/**
+ * 解析语料文本：每行 `类别|正文|出处`，行首 `#` 注释、空行忽略；
+ * 个别坏行跳过，解析结果为空或文本拿不到时返回单条兜底——绝不让首页开天窗或崩在 `Random.nextInt(0)`。
+ */
+internal fun parseSentenceCorpus(text: String?): List<Sentence> {
+    if (text == null) return singleSentenceFallback()
+    val parsed = text.lineSequence()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() && !it.startsWith("#") }
+        .mapNotNull { line ->
+            runCatching {
+                val parts = line.split('|')
+                require(parts.size == 3) { "字段数不为 3" }
+                val (category, content, source) = parts.map { it.trim() }
+                require(content.isNotEmpty() && source.isNotEmpty()) { "正文字段为空" }
+                Sentence(SentenceCategory.valueOf(category), content, source)
+            }.getOrNull()
+        }.toList()
+    return parsed.ifEmpty { singleSentenceFallback() }
+}
+
+/** 兜底语料：语料完全读不到时仍给首页一句可用的话。 */
+internal fun singleSentenceFallback(): List<Sentence> =
+    listOf(Sentence(SentenceCategory.Quote, "千里之行，始于足下。", "老子 ·《道德经》"))

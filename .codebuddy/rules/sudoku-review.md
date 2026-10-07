@@ -35,12 +35,12 @@
 4. **一次性提示走事件**：reducer 只发 `Msg` 语义键（`Reduction(state, message)`）→ ViewModel 事件通道 →
    Snackbar。提示不得塞回 `GameState`；UI 文案不得进 `state/`（见 §3.4 的 `keyTokenLabel` 反例）。
 5. **测试同步义务**：改 `core/` 补 `commonTest` 用例；改 `state/` 补 `GameReducerTest` / `GameStoreTest`（固定种子）；
-   改绘制 / 语义层跑 `BoardCanvasUiTest`；改配色跑 `InkThemeTest`。当前基线 **137 项**（`commonTest` 117 + `jvmTest` 20），
+   改绘制 / 语义层跑 `BoardCanvasUiTest`；改配色跑 `InkThemeTest`。当前基线 **137 项**（`commonTest` 116 + `jvmTest` 21），
    数量变化要解释原因。
 6. **文档同改**：改 `state` 对外类型 / Action / Screen → 同步 `docs/01` §5；改视觉 → `docs/02`；
    改流程 / 测试数 → `docs/03`。**文档漂移按 P2 记**（本项目反复发生，见 §4-M8）。
-7. **编译性假设**：Kotlin 是编译型语言，除非 diff 自证，不报"可能编不过"；但 `androidMain/` **不参与编译**，
-   该源集内的代码腐化不算编译错误，仍要按 P2 报（见 §4-K3）。
+7. **编译性假设**：Kotlin 是编译型语言，除非 diff 自证，不报"可能编不过"；`androidMain/` 已参与编译（2026-10-07 起），
+   其腐化会直接构建失败。
 
 ---
 
@@ -181,9 +181,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1 [-Flow <
     docs/05（删除与 L19 矛盾的重复"三入口"行）、README（功能节与键盘节补齐五入口）。
 
 **仍开放（挂账，未修）**
-14. `androidMain/` 不参与编译（启用 M2 前需补 AGP + `androidTarget()` + activity-compose + SafeArea actual）；
-    `MenuScreen` 焦点模型与游标模型并存（Tab 聚焦后 Enter 走游标项）。超出"不影响核心功能"边界，待拍板。
+14. `MenuScreen` 焦点模型与游标模型并存（Tab 聚焦后 Enter 走游标项）。超出"不影响核心功能"边界，待拍板。
+    （androidMain 已随 2026-10-07 P0 启动落地并模拟器验证，原挂账关闭。）
 15. `Strings` 中英键一致性无自动化守卫（本次修复删除了虚假注释；如需真正守卫需引入反射或代码生成，暂缓）。
+18. **窄屏适配缺陷（Android 模拟器测试发现，docs/08 §4-D1，P1）**：对局页功能区与棋盘同宽的中轴设计
+    在 ≤~430dp 下失效——数字键盘压成 ~19dp 细条（T4/T6 用例失败）、开关行勾选框溢出、顶栏读数截断。
+    修复方向：窄屏断点下键盘整页宽/折行、开关 2×2、顶栏减档；补窄屏 UI 测试与冒烟档。
+19. Android 返回键导航语义未实现（v1 返回=退出，对局自动存盘）；自适应图标资源已生成未接线。
 
 **第二轮修复（2026-10-07，用户三项需求）**
 16. ✅ 墨条"消失时间随点击次数累加"——显示从"挂起排队"改**顶替式固定时长**（新提示立即顶掉当前条，

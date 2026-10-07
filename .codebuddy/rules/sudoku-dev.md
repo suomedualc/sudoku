@@ -190,7 +190,7 @@
 | 源集 | 内容 | 状态 |
 |---|---|---|
 | `jvmMain` | `main.kt`（1180×900 / 最小 940×720）· `platform/FileGameStore.kt`（`~/.sudoku-ink/save.txt`）· `ui/theme/InkFonts.jvm.kt` | ✅ 已启用 |
-| `androidMain` | `MainActivity` + `AndroidManifest`（主题已改系统内置） | ⏸ 未参与编译：缺 `androidTarget()` 与 `compileSdk 37`（`docs/05` §3.1） |
+| `androidMain` | `MainActivity`（enableEdgeToEdge + 生命周期停表）· `platform/AndroidGameStore`（filesDir 原子写）· `AppGlobals`（Context 锚点，onCreate 先于 setContent 初始化）· 六个平台接缝 actual · `res/font` 字体 · `assets/corpus` 语料库 | ✅ 已启用（2026-10-07）：`assembleDebug` 通过 + 三档模拟器验证（`docs/08`）；AGP 走根 `build.gradle.kts` 的 **buildscript 类路径**（KGP 2.4 经 `plugins{}` 隔离类加载器探测不到 AGP 版本）；`AppGlobals.init` 必须先于 `setContent` |
 
 ### 3.5 十六个容易踩的坑
 

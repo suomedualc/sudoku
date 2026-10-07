@@ -2,8 +2,12 @@
 @file:OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
 
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
+    // 顺序有讲究：KGP 在应用时必须能找到已存在的 AGP，androidApplication 必须在最前。
+    // AGP 版本由根 build.gradle.kts 的 buildscript 类路径提供（见其注释），此处不带 version。
+    id("com.android.application")
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
@@ -15,6 +19,14 @@ kotlin {
     //       实测 JDK 25 会让 Gradle 8.12 直接失败（详见 docs/03-开发流程.md §1）。
     jvmToolchain(21)
 
+    // Android（docs/05 P0）：业务代码零改动，只在此处与 androidMain 的平台接缝落地。
+    androidTarget {
+        compilerOptions {
+            // DEX 工具链最稳的字节码档位；桌面端仍为 21
+            jvmTarget.set(JvmTarget.JVM_17)
+        }
+    }
+
     jvm()
 
     sourceSets {
@@ -22,6 +34,11 @@ kotlin {
             implementation(compose.runtime)
             implementation(compose.foundation)
             implementation(compose.ui)
+        }
+
+        androidMain.dependencies {
+            implementation(libs.androidx.activity.compose)
+            implementation(libs.androidx.lifecycle.runtime.ktx)
         }
 
         commonTest.dependencies {
@@ -47,6 +64,23 @@ kotlin {
             implementation(compose.uiTest)
             implementation(compose.desktop.currentOs)
         }
+    }
+}
+
+// Android 端配置：命名空间即 R 类包；业务入口仍是 commonMain 的 ui.App
+android {
+    namespace = "org.example.sudoku"
+    compileSdk = 36
+    defaultConfig {
+        applicationId = "org.example.sudoku"
+        minSdk = 24
+        targetSdk = 36
+        versionCode = 1
+        versionName = "2.1.0"
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 }
 

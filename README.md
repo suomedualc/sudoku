@@ -149,6 +149,7 @@ org.example.sudoku
 .\gradlew.bat :composeApp:run                  # 桌面直接运行
 .\gradlew.bat :composeApp:jvmTest --offline    # 单元测试 + UI 测试（137 项）
 .\gradlew.bat :composeApp:createDistributable --offline   # 便携版（build/compose/binaries/main/app）
+.\gradlew.bat :composeApp:assembleDebug --offline         # Android APK（build/outputs/apk/debug）
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1   # 实机冒烟（置顶 + 固定坐标，自动截图）
 # 根目录 SudokuInk.lnk 指向上面的便携版，双击即可预览（本机快捷方式，不入库）
 # 想体验"减少动态效果"：以 SUDOKU_REDUCE_MOTION=true 启动，或用 -Dsudoku.reduceMotion=true
@@ -168,7 +169,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1   # 实�
 | 目标 | 状态 | 说明 |
 |---|---|---|
 | Desktop / JVM | ✅ | Windows 上完成编译、测试、运行与 MSI 打包验证；三平台图标（`.ico` / `.png` / `.icns`）已就绪 |
-| Android | 接入即用 | 需 AGP / `androidTarget()` / `activity-compose` 与 `SafeArea` actual（无 compileSdk 硬约束）；步骤见 `docs/05` §3.1；自适应图标分层资源已生成（`docs/06` §6） |
+| Android | ✅ 已启用 | `assembleDebug` 通过（APK 21.2MB）；三档模拟器（小屏 / 标准 / 平板）功能用例验证（`docs/08` 测试报告）；窄屏适配修复、自适应图标接线与 AAB 打包为下一迭代 |
 | iOS / macOS | 接入即用 | 构建需 macOS 主机；`.icns` 已生成（`docs/06` §7） |
 | Web（wasmJs / js） | 接入即用 | 可在 Windows 上构建；需评估 24.7MB 字体资源的体积 |
 
