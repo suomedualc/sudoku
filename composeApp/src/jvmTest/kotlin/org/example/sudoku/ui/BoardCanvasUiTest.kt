@@ -88,6 +88,30 @@ class BoardCanvasUiTest {
         assertEquals(10, clicked, "语义层不能吃掉点击：点第 2 行第 2 列应回传下标 10")
     }
 
+    @Test
+    fun revealDoesNotSwallowFirstClicks() = runComposeUiTest {
+        // 「落笔成局」的验收线之一：**不阻塞首帧交互**。
+        // 这里故意不推进时钟（显影还停在 0 → alpha 仍是 0，棋盘"看不见"）就点击——
+        // 显影只作用在绘制层的 alpha 上，点击必须照常生效；被吃掉就是回归。
+        var clicked: Int? = null
+        setContent {
+            Box(Modifier.size(BOARD_DP.dp)) {
+                BoardCanvas(
+                    game = game,
+                    selected = null,
+                    notes = notes,
+                    conflicts = BooleanArray(81),
+                    noteMode = false,
+                    onCellClick = { cell, _ -> clicked = cell },
+                )
+            }
+        }
+
+        onNodeWithContentDescription("第 2 行第 2 列，给定 7")
+            .performTouchInput { click(center) }
+        assertEquals(10, clicked, "显影期间（时钟未推进，alpha 仍为 0）点击仍须生效")
+    }
+
     @Composable
     private fun Board() {
         Box(Modifier.size(BOARD_DP.dp)) {

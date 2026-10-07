@@ -42,6 +42,8 @@
 - **通关抽屉**：填满正确盘面后从顶部滑下结算抽屉，显示用时 / 难度 / 提示次数，可直接「再来一局」（同难度重开）或返回首页。
 - **偏好与续局**：严格模式 / 显示笔记 / 笔记模式三项偏好跨对局、跨重启保留；
   未完成的对局自动存盘（桌面 `~/.sudoku-ink/save.txt`），重启后首页即可「继续游戏」。
+- **落笔成局**：新开一局（或载入存档）时，棋盘由淡到浓**显影一次**（160ms）——全站唯一一处"情感化"动效；
+  它只作用于绘制层，不影响首帧就能点、就能按键。
 
 ## 键盘（桌面）
 
@@ -61,7 +63,7 @@
   整盘另有汇总节点（难度 / 进度 / 是否暂停 / 是否笔记模式）。格子刻意不进 Tab 序（键盘模型是方向键选格），
   也刻意不朗读系统候选（冗余通道，会把行列与值淹没）。
 - **对比度**：墨四级都保证小字可当正文用（对三种纸底实测，主墨 15.97:1、次墨 8.35:1、三级墨 5.31:1，均达 WCAG AA 以上）。
-- **减少动态效果**：系统开关打开时动画时长一律为 0（瞬时就位，不做半速）；
+- **减少动态效果**：系统开关打开时动画时长一律为 0（瞬时就位，不做半速；开局显影也含在内）；
   也可用 `SUDOKU_REDUCE_MOTION=true` 或 `-Dsudoku.reduceMotion=true` 强制开启。
 - 详见 `docs/02-设计规范.md` §7 / §9。
 
@@ -111,7 +113,7 @@ org.example.sudoku
 
 ```powershell
 .\gradlew.bat :composeApp:run                  # 桌面直接运行
-.\gradlew.bat :composeApp:jvmTest --offline    # 单元测试 + UI 测试（71 项）
+.\gradlew.bat :composeApp:jvmTest --offline    # 单元测试 + UI 测试（77 项）
 .\gradlew.bat :composeApp:createDistributable --offline   # 便携版（build/compose/binaries/main/app）
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1   # 实机冒烟（置顶 + 固定坐标，自动截图）
 # 根目录 SudokuInk.lnk 指向上面的便携版，双击即可预览（本机快捷方式，不入库）

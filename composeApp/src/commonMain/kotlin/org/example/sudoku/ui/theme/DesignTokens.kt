@@ -116,11 +116,14 @@ object DesignTokens {
      * FastOutSlowIn 缓动；时长分三档即可：
      * - [Press] 按压 / 底纹等**即时反馈**：必须快，慢了就像卡顿；
      * - [Enter] 覆盖层进入：略慢，让"纸落下来"看得清；
-     * - [Exit] 覆盖层退出：**比进入快**——退场不该拖沓（iOS/ Material 通用惯例）。
+     * - [Exit] 覆盖层退出：**比进入快**——退场不该拖沓（iOS/ Material 通用惯例）；
+     * - [Reveal] 「落笔成局」：开局时棋盘由淡到浓显影（**≤ 200ms**，评审里的验收线；
+     *   比 [Enter] 短得多——开局不该让人等）。
      */
     object Motion {
         const val PressMs: Int = 90
         const val EnterMs: Int = 240
         const val ExitMs: Int = 180
+        const val RevealMs: Int = 160
     }
 }

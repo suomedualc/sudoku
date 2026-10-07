@@ -1,4 +1,4 @@
-# 数独（手写纸 · 简约油墨）开发纪律 · v2.4
+# 数独（手写纸 · 简约油墨）开发纪律 · v2.5
 
 > 本文件是"系统层"上下文（自动加载），既是**强制规则**，也是本工程的**开发思路 / 选型依据 / 模块说明 / 迭代计划**的简版。
 > 详细论证见 `docs/01-架构设计.md`、`docs/02-设计规范.md`、`docs/03-开发流程.md`、`docs/05-发展规划.md`。
@@ -47,7 +47,7 @@
 17. **视觉常量必须来自令牌，不许在调用点写裸值**（铁律见 `docs/02` §9）：
     字号只能取 `Ink.Type` 六档（`Meta/Caption/Body/Title/Headline/Display`，含字距与行高）；
     颜色/透明度的纸只走 `Ink.Paper/PaperShade/PaperSheet`、墨只走 `Black/Grey/Light/Faint`；
-    线宽只走 `DesignTokens.Stroke`；动效时长只走 `DesignTokens.Motion`（退场快于进场）。
+    线宽只走 `DesignTokens.Stroke`；动效时长只走 `DesignTokens.Motion`（**退场快于进场、开局显影 ≤ 200ms**）。
     新增档位必须先加令牌并写清用途——"看起来差不多"不是加档的理由。
 18. **可读性硬线**：`Light` 及以上对三种纸底都要 ≥ 4.5:1（WCAG AA 小字），`Faint` 只能用于禁用态文字。
     **改任何色值前先跑对比度量算**（算法与结论见 `docs/07` §5）；候选数字 `Alpha.Hint` 是唯一被允许低于 AA 的
@@ -65,7 +65,7 @@
     **打包图标与运行时图标必须同源**：jpackage 只把图标嵌进 exe；AWT 窗口默认仍显示 JDK 的 Java 图标，
     因此 `jvmMain/main.kt` 必须显式设置 `window.iconImages`（PNG 经 `jvmMain { resources.srcDir("icons") }` 进 jar）。
 
-**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 71 项）+ **实机冒烟**
+**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 77 项）+ **实机冒烟**
 （`tools/smoke-e2e.ps1`，置顶 + 固定坐标，见 §5）+ **实机试玩**（§6 第 4–5 条）+ 肉眼验收四档窗口。
 
 ---
@@ -282,7 +282,7 @@
 - **精准投喂**：先 `@folder composeApp/src/commonMain` 预热，再用 `@file` / `@code` 定位；方法见 `docs/04`。
 - **负面约束随需求一起给**：把本文件 §0 的相关红线直接写进需求里。
 - **提交前自检清单**：
-  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（71 项）；改过 `state/` 或 `core/` 时必须补/改用例；
+  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（77 项）；改过 `state/` 或 `core/` 时必须补/改用例；
      动过字体 / 资源时跑 `BundledFontsTest`（字体在、family 对、中文/数字各归其位、**数字族的中文兜底链还在**）；
      动过棋盘绘制 / 语义层时要跑 `BoardCanvasUiTest`（81 节点 + 点击穿透）；
      动过覆盖层 / 键盘映射时，跑 `tools\smoke-e2e.ps1` 并看截图；

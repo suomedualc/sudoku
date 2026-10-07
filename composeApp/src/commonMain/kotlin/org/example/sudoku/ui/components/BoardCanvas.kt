@@ -1,5 +1,7 @@
 package org.example.sudoku.ui.components
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -11,10 +13,14 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -32,9 +38,11 @@ import org.example.sudoku.core.Game
 import org.example.sudoku.core.Sudoku
 import org.example.sudoku.ui.theme.DesignTokens
 import org.example.sudoku.ui.theme.Ink
+import org.example.sudoku.ui.theme.LocalReduceMotion
 import org.example.sudoku.ui.theme.inkHatch
 import org.example.sudoku.ui.theme.inkLine
 import org.example.sudoku.ui.theme.inkRoundRect
+import org.example.sudoku.ui.theme.motionDurationMs
 
 /**
  * 棋盘绘制（手写纸 · 油墨版）：只做「从状态画成图」，不含规则。
@@ -86,6 +94,30 @@ fun BoardCanvas(
     }
 }
 
+/**
+ * 「落笔成局」：**开局时棋盘由淡到浓显影一次**——全站唯一一处"情感化"动效。
+ *
+ * @param key 一局的身份：传 `game.puzzle` 的**引用**。一局之内 reducer 只做 `game.copy(current = ...)`，
+ *   puzzle 数组始终是同一个实例；开新局（或载入存档）才会换新实例 → 只有那时重播一次。
+ *   同一局内的任何重组（计时心跳、填数、改选中、开关面板）都不会重播。
+ *
+ * 两条硬约束（来自 `docs/07` §4 的验收标准）：
+ * - **不阻塞首帧交互**：显影只作用在绘制层的 alpha 上，点击与键盘在动画期间照常生效（有 UI 测试守着）；
+ * - **减少动效时必须真正归零**：开启时初始就是"已显影"，不会出现"先空一帧再出现"的闪烁
+ *   （半速 / 变淡都不接受，见 `motionDurationMs` 的说明）。
+ */
+@Composable
+private fun rememberBoardReveal(key: Any?): Float {
+    val reduceMotion = LocalReduceMotion.current
+    var revealed by remember(key) { mutableStateOf(reduceMotion) }
+    LaunchedEffect(key) { revealed = true }
+    return animateFloatAsState(
+        targetValue = if (revealed) 1f else 0f,
+        animationSpec = tween(durationMillis = motionDurationMs(DesignTokens.Motion.RevealMs)),
+        label = "boardReveal",
+    ).value
+}
+
 @Composable
 private fun BoardCanvasDrawing(
     game: Game,
@@ -101,6 +133,9 @@ private fun BoardCanvasDrawing(
     val textMeasurer = rememberTextMeasurer()
     val onClick by rememberUpdatedState(onCellClick)
 
+    // 「落笔成局」：开局时整盘由淡到浓显影（只作用于绘制层的 alpha，不吃点击）
+    val reveal = rememberBoardReveal(game.puzzle)
+
     // 跨帧缓存文本测量：键含数字、颜色、字号(px)、字重
     val valueCache = remember { mutableMapOf<InkTextKey, TextLayoutResult>() }
     val noteCache = remember { mutableMapOf<InkTextKey, TextLayoutResult>() }
@@ -112,6 +147,7 @@ private fun BoardCanvasDrawing(
 
     Canvas(
         modifier = modifier
+            .graphicsLayer { alpha = reveal }
             .pointerInput(Unit) {
                 // 自己实现"点击"而不是用 detectTapGestures：需要知道**指针类型**——
                 // 鼠标 / 触控笔是精确指针（可以弹悬浮输入面板），手指不是（面板会被手指挡住）。
