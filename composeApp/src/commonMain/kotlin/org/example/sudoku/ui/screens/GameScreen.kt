@@ -110,6 +110,11 @@ fun GameScreen(
 
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
+    // 开局 / 续局 / 换了一局：光标落在**第一个空格**（读序），键盘玩家不用先按一次方向键就能开始填。
+    // key 用 `state.game`：只在"换了一局"（新局 / 重置 / 撤销重做改了盘面）时重跑，
+    // 因此"点棋盘外的空白清掉选中"之后不会被它硬拉回来（那正是玩家想要的状态）。
+    LaunchedEffect(state.game) { onAction(GameAction.FocusFirstEmpty) }
+
     // 通关是"数据驱动"的状态，抽屉开关跟着它走：不可点遮罩关闭，必须明确选择
     // （「再来一局」/「返回首页」）。离开通关态（再来一局、重置、看答案结算）时自动收起。
     LaunchedEffect(state.won) {
@@ -713,7 +718,9 @@ private fun handleKeyEvent(
 
     val digit = digitOf(event.key)
     if (digit > 0) {
-        onAction(GameAction.Digit(digit))
+        // 物理键盘填数 → 填完自动跳到下一个空格（策略见 CellCursor.nextAfterFill）。
+        // 屏幕上的数字键不跳：鼠标玩家自己点下一格更自然。
+        onAction(GameAction.Digit(digit, advance = true))
         return true
     }
 

@@ -16,6 +16,11 @@
 #   menu    -- difficulty drawer: Enter opens, Down x2 highlights Hard, Enter starts Hard
 #   exit    -- exit drawer: confirm quit really exits the process
 #   win     -- win drawer: seeded "one empty cell" save -> Hint fills it -> win drawer -> Esc to menu
+#   theme   -- night mode: seeded darkMode=1 save -> board in 夜墨 -> click the corner icon back to 纸墨
+#   bar     -- floating undo/redo bar follows the pointer (hover top / bottom half of the board)
+#   ux      -- icon tooltips, click-outside clears highlights, given vs filled digits
+#   keys    -- keyboard cursor: starts on the first blank, arrows walk blanks,
+#              filling advances box-first, and falls back to reading order when the box is full
 #
 # The script backs up and restores the player save (~/.sudoku-ink/save.txt) around
 # the win flow, and kills any leftover process on exit.
@@ -35,7 +40,7 @@ param(
     [int]$Width = 1180,
     [int]$Height = 900,
     [string]$OutDir = $env:TEMP,
-    [ValidateSet('all', 'menu', 'exit', 'win', 'theme', 'bar', 'ux')]
+    [ValidateSet('all', 'menu', 'exit', 'win', 'theme', 'bar', 'ux', 'keys')]
     [string]$Flow = 'all'
 )
 
@@ -70,8 +75,11 @@ $script:shot = 0
 $script:shotsSuspect = $false   # 只要有任意一帧不像应用（锁屏 / 被遮挡），收尾就报警
 $script:VK = @{
     Enter = 0x0D; Escape = 0x1B; Space = 0x20; Hint = 0x48
-    Down = 0x28; Up = 0x26; Left = 0x27; Right = 0x25
-    Digit9 = 0x39
+    # 注意 VK_LEFT = 0x25 / VK_RIGHT = 0x27（这里曾经写反，方向键会朝相反方向走）
+    Down = 0x28; Up = 0x26; Left = 0x25; Right = 0x27
+    # 主键盘数字键 1..9（应用里对应填数）
+    Digit1 = 0x31; Digit2 = 0x32; Digit3 = 0x33; Digit4 = 0x34; Digit5 = 0x35
+    Digit6 = 0x36; Digit7 = 0x37; Digit8 = 0x38; Digit9 = 0x39
 }
 $script:KeyExtended = 0x0001   # KEYEVENTF_EXTENDEDKEY -- arrow keys need it to read as arrow keys
 
@@ -324,6 +332,33 @@ try {
         Send-Key $p 'Digit9'
         Send-Click $p 150 402
         Save-Shot $p 'given_vs_filled'
+        Stop-App $p
+    }
+
+    if ($Flow -eq 'all' -or $Flow -eq 'keys') {
+        Write-Host '== flow: keyboard cursor =='
+        # 留 4 格空白：77（第 9 行第 6 列，**宫 7**）与 78 / 79 / 80（第 9 行第 7–9 列，**宫 8**）。
+        # 这一组位置是刻意挑的：它能在同一条流里把三种行为都逼出来
+        #   ① 开局光标落在读序第一个空格（77）
+        #   ② → 只在本行内走到下一个空格（77 → 78）
+        #   ③ 填数后**宫优先**推进（78 → 79 → 80）
+        #   ④ 宫 8 填满后退回横向优先 → 跳回最靠前的 77（这一步最能说明为什么选宫优先）
+        # 填的是标准答案里的正确数字（1 / 7 / 9），因此不会出现冲突排线，画面干净可判。
+        Write-OneEmptySave $saveFile -Blank 4
+        $p = Start-App
+        Send-Key $p 'Down' $script:KeyExtended
+        Send-Key $p 'Enter'
+        Save-Shot $p 'keys_cursor_on_first_blank'
+        # 方向键必须带**扩展位**（否则窗口收到的不是方向键，表现为"按了没反应"——
+        # 这一点是脚本里踩过的坑，其它流里的 Down 也都传了 KeyExtended）
+        Send-Key $p 'Right' $script:KeyExtended
+        Save-Shot $p 'keys_arrow_right'
+        Send-Key $p 'Digit1'                      # 填 78
+        Save-Shot $p 'keys_fill_advances_in_box'
+        Send-Key $p 'Digit7'                      # 填 79
+        Save-Shot $p 'keys_fill_advances_again'
+        Send-Key $p 'Digit9'                      # 填 80 → 宫 8 已满 → 跳回 77
+        Save-Shot $p 'keys_box_full_falls_back'
         Stop-App $p
     }
 } catch {

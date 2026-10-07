@@ -20,7 +20,7 @@
   数字键盘键位，以及**计时 / 进度 / 通关用时**（夹在句子里的数字仍走正文）；数字族带**霞鹜文楷回退**，
   混进中文（如暂停时计时位显示「已暂停」）不会变豆腐块。两者均 SIL OFL 1.1，随包分发、跨设备字形一致；
   选型理由与授权见 `docs/02` §2.3。
-- 主题固定浅色纸面；「夜墨」反色主题位于路线图（`docs/05`）。
+- **两套主题**：纸墨（默认，浅底深墨）/ 夜墨（深底浅墨），右上角同一枚图标切换，选择随存档保留（见 `docs/02` §11）。
 
 ## 功能
 
@@ -33,6 +33,9 @@
   填入走**手写体**霞鹜文楷，读作"题面是印的、你填的是写的"）+ 读屏文案（念"给定 5" / "填入 9"）。
 - **数字输入**：选格后点数字键填入；数字键 **1–9 横向一排**、`擦除` 单独一键；
   笔记模式记候选（落子自动清理同行列宫候选）；键右上角显示"还剩几个"，用完转淡墨框。
+- **键盘光标**：进对局时光标落在**第一个空格**；方向键在本行 / 本列环绕找**空格**
+  （没有空格时退到自己填过的格，否则键盘玩家回不去改）；**物理键盘填完一格自动跳到下一个空格**——
+  跳转用**九宫格优先**（先把当前宫填完，宫满再按读序），换格时有「光标落纸」的一下淡墨反馈。
 - **点棋盘外的空白** → 选中框与一切临时高亮消失，棋盘回到开局那样干净
   （**不动盘面、不动冲突排线**——冲突是真填重了，不是临时标记）。
 - **候选提示**（开关，默认关闭）：打开后**每个空格**都用**半透明灰**小字直接写出"按规则仍可填"的数字；
@@ -62,7 +65,7 @@
 |---|---|
 | 首页 | `↑` / `↓` 在三个入口间移动（自动跳过置灰项）、`Enter` / 空格 确认 |
 | 抽屉（难度 / 退出确认） | `↑` / `↓` 在条目间移动、`Enter` / 空格 确认、`Esc` 关闭 |
-| 对局 | `1–9` 填数、`0` / `Delete` / `Backspace` 擦除、方向键选格（自动跳过给定格）、`N` 笔记、`H` 提示、`P` / 空格 暂停、`Esc` 继续（先收悬浮面板）、`Ctrl+Z` 撤销、`Ctrl+Y`（或 `Ctrl+Shift+Z`）重做 |
+| 对局 | `1–9` 填数（**填完自动跳下一空格**）、`0` / `Delete` / `Backspace` 擦除、方向键移动光标（**空格优先、跳过给定格**）、`N` 笔记、`H` 提示、`P` / 空格 暂停、`Esc` 继续（先收悬浮面板）、`Ctrl+Z` 撤销、`Ctrl+Y`（或 `Ctrl+Shift+Z`）重做 |
 | 通关抽屉 | `Enter` 再来一局、`Esc` 返回首页 |
 
 鼠标点击会把键盘高亮同步到被点的项，两种输入方式互不打架；悬浮面板不接管焦点，键盘操作始终可用。
@@ -105,10 +108,11 @@ Kotlin 与 CMP 由同一版本目录锁定（2.4.0 + 1.11.1 是已验证搭配�
 ```
 org.example.sudoku
 ├── core/         领域内核：位掩码 + MRV 求解、出题、冲突、候选、时长格式化（零平台依赖）
+├── core/CellCursor.kt   键盘光标纯逻辑（首个空格 / 方向键空格优先 / 填字后九宫格优先跳转）
 ├── state/        应用层：GameState / GameAction / GameReducer（纯状态机）
 │                 + GameViewModel（状态容器）· GameStore / SaveCodec（存档端口与编解码）
 ├── ui/
-│   ├── theme/    Ink.kt（**双主题**纸墨配色 + 字体 + 手绘原语）· DesignTokens.kt（尺寸 / 线宽 / 动效四档）
+│   ├── theme/    Ink.kt（**双主题**纸墨配色 + 字体 + 手绘原语）· DesignTokens.kt（尺寸 / 线宽 / 动效五档）
 │   │                SafeArea.kt（安全区，expect/actual）· Motion.kt（reduced-motion 与时长策略）
 │   ├── components/  InkWidgets.kt（墨线控件库 + 自绘图标 + 悬停功能名）· BoardCanvas.kt · NumberPad.kt（1–9 横向）
 │   │                FloatingPad.kt（就近输入）· FloatingBarPolicy.kt（浮动条换边判据）
@@ -128,7 +132,7 @@ org.example.sudoku
 
 ```powershell
 .\gradlew.bat :composeApp:run                  # 桌面直接运行
-.\gradlew.bat :composeApp:jvmTest --offline    # 单元测试 + UI 测试（97 项）
+.\gradlew.bat :composeApp:jvmTest --offline    # 单元测试 + UI 测试（117 项）
 .\gradlew.bat :composeApp:createDistributable --offline   # 便携版（build/compose/binaries/main/app）
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1   # 实机冒烟（置顶 + 固定坐标，自动截图）
 # 根目录 SudokuInk.lnk 指向上面的便携版，双击即可预览（本机快捷方式，不入库）

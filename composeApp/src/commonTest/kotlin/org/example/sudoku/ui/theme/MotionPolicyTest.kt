@@ -17,6 +17,7 @@ class MotionPolicyTest {
         assertEquals(0, motionDurationMs(Motion.EnterMs, reduceMotion = true))
         assertEquals(0, motionDurationMs(Motion.ExitMs, reduceMotion = true))
         assertEquals(0, motionDurationMs(Motion.RevealMs, reduceMotion = true))
+        assertEquals(0, motionDurationMs(Motion.CursorLandMs, reduceMotion = true))
     }
 
     @Test
@@ -25,6 +26,18 @@ class MotionPolicyTest {
         assertEquals(Motion.EnterMs, motionDurationMs(Motion.EnterMs, reduceMotion = false))
         assertEquals(Motion.ExitMs, motionDurationMs(Motion.ExitMs, reduceMotion = false))
         assertEquals(Motion.RevealMs, motionDurationMs(Motion.RevealMs, reduceMotion = false))
+        assertEquals(Motion.CursorLandMs, motionDurationMs(Motion.CursorLandMs, reduceMotion = false))
+    }
+
+    @Test
+    fun cursorLandIsBriefEnoughForKeyRepeat() {
+        // 「光标落纸」：≥120ms 才看得见（它是余光反馈），≤260ms 才不会在**按住方向键自动重复**时
+        // 糊成一片（每次换格都重新起算，太长就变成持续的暗块）
+        assertEquals(
+            true,
+            Motion.CursorLandMs in 120..260,
+            "光标落纸时长应在 120–260ms，实际 ${Motion.CursorLandMs}ms",
+        )
     }
 
     @Test

@@ -61,13 +61,15 @@ class GameViewModel(
     }
 
     /**
-     * 存档里只有 settings + game/notes/elapsed，因此**只改选中格**的动作（Select / Move / Deselect）
-     * 与"只报时"的 SyncElapsed 都不必写盘——否则每移动一次光标、每点一下空白处都要整文件重写。
+     * 存档里只有 settings + game/notes/elapsed，因此**只改选中格**的动作
+     * （Select / Move / Deselect / FocusFirstEmpty）与"只报时"的 SyncElapsed 都不必写盘——
+     * 否则每移动一次光标、每点一下空白处都要整文件重写。
      */
     private fun persistsToDisk(action: GameAction): Boolean =
         action !is GameAction.Select &&
             action !is GameAction.Move &&
             action !is GameAction.Deselect &&
+            action !is GameAction.FocusFirstEmpty &&
             action !is GameAction.SyncElapsed
 
     /**

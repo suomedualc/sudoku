@@ -93,8 +93,12 @@ object FloatingPadPolicy {
      * 其余（填数 / 擦除 / 撤销 / 提示 / 暂停 / 切开关 / 回首页 …）都关闭——
      * 那些动作之后面板悬在已经变了的盘面上只会碍事。
      */
+    /** 只改"选中哪一格"的动作都算换格（面板跟着走而不是关掉）：Select / Move / 开局定位。 */
     fun keepsOpen(action: GameAction): Boolean =
-        action is GameAction.Select || action is GameAction.Move || action is GameAction.SyncElapsed
+        action is GameAction.Select ||
+            action is GameAction.Move ||
+            action is GameAction.FocusFirstEmpty ||
+            action is GameAction.SyncElapsed
 
     /**
      * 点击某格时是否应弹出面板：**精确指针**（鼠标 / 触控笔）+ 棋盘可交互 + 目标是非给定格。

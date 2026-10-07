@@ -281,4 +281,78 @@ class GameReducerTest {
         assertEquals(hintsBefore, state.hintsCount, "提示次数不动")
         assertEquals(undoBefore, state.undoStack.size, "撤销栈不动：撤销仍然能回到上一步")
     }
+
+    // ---------- 键盘光标：初始位置 / 自动跳转 ----------
+
+    @Test
+    fun focusFirstEmptyPutsTheCursorOnTheFirstBlank() {
+        val state = reduce(newGame(), GameAction.FocusFirstEmpty)
+        assertEquals(firstEmpty(state), state.selected, "开局光标应落在第一个空格（读序）")
+    }
+
+    @Test
+    fun focusFirstEmptyDoesNotStealAnExistingSelection() {
+        // 重复派发（计时心跳里误发、或从菜单返回）不该把玩家正在看的那格顶掉
+        val state = reduce(reduce(newGame(), GameAction.Select(60)), GameAction.FocusFirstEmpty)
+        assertEquals(60, state.selected)
+    }
+
+    @Test
+    fun fillingFromTheKeyboardAdvancesToTheNextBlank() {
+        val first = firstEmpty(newGame())
+        val state = reduce(
+            reduce(newGame(), GameAction.Select(first)),
+            GameAction.Digit(4, advance = true),
+        )
+
+        assertNotEquals(first, state.selected, "填完应自动往前走，不必再按一次方向键")
+        assertEquals(0, state.game!!.current[state.selected!!], "落点必须是空格")
+    }
+
+    @Test
+    fun advanceOnlyHappensWhenADigitWasReallyPlaced() {
+        val first = firstEmpty(newGame())
+        val selected = reduce(newGame(), GameAction.Select(first))
+
+        // ① 擦除：光标留在原位（玩家清空这一格，通常马上要重填）
+        val erased = reduce(selected, GameAction.Digit(0, advance = true))
+        assertEquals(first, erased.selected)
+
+        // ② 笔记模式：一个格里要连按几次数字记候选，跳转会直接毁掉这个操作
+        val noted = reduce(
+            reduce(selected, GameAction.ToggleNoteMode),
+            GameAction.Digit(5, advance = true),
+        )
+        assertEquals(first, noted.selected)
+
+        // ③ "再按一次同一个数字"是取消，不是填字。
+        //    注意：advance=true 时第一次填完就跳走了，所以得先回到原格再按同一个数字——
+        //    这也说明"同一数字按两次取消"在键盘流里几乎不会误触发（要专门回头才会用到）。
+        val placed = reduce(selected, GameAction.Digit(7, advance = true))
+        assertEquals(7, placed.game!!.current[first])
+        val back = reduce(placed, GameAction.Select(first))
+        val toggledOff = reduce(back, GameAction.Digit(7, advance = true))
+        assertEquals(0, toggledOff.game!!.current[first], "同一数字按两次 = 取消")
+        assertEquals(first, toggledOff.selected, "取消不是填字，不该跳走")
+    }
+
+    @Test
+    fun clickingTheOnScreenPadDoesNotMoveTheCursor() {
+        // 屏幕数字键不跳：鼠标玩家自己点下一格更自然（点哪是哪）
+        val first = firstEmpty(newGame())
+        val state = reduce(
+            reduce(newGame(), GameAction.Select(first)),
+            GameAction.Digit(4),
+        )
+        assertEquals(first, state.selected)
+        assertEquals(4, state.game!!.current[first])
+    }
+
+    @Test
+    fun arrowsWorkEvenWhenNothingIsSelected() {
+        // 还没选格（或刚点了棋盘外的空白清掉选中）时按方向键，不能没反应
+        val state = reduce(newGame(), GameAction.Move(0, 1))
+        assertNotNull(state.selected, "方向键在任何时候都该有反应")
+        assertEquals(0, state.game!!.current[state.selected!!], "落点应是空格")
+    }
 }

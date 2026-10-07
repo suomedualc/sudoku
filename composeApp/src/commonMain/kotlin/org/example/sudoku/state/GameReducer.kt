@@ -1,5 +1,6 @@
 package org.example.sudoku.state
 
+import org.example.sudoku.core.CellCursor
 import org.example.sudoku.core.Game
 import org.example.sudoku.core.Sudoku
 import kotlin.random.Random
@@ -43,11 +44,15 @@ object GameReducer {
         is GameAction.Select ->
             Reduction(if (!state.interactive) state else state.copy(selected = action.pos))
 
+        // 开局 / 续局时没有选中格 → 光标落在**第一个空格**（读序），
+        // 键盘玩家不用先按一次方向键才能开始填。由 UI 在"进入对局 / 换了一局"时派发。
+        GameAction.FocusFirstEmpty -> focusFirstEmpty(state)
+
         // 取消选格：只清"选中"这一项，棋盘上的临时高亮都从它派生，因此一并消失。
         // 盘面 / 笔记 / 冲突 / 计时一律不动——要清盘面另有 Reset。
         GameAction.Deselect -> Reduction(state.copy(selected = null))
 
-        is GameAction.Digit -> place(state, action.value)
+        is GameAction.Digit -> place(state, action.value, action.advance)
         is GameAction.Move -> move(state, action.dRow, action.dCol)
 
         GameAction.ToggleNoteMode -> Reduction(state.copy(noteMode = !state.noteMode))
@@ -79,7 +84,14 @@ object GameReducer {
 
     // ---------- 内部实现 ----------
 
-    private fun place(state: GameState, value: Int): Reduction {
+    private fun focusFirstEmpty(state: GameState): Reduction {
+        if (state.selected != null) return Reduction(state)
+        val game = state.game ?: return Reduction(state)
+        val first = CellCursor.firstEmpty(game.current) ?: return Reduction(state)
+        return Reduction(state.copy(selected = first))
+    }
+
+    private fun place(state: GameState, value: Int, advance: Boolean): Reduction {
         if (!state.interactive) return Reduction(state)
         val game = state.game ?: return Reduction(state)
         val pos = state.selected ?: return Reduction(state, "请先选择一个格子")
@@ -106,6 +118,9 @@ object GameReducer {
 
         val base = pushUndo(state)
 
+        // 只有"真的把一个数字写进格子"才算填字：擦除、笔记、以及"再按一次同一个数字取消"
+        // 都不该触发跳转（跳了就等于把玩家从他正在改的那一格上赶走）。
+        var filled = false
         when {
             value == 0 -> {
                 current[pos] = 0
@@ -120,6 +135,7 @@ object GameReducer {
                 current[pos] = value
                 notes[pos] = 0
                 stripPeerNotes(notes, pos, value)
+                filled = true
             }
         }
 
@@ -129,30 +145,34 @@ object GameReducer {
             null
         }
 
+        // 自动跳转：填完即走，键盘玩家不必每格都按一次方向键。
+        // 盘面已满时 nextAfterFill 返回 null → 停在原地（通常意味着刚通关）。
+        val landed = if (advance && filled) {
+            CellCursor.nextAfterFill(current, pos) ?: pos
+        } else {
+            base.selected
+        }
+
         val next = base.copy(
             game = game.copy(current = current),
             notes = notes,
+            selected = landed,
         )
         return settle(next, message)
     }
 
-    /** 方向键选格：沿线逐格前进并**跳过题目给定格**（与设计规范一致）。 */
+    /**
+     * 方向键选格：沿方向在本行 / 本列内环绕，**停在第一个空格**；
+     * 该行 / 列没有空格时退到"可编辑格"，题面格一律跳过（细节见 [CellCursor.nextInDirection]）。
+     *
+     * 没有选中格时（开局、或刚点了棋盘外的空白清掉选中）**从第一个空格起算**——
+     * 否则方向键按下去没有任何反应，玩家会以为键盘坏了。
+     */
     private fun move(state: GameState, dRow: Int, dCol: Int): Reduction {
         if (!state.interactive) return Reduction(state)
         val game = state.game ?: return Reduction(state)
-        val from = state.selected ?: return Reduction(state)
-
-        var pos = from
-        var steps = 0
-        do {
-            val row = (Sudoku.rowOf(pos) + dRow + 9) % 9
-            val col = (Sudoku.colOf(pos) + dCol + 9) % 9
-            pos = row * 9 + col
-            steps++
-            // 一直跳到非给定格，或绕行一圈回到起点（极端情况下整行都是给定格）
-        } while (steps < 81 && Sudoku.isGiven(game, pos))
-
-        return Reduction(state.copy(selected = pos))
+        val from = state.selected ?: CellCursor.firstEmpty(game.current) ?: return Reduction(state)
+        return Reduction(state.copy(selected = CellCursor.nextInDirection(game, from, dRow, dCol)))
     }
 
     /**
@@ -168,7 +188,7 @@ object GameReducer {
     }
 
     /** 第一个空格（没有则返回 null）。提示与候选提示共用，保证"选中格优先"的语义一致。 */
-    private fun firstEmpty(game: Game): Int? = (0..80).firstOrNull { game.current[it] == 0 }
+    private fun firstEmpty(game: Game): Int? = CellCursor.firstEmpty(game.current)
 
     private fun hint(state: GameState): Reduction {
         if (!state.interactive) return Reduction(state)

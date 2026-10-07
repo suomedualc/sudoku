@@ -1,5 +1,6 @@
 package org.example.sudoku.ui.components
 
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -16,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -124,6 +126,37 @@ private fun rememberBoardReveal(key: Any?): Float {
     ).value
 }
 
+/**
+ * 「光标落纸」：换格瞬间在格子上洇一层淡墨，随即退去（1 → 0）。
+ *
+ * 两个刻意的选择：
+ * - **只叠淡墨，不加新形状**：格子里已经有选中框、题面字框、候选小字与冲突排线，
+ *   再往里放一圈线会互相打架；而且选中框本身始终是实心的——不会因为连按方向键而忽明忽暗
+ *   （"反馈"做成让主框闪烁，是最容易翻车的做法）。
+ * - **减少动效时完全不做**：`LocalReduceMotion` 打开时直接恒为 0。
+ */
+@Composable
+private fun rememberCursorLanding(selected: Int?): Float {
+    val reduceMotion = LocalReduceMotion.current
+    var land by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(selected) {
+        if (selected == null || reduceMotion) {
+            land = 0f
+            return@LaunchedEffect
+        }
+        // 用**纯函数**那一档 `motionDurationMs(ms, reduceMotion)`：这里是 LaunchedEffect 的协程，
+        // 不是组合上下文，取不到 `LocalReduceMotion`（组合版那个重载是 @Composable）。
+        animate(
+            initialValue = 1f,
+            targetValue = 0f,
+            animationSpec = tween(
+                durationMillis = motionDurationMs(DesignTokens.Motion.CursorLandMs, reduceMotion),
+            ),
+        ) { value, _ -> land = value }
+    }
+    return land
+}
+
 @Composable
 private fun BoardCanvasDrawing(
     game: Game,
@@ -150,6 +183,9 @@ private fun BoardCanvasDrawing(
     val candidateMasks = remember(game.current) {
         IntArray(81) { pos -> if (game.current[pos] == 0) Sudoku.legalMask(game.current, pos) else 0 }
     }
+
+    // 光标落纸：换格时在格子上洇一层淡墨，随即退去（见 rememberCursorLanding）
+    val cursorLand = rememberCursorLanding(selected)
 
     Canvas(
         modifier = modifier
@@ -227,6 +263,16 @@ private fun BoardCanvasDrawing(
                     size = Size(r.width, r.height),
                 )
             }
+        }
+
+        // 1.5) 光标落纸：换格瞬间在格子上洇一层淡墨再退去（画在格线之下，格线不受影响）
+        if (cursorLand > 0f && selected != null) {
+            val r = cellRect(selected)
+            drawRect(
+                color = Ink.Black.copy(alpha = Ink.Alpha.Wash * 1.6f * cursorLand),
+                topLeft = Offset(r.left, r.top),
+                size = Size(r.width, r.height),
+            )
         }
 
         // 2) 格线：细线 + 每 3 格加粗（宫线）

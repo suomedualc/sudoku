@@ -143,5 +143,14 @@ object DesignTokens {
         const val EnterMs: Int = 240
         const val ExitMs: Int = 180
         const val RevealMs: Int = 160
+
+        /**
+         * 「光标落纸」：换格瞬间在格子上洇一层淡墨再退去的时长。
+         *
+         * 键盘玩家尤其需要它——自动跳转是**九宫格优先**，落点可能是宫里"读序更靠前"的格子，
+         * 也就是往回跳；没有这一下洇墨，眼睛会一时找不到光标去了哪儿。
+         * 时长取 200ms：短到连续按方向键不会拖影，长到足以被余光捕捉。
+         */
+        const val CursorLandMs: Int = 200
     }
 }
