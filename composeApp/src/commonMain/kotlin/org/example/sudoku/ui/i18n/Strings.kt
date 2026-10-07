@@ -91,6 +91,7 @@ interface Strings {
     val erase: String
     val undo: String
     val redo: String
+    val gameSettings: String
     val toggleNoteMode: String
     val toggleShowNotes: String
     val toggleHintCandidates: String
@@ -270,6 +271,7 @@ object ZhStrings : Strings {
     override val erase = "擦除"
     override val undo = "撤销"
     override val redo = "重做"
+    override val gameSettings = "游戏设置"
     override val toggleNoteMode = "笔记模式"
     override val toggleShowNotes = "显示笔记"
     override val toggleHintCandidates = "候选提示"
@@ -411,6 +413,7 @@ object EnStrings : Strings {
     override val erase = "Erase"
     override val undo = "Undo"
     override val redo = "Redo"
+    override val gameSettings = "Game settings"
     override val toggleNoteMode = "Notes"
     override val toggleShowNotes = "Show notes"
     override val toggleHintCandidates = "Candidates"

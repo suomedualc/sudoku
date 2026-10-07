@@ -82,6 +82,9 @@ private const val DRAWER_WIN = "game.win"
 /** 抽屉标识：键位设置（可 Esc / 点遮罩关闭）。 */
 private const val DRAWER_KEYMAP = "game.keymap"
 
+/** 抽屉标识：游戏设置（窄屏时四项偏好收进抽屉，不占常驻布局空间）。 */
+private const val DRAWER_TOGGLES = "game.toggles"
+
 /**
  * 棋盘之外那层可点空白的测试标签。
  *
@@ -296,9 +299,15 @@ fun GameScreen(
             .focusable(),
     ) {
         val pad = DesignTokens.Spacing.Md
-        // 功能区的高度（数字键一行 + 偏好开关一行）+ 底部键位提示一行：棋盘必须避开它们，否则会被挤成一条
+        // 功能区的**窄屏断点**（页宽 < 460dp）：数字键盘切九宫格、四项开关收进设置抽屉——
+        // 横排 1–9 至少需要 ~500dp，硬塞进窄页会把键压成不可点的细条（docs/08 §4-D1）
+        val narrow = maxWidth < DesignTokens.Sizes.FunctionNarrowMax
+        // 功能区的高度（数字键一行或九宫格 + 偏好开关一行或设置按钮）+ 底部键位提示一行：
+        // 棋盘必须避开它们，否则会被挤成一条。窄屏九宫格更高（3×52+2×间距）；
+        // 键位提示行在窄屏允许折两行（KeyHintRow maxLines = 2）
         val functionsHeight =
-            DesignTokens.Sizes.KeyHeight + DesignTokens.Spacing.Sm + DesignTokens.Sizes.CompactItemHeight
+            (if (narrow) DesignTokens.Sizes.KeyHeight * 3 + DesignTokens.Spacing.Sm * 2 else DesignTokens.Sizes.KeyHeight) +
+                DesignTokens.Spacing.Sm + DesignTokens.Sizes.CompactItemHeight
         // 纵向必须为这些让出位置：顶栏 + 上下留白 + 棋盘上下的两条浮动条槽 +
         // 棋盘与功能区之间的间距 + 功能区 + 键位提示 + 底部提示条
         val reserved =
@@ -307,7 +316,7 @@ fun GameScreen(
                 DesignTokens.Sizes.FloatingBarSlot * 2 +
                 pad +
                 functionsHeight +
-                DesignTokens.Sizes.KeyHintHeight +
+                DesignTokens.Sizes.KeyHintHeight * (if (narrow) 2 else 1) +
                 DesignTokens.Sizes.SnackbarReserve
         val boardSide = minOf(
             maxWidth - pad * 2,
@@ -321,6 +330,7 @@ fun GameScreen(
                 state = state,
                 done = done,
                 total = total,
+                narrow = narrow,
                 onAction = dispatch,
                 onOpenKeyMap = { drawer.open(DRAWER_KEYMAP) },
             )
@@ -365,6 +375,8 @@ fun GameScreen(
                         strings = strings,
                         game = game,
                         state = state,
+                        narrow = narrow,
+                        onOpenToggles = { drawer.open(DRAWER_TOGGLES) },
                         onAction = dispatch,
                         modifier = Modifier.width(boardSide),
                     )
@@ -407,6 +419,50 @@ fun GameScreen(
                         dispatch(GameAction.BindKey(action, KeyMap.DEFAULT.token(action)))
                     }
                 },
+            )
+        }
+
+        // 游戏设置抽屉（**窄屏专属**）：四项偏好从常驻开关行收进抽屉——
+        // Esc / 点遮罩关闭；开关即时生效并随存档落盘
+        TopDrawer(
+            visible = drawer.isOpen(DRAWER_TOGGLES),
+            onDismiss = { drawer.close() },
+            restoreFocus = focusRequester,
+            a11yTitle = strings.gameSettings,
+        ) {
+            InkText(
+                text = strings.gameSettings,
+                modifier = Modifier.fillMaxWidth(),
+                style = Ink.Type.Title,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(DesignTokens.Spacing.Md))
+            InkToggleRow(
+                label = strings.toggleNoteMode,
+                checked = state.noteMode,
+                onCheckedChange = { dispatch(GameAction.ToggleNoteMode) },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(DesignTokens.Spacing.Xs))
+            InkToggleRow(
+                label = strings.toggleShowNotes,
+                checked = state.showNotes,
+                onCheckedChange = { dispatch(GameAction.ToggleShowNotes) },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(DesignTokens.Spacing.Xs))
+            InkToggleRow(
+                label = strings.toggleHintCandidates,
+                checked = state.hintCandidates,
+                onCheckedChange = { dispatch(GameAction.ToggleHintCandidates) },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(DesignTokens.Spacing.Xs))
+            InkToggleRow(
+                label = strings.toggleStrict,
+                checked = state.strictMode,
+                onCheckedChange = { enabled -> dispatch(GameAction.ToggleStrict(enabled)) },
+                modifier = Modifier.fillMaxWidth(),
             )
         }
     }
@@ -484,6 +540,7 @@ private fun GameTopBar(
     state: GameState,
     done: Int,
     total: Int,
+    narrow: Boolean,
     onAction: (GameAction) -> Unit,
     /** 打开键位设置抽屉（抽屉状态在页面里，这里只发信号）。 */
     onOpenKeyMap: () -> Unit,
@@ -505,7 +562,9 @@ private fun GameTopBar(
             tooltipAlignment = Alignment.TopStart,
         )
 
-        // 中间用 weight 占满，把右侧控制组顶到最右
+        // 中间用 weight 占满，把右侧控制组顶到最右。
+        // 窄屏：只保留难度 + 计时两个主读数——次要读数（提示计数 / 进度）在 460dp 下
+        // 会把中间区挤到截断（docs/08 §4-D1），读屏文案（boardDescription）里仍可获取。
         Row(
             modifier = Modifier.weight(1f).padding(horizontal = DesignTokens.Spacing.Sm),
             verticalAlignment = Alignment.CenterVertically,
@@ -517,16 +576,18 @@ private fun GameTopBar(
                 // 计时是数字读数：走 Nunito 且字距为 0——秒数跳动时不会因等宽与否而左右晃
                 style = Ink.digitStyle(Ink.Type.Body.fontSize),
             )
-            if (state.hintsCount > 0) {
+            if (state.hintsCount > 0 && !narrow) {
                 InkText(
                     text = strings.hintsUsed.format(state.hintsCount),
                     style = Ink.Type.Caption.copy(color = Ink.Grey),
                 )
             }
-            InkText(
-                text = "$done / $total",
-                style = Ink.digitStyle(Ink.Type.Body.fontSize, color = Ink.Grey),
-            )
+            if (!narrow) {
+                InkText(
+                    text = "$done / $total",
+                    style = Ink.digitStyle(Ink.Type.Body.fontSize, color = Ink.Grey),
+                )
+            }
         }
 
         // 右侧这一组**都贴右边缘**：提示片一律向左长，才不会被窗口右边缘切掉。
@@ -756,22 +817,35 @@ private fun FunctionArea(
     strings: Strings,
     game: Game,
     state: GameState,
+    narrow: Boolean,
+    onOpenToggles: () -> Unit,
     onAction: (GameAction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Sm)) {
-        NumberRow(strings, game, state, onAction)
-        ToggleRow(strings, state, onAction)
+        NumberRow(strings, game, state, onAction, grid = narrow)
+        if (narrow) {
+            // 窄屏：四项偏好收进「游戏设置」抽屉（TopDrawer，覆盖层唯一形态）——
+            // 常驻开关行在窄屏会把勾选框挤出屏幕（docs/08 §4-D1）
+            InkButton(
+                text = strings.gameSettings,
+                onClick = onOpenToggles,
+                compact = true,
+            )
+        } else {
+            ToggleRow(strings, state, onAction)
+        }
     }
 }
 
-/** 第一排：1–9 横向一排 + 擦除（[NumberPad]）。 */
+/** 第一排：数字输入（宽屏 1–9 横排；窄屏 3×3 九宫格 + 竖置擦除，见 [NumberPad]）。 */
 @Composable
 private fun NumberRow(
     strings: Strings,
     game: Game,
     state: GameState,
     onAction: (GameAction) -> Unit,
+    grid: Boolean,
 ) {
     // 笔记模式下不限制（要能记"不可能的数字"）；其余按盘面 + 选中格缓存——
     // 计时每秒触发一次重组，不缓存就是每秒白扫一遍 81 格。
@@ -790,6 +864,7 @@ private fun NumberRow(
         remaining = remaining,
         onDigit = { onAction(GameAction.Digit(it)) },
         onErase = { onAction(GameAction.Digit(0)) },
+        grid = grid,
     )
 }
 

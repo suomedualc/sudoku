@@ -43,6 +43,13 @@ object DesignTokens {
         /** 首页菜单内容最大宽度（居中留白）。 */
         val MenuMaxWidth: Dp = 400.dp
 
+        /**
+         * 对局页功能区的**窄屏断点**：页宽低于此值时，数字键盘切**九宫格**（3×3 + 竖置擦除）、
+         * 四项开关收进「游戏设置」抽屉——横排 1–9 至少需要 ~500dp（9×40 键 + 间距 + 72 擦除），
+         * 硬塞进窄页会把键压成不可点的细条（Android 模拟器测试 D1，`docs/08` §4）。
+         */
+        val FunctionNarrowMax: Dp = 460.dp
+
         /** 首页主菜单项高度。 */
         val MenuItemHeight: Dp = 60.dp
 

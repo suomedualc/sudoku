@@ -176,8 +176,10 @@ fun KeyHintRow(strings: Strings, keyMap: KeyMap, modifier: Modifier = Modifier) 
     }
     InkText(
         text = text,
+        // 窄屏（Android 手机）允许折两行：预留高度按两行计（GameScreen.reserved），折行不再截断
         modifier = modifier.fillMaxWidth().padding(horizontal = DesignTokens.Spacing.Sm),
         style = Ink.Type.Meta.copy(color = Ink.Light),
         textAlign = TextAlign.Center,
+        maxLines = 2,
     )
 }
