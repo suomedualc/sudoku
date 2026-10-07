@@ -1,4 +1,4 @@
-# 数独（手写纸 · 简约油墨）开发纪律 · v3.0
+# 数独（手写纸 · 简约油墨）开发纪律 · v3.1
 
 > 本文件是"系统层"上下文（自动加载），既是**强制规则**，也是本工程的**开发思路 / 选型依据 / 模块说明 / 迭代计划**的简版。
 > 详细论证见 `docs/01-架构设计.md`、`docs/02-设计规范.md`、`docs/03-开发流程.md`、`docs/05-发展规划.md`。
@@ -65,7 +65,7 @@
     **打包图标与运行时图标必须同源**：jpackage 只把图标嵌进 exe；AWT 窗口默认仍显示 JDK 的 Java 图标，
     因此 `jvmMain/main.kt` 必须显式设置 `window.iconImages`（PNG 经 `jvmMain { resources.srcDir("icons") }` 进 jar）。
 
-**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 117 项）+ **实机冒烟**
+**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 129 项）+ **实机冒烟**
 （`tools/smoke-e2e.ps1`，置顶 + 固定坐标，见 §5）+ **实机试玩**（§6 第 4–5 条）+ 肉眼验收四档窗口。
 
 ---
@@ -191,7 +191,7 @@
 | `jvmMain` | `main.kt`（1180×900 / 最小 940×720）· `platform/FileGameStore.kt`（`~/.sudoku-ink/save.txt`）· `ui/theme/InkFonts.jvm.kt` | ✅ 已启用 |
 | `androidMain` | `MainActivity` + `AndroidManifest`（主题已改系统内置） | ⏸ 未参与编译：缺 `androidTarget()` 与 `compileSdk 37`（`docs/05` §3.1） |
 
-### 3.5 十四个容易踩的坑
+### 3.5 十五个容易踩的坑
 
 1. `GameState` / `Game` 里是 `IntArray`，`data class` 的 `equals` 对数组是**引用比较**——不要用 `==` 做业务判断。
 2. `Snapshot` 必须覆盖"所有会被改的字段"（漏一个就会出现 `hintUsed` 回退而 `hintsCount` 不回退这类矛盾）。
@@ -231,6 +231,11 @@
     （停在题面格上只会表现为"按数字没反应"）；没有选中格时从第一个空格起算，别让方向键"按了没动静"。
     自动跳转的边界同理要写死：**擦除 / 笔记 / 再按一次同一个数字取消都不跳**，
     且落点必须断言"是空格"（`CellCursorTest` 的不变量用例）。
+15. **覆盖层的纸面必须自己吃掉点击**：抽屉 / 弹层的纸片如果只有绘制、没有可点击节点，
+    点在纸上的**空白处或说明文字**上，命中测试会因"这里没有可点击节点"**穿透到下面的遮罩**，
+    于是"点纸上的空白"变成了"点遮罩"——抽屉被误关（`-Flow keymap` 第一步就抓到）。
+    修法：给纸片加一层 `detectTapGestures { }` 吞掉点击；子控件的按钮照常先命中。
+    同理：**底部提示行这类"只是文字"的东西别放进会被测量预留高度的窄列**，折行会把预留高度撑破。
     同理：给"标识符"选墨色要两侧夹住（`InkThemeTest` 的 `typeBox...` 那项：
     ≥ 1.5:1 才看得见、≤ 3.5:1 才不抢戏、且与一墨数字差一个量级），**两套主题各取一档**
     （深底上同样浓度的线更亮，直接沿用浅色值会重近一倍）。
@@ -243,7 +248,7 @@
 | 改棋盘数字 / 加标识 | 常驻标识只走**形状**通道（见 §3.5 第 13 条），亮度留给临时高亮；新标识的墨色要**两侧夹住**（看得见 / 不抢戏）并写进 `InkThemeTest`；两套主题各取一档 |
 | 加一个玩法开关 | ① `GameState` 加字段 ② `GameAction` 加 `Toggle*` ③ reducer 处理 ④ `GameScreen.ToggleRow` 加一项（**棋盘下方开关行**，四项一排）⑤ 若影响规则，加测试 ⑥ 若要落盘，同步 `SaveCodec`（编码 + 解码 + 格式注释）⑦ **同步 `GameViewModel` 的 `SaveFile.toState()`**（见 §3.5 第 9 条） |
 | 加一个图标 | ① `InkIcon` 加枚举值 ② `drawInkIcon` 里用 `inkLine` / 弧线自绘（**不引图标库、不用图标字体**）③ 用 `InkIconButton` 承载，说明走 `contentDescription`（读屏读"撤销"，不读"一个圆圈带箭头"）——悬停提示默认就取它；只有需要更短文案时才显式传 `tooltip` ④ **贴窗口边缘的按钮必须传 `tooltipAlignment`**（否则提示片被窗口切掉） |
-| 改键盘映射 / 光标 | 光标判据只写在 `core/CellCursor.kt`（纯函数 + `CellCursorTest`），UI 只把按键翻译成 `GameAction`；**新增按键先想清楚它是否该动光标**（见 §3.5 第 14 条）；改完跑 `smoke-e2e.ps1 -Flow keys` 看截图 |
+| 改键盘映射 / 光标 | 光标判据只写在 `core/CellCursor.kt`（纯函数 + `CellCursorTest`），键位配置在 `state/KeyMap.kt`（令牌 + `KeyMapTest`）；**"按键事件 → 令牌"的换算只许在 `ui/components/KeyToken`**（全工程唯一认得 Compose `Key` 的地方，`state/` 禁 Compose）；**新增按键先想清楚它是否该动光标**（见 §3.5 第 14 条）；改完跑 `smoke-e2e.ps1 -Flow keys` 与 `-Flow keymap` 看截图 |
 | 改棋盘语义网格 | 只能用 `weight(1f)` 等分，**禁止 `fillMax*(1f/9f)`**——Column / Row 给子项的是"剩余"空间，逐格缩水会让读屏报的格子与实际错位（见 §3.5 第 10 条）。改完跑 `BoardCanvasUiTest`（它点的是**最后一格**哨兵） |
 | 加一个难度 | ① `Difficulty` 加值 ② （若要求达标）改 `generate` 的重试策略 ③ `MenuScreen` 难度遮罩自动出现（遍历 entries）④ 测试断言实际空格数 |
 | 加一个新屏幕 | ① `Screen` 枚举 ② `App.kt` 的 `when` 分支 ③ 新 Screen 用 `InkPanel` + `InkButton` 组织 ④ 更新 `docs/01` §2 与 `docs/02` §3 |
@@ -324,7 +329,7 @@
 - **精准投喂**：先 `@folder composeApp/src/commonMain` 预热，再用 `@file` / `@code` 定位；方法见 `docs/04`。
 - **负面约束随需求一起给**：把本文件 §0 的相关红线直接写进需求里。
 - **提交前自检清单**：
-  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（117 项）；改过 `state/` 或 `core/` 时必须补/改用例；
+  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（129 项）；改过 `state/` 或 `core/` 时必须补/改用例；
      动过字体 / 资源时跑 `BundledFontsTest`（字体在、family 对、中文/数字各归其位、**数字族的中文兜底链还在**）；
      动过棋盘绘制 / 语义层时要跑 `BoardCanvasUiTest`（81 节点 + 点击穿透 + 暂停遮读屏）；
      **动过配色必须跑 `InkThemeTest`**（两套主题的前三级都要 ≥ 4.5:1；新增色值必须同时给浅 / 深两套）；

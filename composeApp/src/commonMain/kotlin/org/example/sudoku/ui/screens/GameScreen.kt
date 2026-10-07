@@ -50,6 +50,8 @@ import org.example.sudoku.core.Game
 import org.example.sudoku.core.Sudoku
 import org.example.sudoku.state.GameAction
 import org.example.sudoku.state.GameState
+import org.example.sudoku.state.KeyAction
+import org.example.sudoku.state.KeyMap
 import org.example.sudoku.state.Screen
 import org.example.sudoku.ui.components.BarSide
 import org.example.sudoku.ui.components.BoardCanvas
@@ -60,6 +62,9 @@ import org.example.sudoku.ui.components.InkButton
 import org.example.sudoku.ui.components.InkIcon
 import org.example.sudoku.ui.components.InkIconButton
 import org.example.sudoku.ui.components.InkPanel
+import org.example.sudoku.ui.components.KeyHintRow
+import org.example.sudoku.ui.components.KeyMapSheet
+import org.example.sudoku.ui.components.KeyToken
 import org.example.sudoku.ui.components.InkText
 import org.example.sudoku.ui.components.InkTitleFrame
 import org.example.sudoku.ui.components.InkToggleRow
@@ -71,6 +76,9 @@ import org.example.sudoku.ui.theme.Ink
 
 /** 抽屉标识：通关结算（模态，必须明确选择）。 */
 private const val DRAWER_WIN = "game.win"
+
+/** 抽屉标识：键位设置（可 Esc / 点遮罩关闭）。 */
+private const val DRAWER_KEYMAP = "game.keymap"
 
 /**
  * 棋盘之外那层可点空白的测试标签。
@@ -127,6 +135,19 @@ fun GameScreen(
 
     // 悬浮数字面板：记录"面板锚在哪个格子"。属于纯 UI 细节，因此不进 GameState。
     var padCell by remember { mutableStateOf<Int?>(null) }
+
+    // 键位设置：正在等待按键的**动作**（点某一条 → 进入捕获态 → 下一个按键就绑给它）。
+    // 放在页面而不是抽屉里：按键是在页面根节点的 onPreviewKeyEvent 收的，抽屉收不到。
+    var capturing by remember { mutableStateOf<KeyAction?>(null) }
+    /** 捕获失败的原因（例如"数字 1–9 留给填数"）；绑上了或取消时清空。 */
+    var captureHint by remember { mutableStateOf<String?>(null) }
+    // 抽屉一关就退出捕获态（否则下次打开会残留一个"正在等你按键"的按钮）
+    LaunchedEffect(drawer.isOpen(DRAWER_KEYMAP)) {
+        if (!drawer.isOpen(DRAWER_KEYMAP)) {
+            capturing = null
+            captureHint = null
+        }
+    }
 
     // 选格变化（点棋盘 / 方向键换格）→ 面板跟着走；不关，让"键鼠混用"不中断
     LaunchedEffect(state.selected) {
@@ -189,6 +210,41 @@ fun GameScreen(
         }
     }
 
+    /**
+     * 键位设置抽屉内的键：**捕获态时任何可识别的按键都算"绑定"**。
+     *
+     * 两条细节：
+     * - `Esc` **先**退出捕获态、不关抽屉（关抽屉是"没有捕获"时的行为）——
+     *   否则玩家想取消一次绑定，却把整个抽屉关掉了；
+     * - 绑不了的键（修饰键 / F1 等）**保持捕获态**并继续等，不当成"确认"，
+     *   否则按一下 Shift 就等于绑了个按不出来的键。
+     */
+    val keyMapDrawerKeys: (KeyEvent) -> Boolean = { event ->
+        val target = capturing
+        if (target == null) {
+            false
+        } else if (event.key == Key.Escape) {
+            capturing = null
+            true
+        } else {
+            val token = KeyToken.of(event)
+            when {
+                // 绑不了的键（修饰键 / F1 等）：继续等，别把它当成"确认"
+                token == null -> Unit
+                !state.keyMap.accepts(target, token) -> {
+                    captureHint = "数字 1–9 留给填数，不能绑定"
+                    capturing = null
+                }
+                else -> {
+                    dispatch(GameAction.BindKey(target, token))
+                    captureHint = null
+                    capturing = null
+                }
+            }
+            true // 无论绑没绑上，捕获态下这个键都不再往下走
+        }
+    }
+
     // 读屏文案用到的每个字段都必须是 key：漏掉 noteMode 的话，切换笔记模式后描述会停在旧值
     val boardDescription = remember(
         game,
@@ -216,24 +272,31 @@ fun GameScreen(
             .focusRequester(focusRequester)
             .onPreviewKeyEvent { event ->
                 // 键序：抽屉（模态，打开时吞掉一切）→ 悬浮面板（Esc 先收它）→ 棋盘快捷键
-                drawer.handleKey(event, winDrawerKeys) ||
+                drawer.handleKey(event) { e ->
+                    when {
+                        drawer.isOpen(DRAWER_WIN) -> winDrawerKeys(e)
+                        drawer.isOpen(DRAWER_KEYMAP) -> keyMapDrawerKeys(e)
+                        else -> false
+                    }
+                } ||
                     handleEscForPad(event) ||
                     handleKeyEvent(event, state, dispatch)
             }
             .focusable(),
     ) {
         val pad = DesignTokens.Spacing.Md
-        // 功能区的高度（数字键一行 + 偏好开关一行）：棋盘必须避开它，否则会被挤成一条
+        // 功能区的高度（数字键一行 + 偏好开关一行）+ 底部键位提示一行：棋盘必须避开它们，否则会被挤成一条
         val functionsHeight =
             DesignTokens.Sizes.KeyHeight + DesignTokens.Spacing.Sm + DesignTokens.Sizes.CompactItemHeight
         // 纵向必须为这些让出位置：顶栏 + 上下留白 + 棋盘上下的两条浮动条槽 +
-        // 棋盘与功能区之间的间距 + 功能区 + 底部提示条
+        // 棋盘与功能区之间的间距 + 功能区 + 键位提示 + 底部提示条
         val reserved =
             DesignTokens.Sizes.TopBarHeight +
                 pad * 2 +
                 DesignTokens.Sizes.FloatingBarSlot * 2 +
                 pad +
                 functionsHeight +
+                DesignTokens.Sizes.KeyHintHeight +
                 DesignTokens.Sizes.SnackbarReserve
         val boardSide = minOf(
             maxWidth - pad * 2,
@@ -242,7 +305,14 @@ fun GameScreen(
 
         Column(modifier = Modifier.fillMaxSize()) {
             // 顶栏：左「返回菜单」· 中状态读数 · 右「提示 / 暂停 / 重置 + 明暗切换」
-            GameTopBar(game, state, done, total, dispatch)
+            GameTopBar(
+                game = game,
+                state = state,
+                done = done,
+                total = total,
+                onAction = dispatch,
+                onOpenKeyMap = { drawer.open(DRAWER_KEYMAP) },
+            )
 
             // 内容区：**纵向一列**——棋盘 → 数字键 → 偏好开关，整体居中。
             // 棋盘**左右不再有任何元素**（此前右侧还立着 360dp 的控制栏），题面四周彻底空出来。
@@ -285,6 +355,10 @@ fun GameScreen(
                         onAction = dispatch,
                         modifier = Modifier.width(boardSide),
                     )
+                    Spacer(Modifier.height(DesignTokens.Spacing.Xs))
+                    // 键位提示占**整页宽**（不跟棋盘同宽）：文案长，挤在棋盘那一列会折行，
+                    // 一折行就会把预留的高度撑破、反过来挤小棋盘
+                    KeyHintRow(keyMap = state.keyMap, modifier = Modifier.fillMaxWidth())
                 }
             }
         }
@@ -299,6 +373,27 @@ fun GameScreen(
             onPlayAgain = { dispatch(GameAction.NewGame(game.difficulty)) },
             onBackToMenu = { dispatch(GameAction.Navigate(Screen.Menu)) },
         )
+
+        // 键位设置抽屉：可 Esc / 点遮罩关闭（它不是结算，不需要强制选择）
+        TopDrawer(
+            visible = drawer.isOpen(DRAWER_KEYMAP),
+            onDismiss = { drawer.close() },
+            restoreFocus = focusRequester,
+            a11yTitle = "键位设置",
+        ) {
+            KeyMapSheet(
+                keyMap = state.keyMap,
+                capturing = capturing,
+                captureHint = captureHint,
+                onStartCapture = { captureHint = null; capturing = it },
+                onCancelCapture = { captureHint = null; capturing = null },
+                onResetDefaults = {
+                    for (action in KeyAction.entries) {
+                        dispatch(GameAction.BindKey(action, KeyMap.DEFAULT.token(action)))
+                    }
+                },
+            )
+        }
     }
 }
 
@@ -371,6 +466,8 @@ private fun GameTopBar(
     done: Int,
     total: Int,
     onAction: (GameAction) -> Unit,
+    /** 打开键位设置抽屉（抽屉状态在页面里，这里只发信号）。 */
+    onOpenKeyMap: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -409,7 +506,16 @@ private fun GameTopBar(
             )
         }
 
-        // 右侧这一组**都贴右边缘**：提示片一律向左长，才不会被窗口右边缘切掉
+        // 右侧这一组**都贴右边缘**：提示片一律向左长，才不会被窗口右边缘切掉。
+        // 键位设置放在这一组的**最前面**：新增按钮时保持明暗切换仍在最后一位，
+        // 顶栏最右侧那枚按钮的位置才不会变（冒烟脚本按固定坐标点它）。
+        InkIconButton(
+            icon = InkIcon.Keyboard,
+            contentDescription = "键位设置",
+            tooltip = "键位",
+            onClick = onOpenKeyMap,
+            tooltipAlignment = Alignment.TopEnd,
+        )
         InkIconButton(
             icon = InkIcon.Hint,
             contentDescription = "提示",
@@ -724,15 +830,32 @@ private fun handleKeyEvent(
         return true
     }
 
+    // 自定义键位：令牌匹配（1–9 留给填数，绑不到这里，见 KeyMap.accepts）
+    val token = KeyToken.of(event)
+    if (token != null) {
+        val move = state.keyMap.move(token)
+        if (move != null) {
+            // Shift = 逐格模式：不跳过已填格，靠它回到刚填过的格子去改 / 擦
+            onAction(GameAction.Move(move.first, move.second, includeFilled = event.isShiftPressed))
+            return true
+        }
+        if (state.keyMap.isErase(token)) {
+            onAction(GameAction.Digit(0))
+            return true
+        }
+    }
+
     return when (event.key) {
-        Key.Zero, Key.NumPad0, Key.Delete, Key.Backspace -> {
+        // 兜底（**不受键位设置影响**）：方向键始终可移动、退格 / Del 始终可擦除。
+        // 键位设置是为了更好用，不能让人把自己锁在门外——这是三条硬兜底。
+        Key.Delete, Key.Backspace -> {
             onAction(GameAction.Digit(0))
             true
         }
-        Key.DirectionLeft -> { onAction(GameAction.Move(0, -1)); true }
-        Key.DirectionRight -> { onAction(GameAction.Move(0, 1)); true }
-        Key.DirectionUp -> { onAction(GameAction.Move(-1, 0)); true }
-        Key.DirectionDown -> { onAction(GameAction.Move(1, 0)); true }
+        Key.DirectionLeft -> { onAction(GameAction.Move(0, -1, event.isShiftPressed)); true }
+        Key.DirectionRight -> { onAction(GameAction.Move(0, 1, event.isShiftPressed)); true }
+        Key.DirectionUp -> { onAction(GameAction.Move(-1, 0, event.isShiftPressed)); true }
+        Key.DirectionDown -> { onAction(GameAction.Move(1, 0, event.isShiftPressed)); true }
         Key.N -> { onAction(GameAction.ToggleNoteMode); true }
         Key.H -> { onAction(GameAction.Hint); true }
         Key.P, Key.Spacebar -> { onAction(GameAction.Pause); true }

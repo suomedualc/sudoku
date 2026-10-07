@@ -349,6 +349,36 @@ class GameReducerTest {
     }
 
     @Test
+    fun bindKeyRewritesOnlyTheKeyMap() {
+        val state = reduce(newGame(), GameAction.Select(firstEmpty(newGame())))
+        val boardBefore = state.game!!.current.copyOf()
+
+        val bound = reduce(state, GameAction.BindKey(KeyAction.Up, "W"))
+
+        assertEquals("W", bound.keyMap.up)
+        assertEquals(-1 to 0, bound.keyMap.move("W"))
+        assertEquals(state.selected, bound.selected, "改键位不该动选中格")
+        assertTrue(boardBefore.contentEquals(bound.game!!.current), "改键位不该动盘面")
+        assertEquals(0, bound.undoStack.size, "改键位不进撤销栈（它不是一步棋）")
+    }
+
+    @Test
+    fun shiftArrowComesBackToACellThePlayerJustFilled() {
+        // 需求：填完一格之后还能用方向键回到那一格去擦 / 改。
+        // 默认方向键是"空格优先"（为了填数效率），逐格移动（includeFilled）才是回头的通道。
+        val first = firstEmpty(newGame())
+        var state = reduce(newGame(), GameAction.Select(first))
+        state = reduce(state, GameAction.Digit(4)) // 填好，光标还在原地
+        assertEquals(4, state.game!!.current[first])
+
+        // 逐格往右走一格、再逐格走回来：应回到刚填过的那一格（于是可以擦 / 改它）。
+        // 用"一来一回"而不是直接算坐标：落点依赖盘面，来回一趟才是不依赖具体题面的断言。
+        val right = reduce(state, GameAction.Move(0, 1, includeFilled = true))
+        val back = reduce(right, GameAction.Move(0, -1, includeFilled = true))
+        assertEquals(first, back.selected, "逐格模式应能回到刚填过的那一格")
+    }
+
+    @Test
     fun arrowsWorkEvenWhenNothingIsSelected() {
         // 还没选格（或刚点了棋盘外的空白清掉选中）时按方向键，不能没反应
         val state = reduce(newGame(), GameAction.Move(0, 1))

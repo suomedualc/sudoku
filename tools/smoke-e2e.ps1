@@ -40,7 +40,7 @@ param(
     [int]$Width = 1180,
     [int]$Height = 900,
     [string]$OutDir = $env:TEMP,
-    [ValidateSet('all', 'menu', 'exit', 'win', 'theme', 'bar', 'ux', 'keys')]
+    [ValidateSet('all', 'menu', 'exit', 'win', 'theme', 'bar', 'ux', 'keys', 'keymap')]
     [string]$Flow = 'all'
 )
 
@@ -80,6 +80,9 @@ $script:VK = @{
     # 主键盘数字键 1..9（应用里对应填数）
     Digit1 = 0x31; Digit2 = 0x32; Digit3 = 0x33; Digit4 = 0x34; Digit5 = 0x35
     Digit6 = 0x36; Digit7 = 0x37; Digit8 = 0x38; Digit9 = 0x39
+    # 自定义键位冒烟用：W 绑「向上」、D 绑「向右」
+    W = 0x57
+    D = 0x44
 }
 $script:KeyExtended = 0x0001   # KEYEVENTF_EXTENDEDKEY -- arrow keys need it to read as arrow keys
 
@@ -359,6 +362,37 @@ try {
         Save-Shot $p 'keys_fill_advances_again'
         Send-Key $p 'Digit9'                      # 填 80 → 宫 8 已满 → 跳回 77
         Save-Shot $p 'keys_box_full_falls_back'
+        Stop-App $p
+    }
+
+    if ($Flow -eq 'all' -or $Flow -eq 'keymap') {
+        Write-Host '== flow: key bindings =='
+        # 留 9 格（整个末行）：光标开局落在读序第一个空格（第 9 行第 1 列），
+        # 这样"向右"的绑定能用**真的走一格**来验证（"向上"在那列没有可编辑格，走了也不动——那是正确行为）
+        Write-OneEmptySave $saveFile -Blank 9
+        $p = Start-App
+        Send-Key $p 'Down' $script:KeyExtended
+        Send-Key $p 'Enter'
+        # ① 底部键位提示行（默认键位：方向键 + 0 擦除）
+        Save-Shot $p 'keymap_hint_default'
+        # ② 顶栏「键位设置」：右侧一组**最前面**一枚（明暗切换仍在最右，坐标不变）
+        Send-Click $p 970 59
+        Save-Shot $p 'keymap_drawer'
+        # ③ 点「向上」的键位按钮 → 捕获态 → 按 W
+        Send-Click $p 780 140
+        Save-Shot $p 'keymap_capturing'
+        Send-Key $p 'W'
+        Save-Shot $p 'keymap_bound_w'
+        # ④ 点「向右」的键位按钮 → 捕获态 → 按 D
+        Send-Click $p 780 278
+        Send-Key $p 'D'
+        Save-Shot $p 'keymap_bound_d'
+        # ⑤ Esc 关抽屉（此时不在捕获态，Esc = 关抽屉）→ 提示行应已变成「W」「↓」「←」「D」
+        Send-Key $p 'Escape'
+        Save-Shot $p 'keymap_hint_custom'
+        # ⑥ 真的按一下 D：光标应往右走一格（键位设置生效）
+        Send-Key $p 'D'
+        Save-Shot $p 'keymap_d_moves_cursor'
         Stop-App $p
     }
 } catch {

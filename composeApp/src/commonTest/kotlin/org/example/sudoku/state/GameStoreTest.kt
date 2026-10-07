@@ -188,6 +188,8 @@ class GameStoreTest {
         first.dispatch(GameAction.ToggleShowNotes)
         first.dispatch(GameAction.ToggleHintCandidates)
         first.dispatch(GameAction.ToggleDarkMode)
+        first.dispatch(GameAction.BindKey(KeyAction.Up, "W"))
+        first.dispatch(GameAction.BindKey(KeyAction.Erase, "X"))
 
         // 模拟重启
         val second = GameViewModel(seed = 9, store = store)
@@ -195,6 +197,8 @@ class GameStoreTest {
         assertFalse(second.state.showNotes, "显示笔记应随存档保留")
         assertTrue(second.state.hintCandidates, "候选提示应随存档保留")
         assertTrue(second.state.darkMode, "夜墨模式应随存档保留")
+        assertEquals("W", second.state.keyMap.up, "键位应随存档保留")
+        assertEquals("X", second.state.keyMap.erase, "擦除键位应随存档保留")
 
         // 新开一局不应把偏好重置回默认值
         second.dispatch(GameAction.NewGame(Difficulty.Easy))
@@ -202,6 +206,8 @@ class GameStoreTest {
         assertFalse(second.state.showNotes, "新开一局应继承偏好")
         assertTrue(second.state.hintCandidates, "新开一局应继承偏好")
         assertTrue(second.state.darkMode, "新开一局应继承偏好")
+        assertEquals("W", second.state.keyMap.up, "新开一局应继承键位")
+        assertEquals("X", second.state.keyMap.erase, "新开一局应继承擦除键位")
         assertNotNull(store.load()?.settings, "偏好应继续落盘")
     }
 

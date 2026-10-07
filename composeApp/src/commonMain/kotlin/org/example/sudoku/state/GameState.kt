@@ -53,6 +53,13 @@ data class GameState(
      * 这里只存"选哪一套"。
      */
     val darkMode: Boolean = false,
+    /**
+     * 键位配置（上 / 下 / 左 / 右 / 擦除）。
+     *
+     * 与 [darkMode] 同为"这台机器上习惯怎么用"的偏好：跨对局保留、随存档落盘。
+     * 真正的"按键 → 令牌"换算在 `ui/` 层（`KeyToken.of`），这里只存令牌。
+     */
+    val keyMap: KeyMap = KeyMap(),
     val elapsed: Int = 0,
     val paused: Boolean = false,
     val hintUsed: Boolean = false,
@@ -68,7 +75,7 @@ data class GameState(
         get() = screen == Screen.Game && game != null && !paused && !settled && !won
 
     /**
-     * 跨对局保留的偏好（`strictMode` / `showNotes` / `noteMode` / `hintCandidates` / `darkMode`）。
+     * 跨对局保留的偏好（严格 / 显示笔记 / 笔记 / 候选提示 / 夜墨 / **键位**）。
      * 换局、重置、通关都不清空，并由 [GameViewModel] 随存档落盘。
      */
     val settings: GameSettings
@@ -78,5 +85,6 @@ data class GameState(
             noteMode = noteMode,
             hintCandidates = hintCandidates,
             darkMode = darkMode,
+            keyMap = keyMap,
         )
 }

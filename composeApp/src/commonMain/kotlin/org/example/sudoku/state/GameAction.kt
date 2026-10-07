@@ -28,8 +28,20 @@ sealed interface GameAction {
      */
     data object FocusFirstEmpty : GameAction
 
-    /** 方向键移动光标（沿方向找下一个空格，见 [CellCursor.nextInDirection]）。 */
-    data class Move(val dRow: Int, val dCol: Int) : GameAction
+    /**
+     * 方向键移动光标（沿方向找下一个空格，见 [CellCursor.nextInDirection]）。
+     *
+     * [includeFilled] = true 时**逐格**移动（经过自己填过的格子）——
+     * 这是"回到刚填的那一格去改它"的通道：默认的方向键是**空格优先**，会跳过已填格，
+     * 光靠它就再也选不中自己填过的格子了。
+     */
+    data class Move(val dRow: Int, val dCol: Int, val includeFilled: Boolean = false) : GameAction
+
+    /**
+     * 绑定一个键位（见 [KeyMap.bind]）。令牌由 `ui` 层从按键事件换算后传入，
+     * 状态机只认字符串，因此可单测、可回放。
+     */
+    data class BindKey(val action: KeyAction, val token: String) : GameAction
 
     data object ToggleNoteMode : GameAction
     data class ToggleStrict(val enabled: Boolean) : GameAction

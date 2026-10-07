@@ -15,6 +15,8 @@ data class GameSettings(
     val noteMode: Boolean = false,
     val hintCandidates: Boolean = false,
     val darkMode: Boolean = false,
+    /** 键位：五项令牌逗号分隔（见 [KeyMap.encode]）。 */
+    val keyMap: KeyMap = KeyMap(),
 )
 
 /** 存档中的一局对弈：题面 / 当前盘 / 答案由 [Game] 承载，外加笔记与已用时。 */
@@ -68,6 +70,7 @@ object NoopGameStore : GameStore {
  * noteMode=0
  * hintCandidates=0
  * darkMode=0
+ * keyMap=DirectionUp,DirectionDown,DirectionLeft,DirectionRight,0   ← 上/下/左/右/擦除 五个键位令牌
  * game=1                       ← 仅当有未完成对局时出现，随后 6 行一并出现
  * difficulty=Easy
  * puzzle=<81 位数字，0 表示空格>
@@ -95,6 +98,7 @@ object SaveCodec {
         appendLine("noteMode=${file.settings.noteMode.flag()}")
         appendLine("hintCandidates=${file.settings.hintCandidates.flag()}")
         appendLine("darkMode=${file.settings.darkMode.flag()}")
+        appendLine("keyMap=${file.settings.keyMap.encode()}")
 
         val saved = file.game ?: return@buildString
         val game = saved.game
@@ -123,6 +127,8 @@ object SaveCodec {
             hintCandidates = fields["hintCandidates"].toFlag(default = false),
             // 同上：缺少 darkMode 行的旧存档按"浅色纸面"读，符合升级前的观感
             darkMode = fields["darkMode"].toFlag(default = false),
+            // 同上：缺少 keyMap 行（旧存档）→ 取默认键位（方向键 + 0 擦除）
+            keyMap = KeyMap.decode(fields["keyMap"]),
         )
         // v1 一定带对局；v2 由 game=1 显式标记（缺失即"只有设置"）
         val hasGame = if (version == MIN_VERSION) true else fields["game"] == "1"

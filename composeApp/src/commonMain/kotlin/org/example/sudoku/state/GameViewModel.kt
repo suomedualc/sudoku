@@ -175,4 +175,5 @@ private fun SaveFile.toState(): GameState = GameState(
     noteMode = settings.noteMode,
     hintCandidates = settings.hintCandidates,
     darkMode = settings.darkMode,
+    keyMap = settings.keyMap,
 )

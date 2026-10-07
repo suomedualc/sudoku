@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -290,7 +292,11 @@ private fun DrawerSheet(
                     top = DesignTokens.Spacing.Lg,
                     bottom = DesignTokens.Spacing.Lg,
                 ),
-            ),
+            )
+            // 吃掉落在**纸面上**的点击。没有这一层的话，点在纸上的空白处 / 说明文字上，
+            // 命中测试会因为"这里没有可点击节点"而穿透到下面的遮罩 → 抽屉被关掉：
+            // 模态纸片上的空白不是"外面"，不该等价于点遮罩。
+            .pointerInput(Unit) { detectTapGestures { } },
         content = content,
     )
 }

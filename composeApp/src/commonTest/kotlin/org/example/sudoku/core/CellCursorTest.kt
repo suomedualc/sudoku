@@ -115,6 +115,24 @@ class CellCursorTest {
     }
 
     @Test
+    fun shiftArrowStepsThroughFilledCells() {
+        // 默认方向键是"空格优先"，会跳过自己填过的格子；
+        // Shift（blanksFirst = false）是**逐格**模式——回到刚填过的那一格去改 / 擦的通道
+        val game = gameWith(blanks = setOf(30, 33))
+        assertEquals(33, CellCursor.nextInDirection(game, 30, 0, 1), "普通模式：跳过已填格，停在空格")
+        assertEquals(31, CellCursor.nextInDirection(game, 30, 0, 1, blanksFirst = false), "逐格模式：就走一格")
+    }
+
+    @Test
+    fun shiftArrowStillSkipsGivenCells() {
+        // 逐格模式也不能停在题面格上：停在它上面按数字没反应，等于"键盘失灵"
+        val game = gameWith(blanks = setOf(27, 33), givens = setOf(28, 29))
+        val landed = CellCursor.nextInDirection(game, 27, 0, 1, blanksFirst = false)
+        assertEquals(30, landed, "连着两个题面格都要跳过，停在下一个可编辑格")
+        assertEquals(0, game.puzzle[landed], "落点必须是玩家自己能改的格")
+    }
+
+    @Test
     fun arrowNeverLandsOnAGivenCell() {
         val game = gameWith(blanks = setOf(10), givens = setOf(4, 13, 22, 31))
         for (dir in listOf(0 to 1, 0 to -1, 1 to 0, -1 to 0)) {

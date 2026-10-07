@@ -516,6 +516,9 @@ fun InkGridSketch(
  * | 暂停 / 继续 | 两条竖杠 / 一个三角 | 互补的一对（同一位置切换，形状必须相反） |
  * | 提示 | **灯泡**（灯罩 + 灯座 + 光线） | 通用符号；比"!"更不容易被误读成"警告" |
  * | 太阳 / 月牙 | 圆 + 光芒 / 缺一段的圆 | 显示的是"点下去会变成什么"，不是当前状态 |
+ * | 键位设置 | **键盘**（一个框里排着键） | 键位设置入口的唯一符号；框 + 两排错开的键 + 一条空格键，避免和"格子"混 |
+ * | 擦除键位 | **橡皮**（斜置方块 + 套圈 + 两道擦痕） | 比"一个叉"更像"擦掉"，也不会被读成"关闭 / 错误" |
+ * | 上 / 下 / 左 / 右 | **单向箭头**（杆 + 箭尖） | 四个方向互为 90° 旋转，形状一致、指向不同——设置抽屉里逐条列出，靠指向区分 |
  */
 enum class InkIcon {
     /** ← 返回菜单。 */
@@ -544,6 +547,42 @@ enum class InkIcon {
 
     /** 太阳：浅色纸面。 */
     Sun,
+
+    /** ⌨ 键位设置（键盘）。 */
+    Keyboard,
+
+    /** 橡皮：擦除键位。 */
+    Eraser,
+
+    /** ↑ 向上键位。 */
+    ArrowUp,
+
+    /** ↓ 向下键位。 */
+    ArrowDown,
+
+    /** ← 向左键位。 */
+    ArrowLeft,
+
+    /** → 向右键位。 */
+    ArrowRight,
+}
+
+/**
+ * 非交互的图标（列表 / 说明里的"图例"用）：**只画形状**，不参与点击与五态反馈。
+ *
+ * 与 [InkIconButton] 的分工：按钮要五态与读屏文案，图例只要"一眼认出这是什么"——
+ * 后者不该被当成可点的东西（`InkIconButton` 的 `enabled = false` 会把图标画成淡墨，正是这里不想要的）。
+ */
+@Composable
+fun InkIconGlyph(
+    icon: InkIcon,
+    modifier: Modifier = Modifier,
+    tint: Color = Ink.Black,
+    size: Dp = 24.dp,
+) {
+    Canvas(modifier = modifier.size(size)) {
+        drawInkIcon(icon, tint)
+    }
 }
 
 /**
@@ -727,7 +766,149 @@ private fun DrawScope.drawInkIcon(icon: InkIcon, color: Color) {
             }
             drawPath(path, color.copy(alpha = a), style = Stroke(width = w, cap = StrokeCap.Round))
         }
+
+        // 键盘（键位设置）：骨架是"**一个框里排着键**"——框 + 上排四键 / 下排三键**错开**
+        // + 一条更长的空格键。错开是关键：对齐成网格就会被读成"表格 / 棋盘"。
+        InkIcon.Keyboard -> drawKeyboard(c, r, w, color, a)
+
+        // 橡皮（擦除键位）：斜置的方块 + 一道套圈 + 底下的两道擦痕
+        InkIcon.Eraser -> drawEraser(c, r, w, color, a)
+
+        // 四个方向互为 90° 旋转：形状完全一致、只有指向不同，设置抽屉里逐条列出时靠指向区分
+        InkIcon.ArrowUp -> drawArrow(c, r, w, color, a, dirX = 0f, dirY = -1f, seed = 80)
+        InkIcon.ArrowDown -> drawArrow(c, r, w, color, a, dirX = 0f, dirY = 1f, seed = 84)
+        InkIcon.ArrowLeft -> drawArrow(c, r, w, color, a, dirX = -1f, dirY = 0f, seed = 88)
+        InkIcon.ArrowRight -> drawArrow(c, r, w, color, a, dirX = 1f, dirY = 0f, seed = 92)
     }
+}
+
+/**
+ * 单向箭头（四个方向键位共用）：一根杆 + 两条箭尖，靠 [dirX] / [dirY] 旋转。
+ *
+ * 与「返回」图标刻意不同：返回是**横杆 + 上下两撇**的扁箭头，方向键位是**细长杆 + 收拢的箭尖**——
+ * 两者都要在 36dp 里出现，骨架必须分开，否则"返回菜单"和"向左"会混。
+ */
+private fun DrawScope.drawArrow(
+    center: Offset,
+    radius: Float,
+    width: Float,
+    color: Color,
+    alpha: Float,
+    dirX: Float,
+    dirY: Float,
+    seed: Int,
+) {
+    val tip = Offset(center.x + dirX * radius, center.y + dirY * radius)
+    val tail = Offset(center.x - dirX * radius, center.y - dirY * radius)
+    val normal = Offset(-dirY, dirX) // 垂直于指向，用来张开支箭尖
+    inkLine(tail, tip, width, color, seed, alpha)
+    val back = Offset(dirX, dirY) * radius * 0.72f
+    inkLine(tip, tip - back + normal * (radius * 0.5f), width, color, seed + 1, alpha)
+    inkLine(tip, tip - back - normal * (radius * 0.5f), width, color, seed + 2, alpha)
+}
+
+/** 键盘：外框 + 两排错开的键 + 一条更长的空格键。 */
+private fun DrawScope.drawKeyboard(
+    center: Offset,
+    radius: Float,
+    width: Float,
+    color: Color,
+    alpha: Float,
+) {
+    val halfW = radius
+    val halfH = radius * 0.82f
+    inkRoundRect(
+        rect = Rect(center.x - halfW, center.y - halfH, center.x + halfW, center.y + halfH),
+        radiusPx = radius * 0.20f,
+        widthPx = width,
+        color = color,
+        seed = 60,
+        alpha = alpha,
+    )
+    val keyW = radius * 0.26f
+    // 上排 4 键
+    for (i in 0..3) {
+        val x = center.x + (i - 1.5f) * radius * 0.5f
+        inkLine(
+            Offset(x, center.y - halfH * 0.48f),
+            Offset(x + keyW, center.y - halfH * 0.48f),
+            width * 0.8f,
+            color,
+            61 + i,
+            alpha,
+        )
+    }
+    // 下排 3 键（与上排错开半格，才像键盘而不像表格）
+    for (i in 0..2) {
+        val x = center.x + (i - 1f) * radius * 0.5f
+        inkLine(
+            Offset(x, center.y - halfH * 0.02f),
+            Offset(x + keyW, center.y - halfH * 0.02f),
+            width * 0.8f,
+            color,
+            70 + i,
+            alpha,
+        )
+    }
+    // 空格键：明显更长的一条
+    inkLine(
+        Offset(center.x - radius * 0.5f, center.y + halfH * 0.46f),
+        Offset(center.x + radius * 0.5f, center.y + halfH * 0.46f),
+        width * 0.8f,
+        color,
+        74,
+        alpha,
+    )
+}
+
+/**
+ * 橡皮（擦除键位）：**斜置**的方块 + 腰部一道套圈 + 右下两道擦痕。
+ *
+ * 为什么斜置：正放的方块会被读成"按钮"或"格子"（这两者画面里都有）；
+ * 斜着放才读作"一块橡皮横躺着擦过纸面"。擦痕是它的功能痕迹——没有擦痕就只是个方块。
+ */
+private fun DrawScope.drawEraser(
+    center: Offset,
+    radius: Float,
+    width: Float,
+    color: Color,
+    alpha: Float,
+) {
+    val deg = -22f * PI.toFloat() / 180f
+    val u = Offset(cos(deg), sin(deg)) // 长轴
+    val v = Offset(-u.y, u.x) // 短轴（法向）
+    val a = radius * 0.80f
+    val b = radius * 0.38f
+    fun corner(su: Float, sv: Float): Offset = center + u * (a * su) + v * (b * sv)
+
+    val p1 = corner(-1f, -1f)
+    val p2 = corner(1f, -1f)
+    val p3 = corner(1f, 1f)
+    val p4 = corner(-1f, 1f)
+    inkLine(p1, p2, width, color, 30, alpha)
+    inkLine(p2, p3, width, color, 31, alpha)
+    inkLine(p3, p4, width, color, 32, alpha)
+    inkLine(p4, p1, width, color, 33, alpha)
+    // 套圈（橡皮中间那道分界）
+    val midU = 0.25f
+    inkLine(corner(midU, -1f), corner(midU, 1f), width * 0.85f, color, 34, alpha)
+    // 两道擦痕：在橡皮右下方，短、斜、不与本体相撞
+    inkLine(
+        Offset(center.x + radius * 0.20f, center.y + radius * 0.72f),
+        Offset(center.x + radius * 0.72f, center.y + radius * 0.62f),
+        width * 0.8f,
+        color,
+        35,
+        alpha,
+    )
+    inkLine(
+        Offset(center.x + radius * 0.28f, center.y + radius * 0.98f),
+        Offset(center.x + radius * 0.80f, center.y + radius * 0.88f),
+        width * 0.8f,
+        color,
+        36,
+        alpha,
+    )
 }
 
 /**
