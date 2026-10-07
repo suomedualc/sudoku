@@ -10,14 +10,16 @@
   禁用用「虚线框」，可填性用「线重」，模式用「线型」。
 - **手绘而非几何**：所有边框、网格、勾选、排线都由 `inkLine / inkRoundRect / inkHatch` 绘制（折线微弯 + 叠一遍淡墨），
   抖动由纯函数种子生成，重绘时线条静止不闪动。
-- **手写体**：取本机系统中文字写体（方正硬笔楷书 → 霞鹜文楷 → 楷体 → 华文楷体 → …），取不到时回退衬线体；字体不随包分发。
+- **手写体**：字体**随包分发**（见下）；万一装载失败，按「系统楷书（方正硬笔楷书 → 楷体 → 华文楷体 → …）→ 衬线体」兜底，绝不因缺字体而崩。
 - **留白优先**：间距节奏比 Material 更疏（16 / 24 / 32 / 48 dp），不靠装饰块分区。
 - **排版阶梯只有六档**（`Ink.Type`：12 / 14 / 16 / 20 / 28 / 40，各带字距与行高）；层级靠"字号 + 字距 + 墨的浓淡"，
   不用字重（系统手写体没有真 Bold，合成粗体会发虚）。
 - **纸三层、墨四级**：`Paper` → `PaperShade` → `PaperSheet` 表达上下层级；`Black` / `Grey` / `Light` 都可当正文（≥ WCAG AA），
   `Faint` 只用于禁用态。设计评审与量算方式见 `docs/07`。
-- **字体打包分发**：正文 / 标题用**霞鹜文楷**（LXGW WenKai），数字用 **Nunito**（棋盘格内数字与数字键盘键位）。
-  两者均 SIL OFL 1.1，随包分发、跨设备字形一致；选型理由与授权见 `docs/02` §2.3。
+- **字体打包分发**：正文 / 标题用**霞鹜文楷**（LXGW WenKai），数字用 **Nunito**——棋盘格内数字 / 笔记 / 候选、
+  数字键盘键位，以及**计时 / 进度 / 通关用时**（夹在句子里的数字仍走正文）；数字族带**霞鹜文楷回退**，
+  混进中文（如暂停时计时位显示「已暂停」）不会变豆腐块。两者均 SIL OFL 1.1，随包分发、跨设备字形一致；
+  选型理由与授权见 `docs/02` §2.3。
 - 主题固定浅色纸面；「夜墨」反色主题位于路线图（`docs/05`）。
 
 ## 功能
@@ -109,7 +111,7 @@ org.example.sudoku
 
 ```powershell
 .\gradlew.bat :composeApp:run                  # 桌面直接运行
-.\gradlew.bat :composeApp:jvmTest --offline    # 单元测试 + UI 测试（53 项）
+.\gradlew.bat :composeApp:jvmTest --offline    # 单元测试 + UI 测试（71 项）
 .\gradlew.bat :composeApp:createDistributable --offline   # 便携版（build/compose/binaries/main/app）
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1   # 实机冒烟（置顶 + 固定坐标，自动截图）
 # 根目录 SudokuInk.lnk 指向上面的便携版，双击即可预览（本机快捷方式，不入库）

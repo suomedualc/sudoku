@@ -2,6 +2,7 @@ package org.example.sudoku.ui.theme
 
 import java.awt.Font
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -41,6 +42,15 @@ class BundledFontsTest {
     fun themeFamiliesResolveFromBundledFonts() {
         assertNotNull(textFontFamily(), "正文 FontFamily 应解析成功（打包霞鹜文楷）")
         assertNotNull(digitFontFamily(), "数字 FontFamily 应解析成功（打包 Nunito）")
+    }
+
+    @Test
+    fun digitFamilyIsNunitoWithCjkFallback() {
+        val family = digitFontFamily()
+        assertNotNull(family, "数字 FontFamily 应解析成功")
+        // 数字族必须是回退链：Nunito 优先 + 霞鹜文楷兜底。
+        // 少了兜底，一旦数字样式的位置上出现中文（如暂停时计时位显示「已暂停」）就会渲染成豆腐块。
+        assertEquals(2, digitFontChain().size, "数字族应是「Nunito + 霞鹜文楷」两条回退链")
     }
 
     private fun load(resource: String): Font? = try {

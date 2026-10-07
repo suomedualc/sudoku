@@ -398,12 +398,16 @@ private fun StatusLine(game: Game, state: GameState, done: Int, total: Int) {
             InkText(text = game.difficulty.label, style = Ink.Type.Body.copy(color = Ink.Grey))
             InkText(
                 text = if (state.paused) "已暂停" else Sudoku.formatDuration(state.elapsed),
-                style = Ink.Type.Body,
+                // 计时是数字读数：走 Nunito 且字距为 0——秒数跳动时不会因等宽与否而左右晃
+                style = Ink.digitStyle(Ink.Type.Body.fontSize),
             )
             if (state.hintsCount > 0) {
                 InkText(text = "提示 ×${state.hintsCount}", style = Ink.Type.Caption.copy(color = Ink.Grey))
             }
-            InkText(text = "$done / $total", style = Ink.Type.Body.copy(color = Ink.Grey))
+            InkText(
+                text = "$done / $total",
+                style = Ink.digitStyle(Ink.Type.Body.fontSize, color = Ink.Grey),
+            )
         }
         Spacer(Modifier.height(DesignTokens.Spacing.Sm))
         InkDivider(seed = 5)

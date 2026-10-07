@@ -89,7 +89,12 @@ object Ink {
      */
     val FontText: FontFamily get() = textFontFamily() ?: FontFamily.Serif
 
-    /** 数字字体：**打包 Nunito**（圆润人文无衬线，OFL 1.1），用于棋盘格内数字与数字键盘键位。 */
+    /**
+     * 数字字体：**打包 Nunito**（圆润人文无衬线，OFL 1.1），**中文回退霞鹜文楷**。
+     *
+     * 用于一切"数字读数"：棋盘格内数字 / 笔记 / 候选、数字键盘键位、计时、进度、通关用时。
+     * 混进中文时（如暂停时计时位显示「已暂停」）由霞鹜文楷接住，不会出现豆腐块。
+     */
     val FontDigits: FontFamily get() = digitFontFamily() ?: FontFamily.SansSerif
 
     /** 墨字（正文）：默认字距略放宽，模拟手写呼吸感。 */
