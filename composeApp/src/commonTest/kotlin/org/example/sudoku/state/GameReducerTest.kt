@@ -363,19 +363,40 @@ class GameReducerTest {
     }
 
     @Test
-    fun shiftArrowComesBackToACellThePlayerJustFilled() {
-        // 需求：填完一格之后还能用方向键回到那一格去擦 / 改。
-        // 默认方向键是"空格优先"（为了填数效率），逐格移动（includeFilled）才是回头的通道。
+    fun bindKeyBackToDefaultClearsTheCustomBinding() {
+        // 捕获态按退格 = UI 派发 BindKey(action, 默认令牌)：自定义键位被清掉，动作回到方向键
+        val custom = reduce(newGame(), GameAction.BindKey(KeyAction.Up, "W"))
+        assertEquals("W", custom.keyMap.up)
+        val cleared = reduce(custom, GameAction.BindKey(KeyAction.Up, KeyMap.DEFAULT.token(KeyAction.Up)))
+        assertEquals(KeyTokens.UP, cleared.keyMap.up, "清除后应回到默认的方向键")
+    }
+
+    @Test
+    fun arrowComesBackToACellThePlayerJustFilled() {
+        // 需求：填完一格之后，**普通方向键**就能回到那一格去擦 / 改（不需要修饰键）。
+        // 逐格模式：一次走一格，已填格也算一步——所以"右走一格、左走一格"必回到原点。
         val first = firstEmpty(newGame())
         var state = reduce(newGame(), GameAction.Select(first))
         state = reduce(state, GameAction.Digit(4)) // 填好，光标还在原地
         assertEquals(4, state.game!!.current[first])
 
-        // 逐格往右走一格、再逐格走回来：应回到刚填过的那一格（于是可以擦 / 改它）。
-        // 用"一来一回"而不是直接算坐标：落点依赖盘面，来回一趟才是不依赖具体题面的断言。
-        val right = reduce(state, GameAction.Move(0, 1, includeFilled = true))
-        val back = reduce(right, GameAction.Move(0, -1, includeFilled = true))
-        assertEquals(first, back.selected, "逐格模式应能回到刚填过的那一格")
+        val right = reduce(state, GameAction.Move(0, 1))
+        val back = reduce(right, GameAction.Move(0, -1))
+        assertEquals(first, back.selected, "按一次 ← 应回到刚填的那一格")
+    }
+
+    @Test
+    fun filledCellCanBeErasedThenRewrittenFromTheKeyboard() {
+        // 回到已填格之后的完整动作链：擦掉 → 再填别的数
+        val first = firstEmpty(newGame())
+        var state = reduce(newGame(), GameAction.Select(first))
+        state = reduce(state, GameAction.Digit(4))
+
+        state = reduce(state, GameAction.Digit(0)) // 擦除
+        assertEquals(0, state.game!!.current[first], "擦除后该格应为空")
+
+        state = reduce(state, GameAction.Digit(7)) // 改填别的数
+        assertEquals(7, state.game!!.current[first], "擦掉之后可以改填别的数字")
     }
 
     @Test

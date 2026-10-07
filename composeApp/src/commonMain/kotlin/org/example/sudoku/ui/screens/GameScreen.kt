@@ -213,9 +213,11 @@ fun GameScreen(
     /**
      * 键位设置抽屉内的键：**捕获态时任何可识别的按键都算"绑定"**。
      *
-     * 两条细节：
+     * 几条细节：
      * - `Esc` **先**退出捕获态、不关抽屉（关抽屉是"没有捕获"时的行为）——
      *   否则玩家想取消一次绑定，却把整个抽屉关掉了；
+     * - **退格 = 清掉现有设置**（该动作复位为默认键位），并且**保持捕获态**——
+     *   玩家的动作序列是"清掉 → 直接按新键"，中间不必再点一次按钮；
      * - 绑不了的键（修饰键 / F1 等）**保持捕获态**并继续等，不当成"确认"，
      *   否则按一下 Shift 就等于绑了个按不出来的键。
      */
@@ -225,6 +227,11 @@ fun GameScreen(
             false
         } else if (event.key == Key.Escape) {
             capturing = null
+            true
+        } else if (event.key == Key.Backspace) {
+            // "清除现有设置"：复位为该动作的默认键位，然后**继续等新键**。
+            // 每个动作永远有一个键可用——清空不是"没有键"，否则方向键就动不了了。
+            dispatch(GameAction.BindKey(target, KeyMap.DEFAULT.token(target)))
             true
         } else {
             val token = KeyToken.of(event)
@@ -835,8 +842,8 @@ private fun handleKeyEvent(
     if (token != null) {
         val move = state.keyMap.move(token)
         if (move != null) {
-            // Shift = 逐格模式：不跳过已填格，靠它回到刚填过的格子去改 / 擦
-            onAction(GameAction.Move(move.first, move.second, includeFilled = event.isShiftPressed))
+            // 默认逐格（可停在已填格，回去改 / 擦）；Shift = 跳到下一个空格（快速推进）
+            onAction(GameAction.Move(move.first, move.second, jumpToBlank = event.isShiftPressed))
             return true
         }
         if (state.keyMap.isErase(token)) {

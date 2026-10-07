@@ -80,64 +80,62 @@ class CellCursorTest {
         }
     }
 
-    // ---------- 方向键 ----------
+    // ---------- 方向键（默认**逐格**：可停在已填格；Shift 跳到下一个空格） ----------
 
     @Test
-    fun arrowMovesToTheNearestBlankInThatDirection() {
-        val game = gameWith(blanks = setOf(30, 33)) // 第 4 行：列 4 与列 7
-        assertEquals(30, CellCursor.nextInDirection(game, 27, 0, 1), "→ 停在最近的空格")
-        assertEquals(33, CellCursor.nextInDirection(game, 30, 0, 1))
-        assertEquals(30, CellCursor.nextInDirection(game, 33, 0, 1), "环绕：本行末尾之后回到本行开头")
+    fun arrowStepsToTheNextEditableCell() {
+        // 逐格：一次走一格，**可以停在已填的格子上**——这是"回到刚填的那格去改 / 擦"的通道
+        val game = gameWith(blanks = setOf(30, 33)) // 第 4 行：列 4 与列 7 空着
+        assertEquals(28, CellCursor.nextInDirection(game, 27, 0, 1), "紧邻的已填格也算一步")
+        assertEquals(29, CellCursor.nextInDirection(game, 28, 0, 1), "再走一格（29 也是已填格）")
+        assertEquals(30, CellCursor.nextInDirection(game, 29, 0, 1), "走到空格")
     }
 
     @Test
     fun arrowStaysInItsOwnRowOrColumn() {
-        val game = gameWith(blanks = setOf(4, 22, 58))
-        assertEquals(22, CellCursor.nextInDirection(game, 4, 1, 0), "↓ 只在同一列里走")
-        assertEquals(58, CellCursor.nextInDirection(game, 22, 1, 0), "↓ 绕过本列的题面 / 已填格")
-        assertEquals(4, CellCursor.nextInDirection(game, 22, -1, 0), "↑ 回到本列上方的空格")
+        val game = gameWith(blanks = setOf(4, 22, 58)) // 第 1 列：行 1 / 3 / 7 空着
+        val down = CellCursor.nextInDirection(game, 4, 1, 0)
+        assertEquals(Sudoku.colOf(4), Sudoku.colOf(down), "↓ 只在同一列里走")
+        assertEquals(13, down, "逐格：13 是已填格也算一步")
+        val jump = CellCursor.nextInDirection(game, 4, 1, 0, jumpToBlank = true)
+        assertEquals(22, jump, "Shift+↓ 跳过已填格，停在下一个空格")
     }
 
     @Test
     fun arrowSkipsGivenCells() {
-        // 第 4 行：30 是题面格，33 是空格
-        val game = gameWith(blanks = setOf(27, 33), givens = setOf(30))
-        assertEquals(33, CellCursor.nextInDirection(game, 27, 0, 1), "题面格改不动，不停在它上面")
-    }
-
-    @Test
-    fun arrowFallsBackToAnEditableCellWhenThatRowHasNoBlank() {
-        // 整行都填满了：若只认空格，键盘玩家就再也回不到自己填过的格子上去改它
-        val game = gameWith(blanks = setOf(0), givens = setOf(30))
-        val landed = CellCursor.nextInDirection(game, 27, 0, 1)
-        assertEquals(28, landed, "本行无空格 → 退到第一个可编辑格")
-        assertEquals(0, game.puzzle[landed], "退到的必须是玩家自己填的格（可改 / 可擦），不能是题面格")
-    }
-
-    @Test
-    fun shiftArrowStepsThroughFilledCells() {
-        // 默认方向键是"空格优先"，会跳过自己填过的格子；
-        // Shift（blanksFirst = false）是**逐格**模式——回到刚填过的那一格去改 / 擦的通道
-        val game = gameWith(blanks = setOf(30, 33))
-        assertEquals(33, CellCursor.nextInDirection(game, 30, 0, 1), "普通模式：跳过已填格，停在空格")
-        assertEquals(31, CellCursor.nextInDirection(game, 30, 0, 1, blanksFirst = false), "逐格模式：就走一格")
-    }
-
-    @Test
-    fun shiftArrowStillSkipsGivenCells() {
-        // 逐格模式也不能停在题面格上：停在它上面按数字没反应，等于"键盘失灵"
+        // 第 4 行：28、29 是题面格
         val game = gameWith(blanks = setOf(27, 33), givens = setOf(28, 29))
-        val landed = CellCursor.nextInDirection(game, 27, 0, 1, blanksFirst = false)
+        val landed = CellCursor.nextInDirection(game, 27, 0, 1)
         assertEquals(30, landed, "连着两个题面格都要跳过，停在下一个可编辑格")
         assertEquals(0, game.puzzle[landed], "落点必须是玩家自己能改的格")
+    }
+
+    @Test
+    fun shiftArrowJumpsToTheNextBlank() {
+        // Shift = 快速推进：一次跨过已填格，停在下一个空格
+        val game = gameWith(blanks = setOf(30, 33))
+        assertEquals(30, CellCursor.nextInDirection(game, 27, 0, 1, jumpToBlank = true))
+        assertEquals(33, CellCursor.nextInDirection(game, 30, 0, 1, jumpToBlank = true))
+        assertEquals(30, CellCursor.nextInDirection(game, 33, 0, 1, jumpToBlank = true), "环绕：本行末尾之后回到本行开头")
+    }
+
+    @Test
+    fun shiftArrowFallsBackToAnEditableCellWhenTheRowHasNoBlank() {
+        // 整行都填满了：若只认空格，键盘玩家就再也回不到自己填过的格子上去改它
+        val game = gameWith(blanks = setOf(0), givens = setOf(30))
+        val landed = CellCursor.nextInDirection(game, 27, 0, 1, jumpToBlank = true)
+        assertEquals(28, landed, "本行无空格 → 退到第一个可编辑格")
+        assertEquals(0, game.puzzle[landed], "退到的必须是玩家自己填的格（可改 / 可擦），不能是题面格")
     }
 
     @Test
     fun arrowNeverLandsOnAGivenCell() {
         val game = gameWith(blanks = setOf(10), givens = setOf(4, 13, 22, 31))
         for (dir in listOf(0 to 1, 0 to -1, 1 to 0, -1 to 0)) {
-            val landed = CellCursor.nextInDirection(game, 40, dir.first, dir.second)
-            assertEquals(0, game.puzzle[landed], "从 40 往 $dir 不应落在题面格 $landed 上")
+            for (jump in listOf(false, true)) {
+                val landed = CellCursor.nextInDirection(game, 40, dir.first, dir.second, jumpToBlank = jump)
+                assertEquals(0, game.puzzle[landed], "从 40 往 $dir（jump=$jump）不应落在题面格 $landed 上")
+            }
         }
     }
 

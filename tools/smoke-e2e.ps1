@@ -80,6 +80,7 @@ $script:VK = @{
     # 主键盘数字键 1..9（应用里对应填数）
     Digit1 = 0x31; Digit2 = 0x32; Digit3 = 0x33; Digit4 = 0x34; Digit5 = 0x35
     Digit6 = 0x36; Digit7 = 0x37; Digit8 = 0x38; Digit9 = 0x39
+    Digit0 = 0x30; Backspace = 0x08
     # 自定义键位冒烟用：W 绑「向上」、D 绑「向右」
     W = 0x57
     D = 0x44
@@ -362,6 +363,16 @@ try {
         Save-Shot $p 'keys_fill_advances_again'
         Send-Key $p 'Digit9'                      # 填 80 → 宫 8 已满 → 跳回 77
         Save-Shot $p 'keys_box_full_falls_back'
+        # ⑦ **普通方向键**（不加 Shift）也要能回到已填的格子：
+        #    ← 从 77 出发越过一串题面格，落在 80（刚填的 9）上
+        Send-Key $p 'Left' $script:KeyExtended
+        Save-Shot $p 'keys_back_to_filled'
+        # ⑧ 擦掉它（光标停在已填格上，按 0 = 擦除；擦除不触发跳转）
+        Send-Key $p 'Digit0'
+        Save-Shot $p 'keys_erased'
+        # ⑨ 再填上别的数（修改）
+        Send-Key $p 'Digit9'
+        Save-Shot $p 'keys_refilled'
         Stop-App $p
     }
 
@@ -383,7 +394,18 @@ try {
         Save-Shot $p 'keymap_capturing'
         Send-Key $p 'W'
         Save-Shot $p 'keymap_bound_w'
-        # ④ 点「向右」的键位按钮 → 捕获态 → 按 D
+        # ④ 再点一次 → 捕获态 → 按**退格**：清除现有设置（复位为默认 ↑）
+        Send-Click $p 780 140
+        Send-Key $p 'Backspace'
+        # ⑤ 退出捕获态看一眼：按钮应显示默认的 ↑ 而不是 W——这才证明"清掉的是自定义绑定"
+        #    （若是 Esc 取消捕获，按钮还会停在 W）
+        Send-Key $p 'Escape'
+        Save-Shot $p 'keymap_cleared'
+        # ⑥ 清完再点一次 → 按 W 绑回（"清除 → 再设"两步都走通）
+        Send-Click $p 780 140
+        Send-Key $p 'W'
+        Save-Shot $p 'keymap_rebound_w'
+        # ⑥ 点「向右」的键位按钮 → 捕获态 → 按 D
         Send-Click $p 780 278
         Send-Key $p 'D'
         Save-Shot $p 'keymap_bound_d'

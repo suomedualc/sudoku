@@ -54,7 +54,7 @@ object GameReducer {
         GameAction.Deselect -> Reduction(state.copy(selected = null))
 
         is GameAction.Digit -> place(state, action.value, action.advance)
-        is GameAction.Move -> move(state, action.dRow, action.dCol, action.includeFilled)
+        is GameAction.Move -> move(state, action.dRow, action.dCol, action.jumpToBlank)
         // 键位：只改 keyMap，不动选中格也不动盘面；冲突（一键兼两职）由 KeyMap.bind 处理
         is GameAction.BindKey -> Reduction(state.copy(keyMap = state.keyMap.bind(action.action, action.token)))
 
@@ -171,10 +171,10 @@ object GameReducer {
      * 没有选中格时（开局、或刚点了棋盘外的空白清掉选中）**从第一个空格起算**——
      * 否则方向键按下去没有任何反应，玩家会以为键盘坏了。
      *
-     * [includeFilled]（Shift + 方向键）走**逐格**模式：不跳过已填格，
-     * 玩家靠它回到刚填过的那一格去改 / 擦。
+     * [jumpToBlank]（Shift + 方向键）跳到方向上的**下一个空格**；默认**逐格**，
+     * 可以停在玩家自己填过的格子上——"填完回去改 / 擦"因此不需要任何修饰键。
      */
-    private fun move(state: GameState, dRow: Int, dCol: Int, includeFilled: Boolean): Reduction {
+    private fun move(state: GameState, dRow: Int, dCol: Int, jumpToBlank: Boolean): Reduction {
         if (!state.interactive) return Reduction(state)
         val game = state.game ?: return Reduction(state)
         val from = state.selected ?: CellCursor.firstEmpty(game.current) ?: return Reduction(state)
@@ -185,7 +185,7 @@ object GameReducer {
                     from = from,
                     dRow = dRow,
                     dCol = dCol,
-                    blanksFirst = !includeFilled,
+                    jumpToBlank = jumpToBlank,
                 ),
             ),
         )

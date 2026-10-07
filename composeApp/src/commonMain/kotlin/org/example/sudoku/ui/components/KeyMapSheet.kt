@@ -84,10 +84,17 @@ fun KeyMapSheet(
         InkButton(text = "恢复默认键位", onClick = onResetDefaults, compact = true)
     }
     Spacer(Modifier.height(DesignTokens.Spacing.Sm))
-    // 三条兜底必须写在这里：键位设置是为了"更好用"，不能让人把自己锁在门外
+    // 绑定手势与兜底必须写在这里：键位设置是为了"更好用"，不能让人把自己锁在门外
     InkText(
-        text = "方向键始终可移动，退格 / Del 始终可擦除；" +
-            "按住 Shift 再按方向键可逐格移动（经过自己填过的格子，便于回去改）",
+        text = "点键位 → 按新键；按退格清除该键位（恢复默认），按 Esc 取消",
+        modifier = Modifier.fillMaxWidth(),
+        style = Ink.Type.Meta.copy(color = Ink.Light),
+        textAlign = TextAlign.Center,
+    )
+    Spacer(Modifier.height(DesignTokens.Spacing.Xs))
+    InkText(
+        text = "方向键逐格移动，可停在已填的格子上回去改 / 擦；" +
+            "Shift + 方向键跳到下一个空格；退格 / Del 始终可擦除",
         modifier = Modifier.fillMaxWidth(),
         style = Ink.Type.Meta.copy(color = Ink.Light),
         textAlign = TextAlign.Center,
@@ -165,7 +172,8 @@ fun KeyHintRow(keyMap: KeyMap, modifier: Modifier = Modifier) {
         append(" · 提示「H」")
         append(" · 暂停「P」")
         append(" · 撤销「Ctrl+Z」")
-        append(" · Shift+方向 逐格（可回到已填的格子）")
+        append(" · 方向键逐格（可回到已填格）")
+        append(" · Shift+方向 跳下一个空格")
     }
     InkText(
         text = text,

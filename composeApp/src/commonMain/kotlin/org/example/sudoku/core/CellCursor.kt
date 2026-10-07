@@ -39,20 +39,20 @@ object CellCursor {
      *
      * 1. **只在本行 / 本列内走**：按 ← 却跳到上一行，玩家会立刻失去方向感；
      * 2. **跳过题面格**：题面改不动，光标停在上面只会表现为"按数字没反应"；
-     * 3. **该行 / 列没有空格时，退到"可编辑格"**（玩家自己填过的格）——
-     *    否则一旦某行填满，键盘玩家就**再也回不到自己填过的格子上去改它**了。
-     *    这条是"只在空格间跳"最容易漏掉的漏洞。
+     * 3. **停在"可编辑格"**（空格**或**玩家自己填过的格）——
+     *    只认空格的话，填完一格就再也回不到那一格上去改 / 擦了；
+     *    这是"方向键能回到已填格"的根本保证。
      *
-     * [blanksFirst] = false 时是**逐格模式**（`Shift` + 方向键）：停在方向上的**第一个可编辑格**，
-     * 不管它是空的还是自己填过的。玩家靠它回到刚填过的那一格去擦 / 改；
-     * 默认模式（true）则为了填数效率跳过已填格。
+     * [jumpToBlank] = true（`Shift` + 方向键）时改为**跳到方向上的下一个空格**：
+     * 一次跨过已填的格，用于"我想找下一个待填格"的快速推进；
+     * 默认（false）是**逐格**：一次走一格，最可预测，也是"回到上一格改一下"的自然方式。
      */
     fun nextInDirection(
         game: Game,
         from: Int,
         dRow: Int,
         dCol: Int,
-        blanksFirst: Boolean = true,
+        jumpToBlank: Boolean = false,
     ): Int {
         var firstEditable: Int? = null
         var pos = from
@@ -62,8 +62,8 @@ object CellCursor {
             val col = (Sudoku.colOf(pos) + dCol + 9) % 9
             pos = row * 9 + col
             if (Sudoku.isGiven(game, pos)) return@repeat
-            if (!blanksFirst) return pos
             if (firstEditable == null) firstEditable = pos
+            if (!jumpToBlank) return pos
             if (game.current[pos] == 0) return pos
         }
         return firstEditable ?: from

@@ -29,13 +29,13 @@ sealed interface GameAction {
     data object FocusFirstEmpty : GameAction
 
     /**
-     * 方向键移动光标（沿方向找下一个空格，见 [CellCursor.nextInDirection]）。
+     * 方向键移动光标（见 [CellCursor.nextInDirection]）。
      *
-     * [includeFilled] = true 时**逐格**移动（经过自己填过的格子）——
-     * 这是"回到刚填的那一格去改它"的通道：默认的方向键是**空格优先**，会跳过已填格，
-     * 光靠它就再也选不中自己填过的格子了。
+     * 默认**逐格**：停在方向上的下一个可编辑格——**可以是玩家自己填过的格**，
+     * 因此"填完 → 按方向键回去 → 擦掉 / 改掉"是直接可用的（不需要任何修饰键）。
+     * [jumpToBlank] = true（Shift + 方向键）改为跳到方向上的**下一个空格**，用于快速推进。
      */
-    data class Move(val dRow: Int, val dCol: Int, val includeFilled: Boolean = false) : GameAction
+    data class Move(val dRow: Int, val dCol: Int, val jumpToBlank: Boolean = false) : GameAction
 
     /**
      * 绑定一个键位（见 [KeyMap.bind]）。令牌由 `ui` 层从按键事件换算后传入，
