@@ -25,6 +25,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -254,13 +255,15 @@ private fun BoardCanvasDrawing(
             val r = cellRect(pos)
             val value = game.current[pos]
             if (value != 0) {
-                // 「题面是印的，你填的是写的」——两类数字用**三种信号**分开，任取其一都看得出来：
-                //   ① 墨的浓淡：给定用一墨（最浓），玩家填入用二墨；
-                //   ② 字形：给定走数字族 Nunito（印刷体），玩家填入走正文族霞鹜文楷（手写体）；
-                //   ③ 读屏文案（cellA11yLabel）也分别念「给定」/「填入」。
+                // 「题面是印的，你填的是写的」——两类数字用**四种信号**分开，任取其一都看得出来：
+                //   ① **字框**：给定数字套一枚手绘方框（专属标识符，见 drawTypeBox）；
+                //   ② 墨的浓淡：给定用一墨（最浓），玩家填入用二墨；
+                //   ③ 字形：给定走数字族 Nunito（印刷体），玩家填入走正文族霞鹜文楷（手写体）；
+                //   ④ 读屏文案（cellA11yLabel）也分别念「给定」/「填入」。
                 // 用字形而不是字重，是因为包里只打了一份 Nunito（Regular）：请求 Bold 会退回系统字体，
                 // 反而让"给定数字"换了一副字形，看起来像 bug。
                 val isGiven = Sudoku.isGiven(game, pos)
+                if (isGiven) drawTypeBox(r, cellPx, seed = pos * 3 + 5)
                 val color = if (isGiven) Ink.Black else Ink.Grey
                 val fontSizePx = cellPx * 0.52f
                 val layout = valueCache.cached(InkTextKey(value, color.value, fontSizePx.toInt(), isGiven)) {
@@ -450,6 +453,40 @@ private data class InkTextKey(
  * 与玩家笔记（[Ink.Light] 实墨）拉开层次——候选是"系统算出来的背景信息"，笔记是"自己写下的判断"。
  */
 private val CandidateColor: Color get() = Ink.Grey.copy(alpha = Ink.Alpha.Hint)
+
+/**
+ * 题面数字的「字框」标识符：给给定数字套一枚手绘圆角方框（铅字落在自己的字框里）。
+ *
+ * **为什么要给题面数字一枚专属标识，而不是继续调字形 / 墨色**：
+ * 字形（印刷体 vs 手写体）与墨色浓淡都属于**中心视觉**——必须逐格看清、逐个数字比对才分得出来；
+ * 玩家真正想要的是"一眼扫过就知道哪些是我填的"。给题面数字一个**独有形状**，
+ * 才能让"一屏之内多数数字带框、只有少数不带框"在余光里就成立。
+ *
+ * **为什么不做"整格压印底"**（试过并与 [Ink.Alpha.Wash] 撞车，见 `docs/02` §5.1）：
+ * 亮度轴已经被临时高亮占满了——选中用 [Ink.Alpha.WashStrong]、同数字用 [Ink.Alpha.Wash]、
+ * 同行列宫再用一档。常驻标识若也走亮度，等于往同一条通道里挤第三层信息，
+ * 结果是"选中第几行"和"哪些是题面"互相糊掉（截图实测如此）。
+ * **常驻标识走形状、临时状态走亮度**，两条通道互不干扰，是这一版真正立住的地方。
+ *
+ * **为什么用 [inkRoundRect] 而不是 `drawRoundRect`**：与标题框、面板用同一支笔，
+ * 微弯 + 叠墨的手绘感一致；纯几何圆角框在全手绘画面里会显得像贴上去的控件。
+ */
+private fun DrawScope.drawTypeBox(rect: Rect, cellPx: Float, seed: Int) {
+    val side = cellPx * 0.74f
+    inkRoundRect(
+        rect = Rect(
+            left = rect.left + (cellPx - side) / 2f,
+            top = rect.top + (cellPx - side) / 2f,
+            right = rect.left + (cellPx + side) / 2f,
+            bottom = rect.top + (cellPx + side) / 2f,
+        ),
+        radiusPx = DesignTokens.Radius.Mark.toPx(),
+        widthPx = DesignTokens.Stroke.Thin.toPx(),
+        color = Ink.Black,
+        seed = seed,
+        alpha = Ink.Alpha.TypeBox,
+    )
+}
 
 /** 带容量保护的跨帧文本测量缓存（连续拖拽缩放窗口时不会无限增长）。 */
 private fun MutableMap<InkTextKey, TextLayoutResult>.cached(

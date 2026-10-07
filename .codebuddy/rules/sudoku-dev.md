@@ -1,4 +1,4 @@
-# 数独（手写纸 · 简约油墨）开发纪律 · v2.8
+# 数独（手写纸 · 简约油墨）开发纪律 · v2.9
 
 > 本文件是"系统层"上下文（自动加载），既是**强制规则**，也是本工程的**开发思路 / 选型依据 / 模块说明 / 迭代计划**的简版。
 > 详细论证见 `docs/01-架构设计.md`、`docs/02-设计规范.md`、`docs/03-开发流程.md`、`docs/05-发展规划.md`。
@@ -65,7 +65,7 @@
     **打包图标与运行时图标必须同源**：jpackage 只把图标嵌进 exe；AWT 窗口默认仍显示 JDK 的 Java 图标，
     因此 `jvmMain/main.kt` 必须显式设置 `window.iconImages`（PNG 经 `jvmMain { resources.srcDir("icons") }` 进 jar）。
 
-**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 96 项）+ **实机冒烟**
+**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 97 项）+ **实机冒烟**
 （`tools/smoke-e2e.ps1`，置顶 + 固定坐标，见 §5）+ **实机试玩**（§6 第 4–5 条）+ 肉眼验收四档窗口。
 
 ---
@@ -190,7 +190,7 @@
 | `jvmMain` | `main.kt`（1180×900 / 最小 940×720）· `platform/FileGameStore.kt`（`~/.sudoku-ink/save.txt`）· `ui/theme/InkFonts.jvm.kt` | ✅ 已启用 |
 | `androidMain` | `MainActivity` + `AndroidManifest`（主题已改系统内置） | ⏸ 未参与编译：缺 `androidTarget()` 与 `compileSdk 37`（`docs/05` §3.1） |
 
-### 3.5 十二个容易踩的坑
+### 3.5 十三个容易踩的坑
 
 1. `GameState` / `Game` 里是 `IntArray`，`data class` 的 `equals` 对数组是**引用比较**——不要用 `==` 做业务判断。
 2. `Snapshot` 必须覆盖"所有会被改的字段"（漏一个就会出现 `hintUsed` 回退而 `hintsCount` 不回退这类矛盾）。
@@ -218,12 +218,22 @@
     用 `change.pressed == false`（未按下 = 悬停），顺带排除手指拖动。
 12. **浮在按钮外的提示片必须用 `wrapContentSize(align, unbounded = true)`**：否则会被**按钮自己的 36dp 宽度**
     约束截断成"夜…"（看着像被窗口切掉，其实是量测约束太紧）；并按 `tooltipAlignment` 决定往哪边长。
+13. **常驻标识走形状、临时状态走亮度**：棋盘上的**亮度通道已被临时状态占满**——
+    选中 `Alpha.WashStrong`、同值 `Alpha.Wash`、同行列宫一档。任何"常驻"的标识若也铺一层底
+    （试过给题面格铺整格压印底），两层信息会在同一条通道里互相糊掉：选中一行时
+    "哪几格是题面"和"哪几格在同一行"分不出轻重；而且它**没法取值**——
+    取 `0.07` 就等于 `Wash`（同值高亮的空格看起来像题面格），取更重则盖住数字本身。
+    常驻的改用**线**（题面数字的「字框」`drawTypeBox`）。
+    同理：给"标识符"选墨色要两侧夹住（`InkThemeTest` 的 `typeBox...` 那项：
+    ≥ 1.5:1 才看得见、≤ 3.5:1 才不抢戏、且与一墨数字差一个量级），**两套主题各取一档**
+    （深底上同样浓度的线更亮，直接沿用浅色值会重近一倍）。
 
 ### 3.6 常见改动指引
 
 | 想做的事 | 步骤 |
 |---|---|
 | 改配色 / 线宽 | 只改 `Ink`（颜色墨阶）或 `DesignTokens.Stroke`（线宽），不要在组件里写死；**改色值必须同时给浅 / 深两套**并重算对比度（跑 `InkThemeTest`）；改完过一遍四档窗口 |
+| 改棋盘数字 / 加标识 | 常驻标识只走**形状**通道（见 §3.5 第 13 条），亮度留给临时高亮；新标识的墨色要**两侧夹住**（看得见 / 不抢戏）并写进 `InkThemeTest`；两套主题各取一档 |
 | 加一个玩法开关 | ① `GameState` 加字段 ② `GameAction` 加 `Toggle*` ③ reducer 处理 ④ `GameScreen.ToggleRow` 加一项（**棋盘下方开关行**，四项一排）⑤ 若影响规则，加测试 ⑥ 若要落盘，同步 `SaveCodec`（编码 + 解码 + 格式注释）⑦ **同步 `GameViewModel` 的 `SaveFile.toState()`**（见 §3.5 第 9 条） |
 | 加一个图标 | ① `InkIcon` 加枚举值 ② `drawInkIcon` 里用 `inkLine` / 弧线自绘（**不引图标库、不用图标字体**）③ 用 `InkIconButton` 承载，说明走 `contentDescription`（读屏读"撤销"，不读"一个圆圈带箭头"）——悬停提示默认就取它；只有需要更短文案时才显式传 `tooltip` ④ **贴窗口边缘的按钮必须传 `tooltipAlignment`**（否则提示片被窗口切掉） |
 | 改棋盘语义网格 | 只能用 `weight(1f)` 等分，**禁止 `fillMax*(1f/9f)`**——Column / Row 给子项的是"剩余"空间，逐格缩水会让读屏报的格子与实际错位（见 §3.5 第 10 条）。改完跑 `BoardCanvasUiTest`（它点的是**最后一格**哨兵） |
@@ -303,7 +313,7 @@
 - **精准投喂**：先 `@folder composeApp/src/commonMain` 预热，再用 `@file` / `@code` 定位；方法见 `docs/04`。
 - **负面约束随需求一起给**：把本文件 §0 的相关红线直接写进需求里。
 - **提交前自检清单**：
-  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（96 项）；改过 `state/` 或 `core/` 时必须补/改用例；
+  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（97 项）；改过 `state/` 或 `core/` 时必须补/改用例；
      动过字体 / 资源时跑 `BundledFontsTest`（字体在、family 对、中文/数字各归其位、**数字族的中文兜底链还在**）；
      动过棋盘绘制 / 语义层时要跑 `BoardCanvasUiTest`（81 节点 + 点击穿透 + 暂停遮读屏）；
      **动过配色必须跑 `InkThemeTest`**（两套主题的前三级都要 ≥ 4.5:1；新增色值必须同时给浅 / 深两套）；

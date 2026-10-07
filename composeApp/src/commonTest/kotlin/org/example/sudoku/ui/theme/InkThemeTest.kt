@@ -95,6 +95,32 @@ class InkThemeTest {
             assertTrue(luminance(Ink.PaperSheet) > luminance(Ink.Paper), "$theme：上层纸片应比底纸亮")
         }
     }
+
+    /**
+     * 题面数字的「字框」要"看得见"但"不抢戏"——它是解决"两类数字分不清"的常驻标识符，
+     * 取值同时被两个方向夹住：
+     *
+     * - 太淡 → 装了等于没装（"只调字形 / 墨色"那一版的失败点就在这里，肉眼几乎无感）；
+     * - 太浓 → 40–50 个框会盖过数字本身，还会和宫线混成一张表格。
+     *
+     * 下界 1.5:1 是"大面积背景上一条细线可辨"的实测经验线；上界 3.5:1 保证与一墨数字
+     * （≥ 4.5:1）之间留出量级差——这也是这条测试存在的意义：**人的手感会随显示器漂移，数字不会**。
+     */
+    @Test
+    fun typeBoxIsVisibleButDoesNotCompeteWithTheDigit() {
+        for (dark in listOf(false, true)) {
+            Ink.setDark(dark)
+            val theme = if (dark) "夜墨" else "纸墨"
+            val sheet = Ink.PaperSheet
+            val ratio = contrastRatio(over(Ink.Black, sheet, Ink.Alpha.TypeBox), sheet)
+            assertTrue(ratio >= 1.5, "$theme 的字框对纸只有 ${round2(ratio)}:1——看不见就等于没装")
+            assertTrue(ratio <= 3.5, "$theme 的字框对纸已达 ${round2(ratio)}:1——它不该盖过数字")
+            assertTrue(
+                contrastRatio(Ink.Black, sheet) > ratio * 4,
+                "$theme 的字框与题面数字必须有量级差：框住数字，但不跟数字一样重",
+            )
+        }
+    }
 }
 
 private const val AA_SMALL_TEXT = 4.5
@@ -107,6 +133,13 @@ private fun luminance(color: Color): Double {
     }
     return 0.2126 * channel(color.red) + 0.7152 * channel(color.green) + 0.0722 * channel(color.blue)
 }
+
+/** 半透明墨叠在纸上的实际观感（`DrawScope` 里 alpha 合成的结果）。 */
+private fun over(ink: Color, paper: Color, alpha: Float): Color = Color(
+    red = ink.red * alpha + paper.red * (1f - alpha),
+    green = ink.green * alpha + paper.green * (1f - alpha),
+    blue = ink.blue * alpha + paper.blue * (1f - alpha),
+)
 
 /** WCAG 2.1 对比度：(L1 + 0.05) / (L2 + 0.05)。 */
 private fun contrastRatio(a: Color, b: Color): Double {
