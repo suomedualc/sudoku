@@ -8,12 +8,14 @@
 #
 # Usage (one device per invocation):
 #   powershell -File tools\android-smoke.ps1 -AvdName Medium_Phone_API_35
+#   add -ReportOnly to just rebuild the aggregated live report and exit (no emulator).
 param(
     [Parameter(Mandatory = $true)][string]$AvdName,
     [string]$SdkRoot = 'D:\env\Android-SDK',
     [string]$Apk = 'D:\LESSON\sudoku\composeApp\build\outputs\apk\debug\composeApp-debug.apk',
     [string]$StringsFile = 'D:\LESSON\sudoku\tools\android-smoke-strings.txt',
-    [string]$OutRoot = 'D:\LESSON\sudoku\build\android-test'
+    [string]$OutRoot = 'D:\LESSON\sudoku\build\android-test',
+    [switch]$ReportOnly
 )
 $ErrorActionPreference = 'Continue'
 # .android/.gradle/.vcpkg migrated to D: drive with C: junction fallback (2026-10-08);
@@ -23,8 +25,6 @@ $adb = Join-Path $SdkRoot 'platform-tools\adb.exe'
 $emu = Join-Path $SdkRoot 'emulator\emulator.exe'
 $outDir = Join-Path $OutRoot $AvdName
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
-# reset last round's csv: results are appended incrementally per case from now on
-Remove-Item (Join-Path $outDir 'results.csv') -ErrorAction SilentlyContinue
 
 # localized strings
 $S = @{}
@@ -32,15 +32,132 @@ $S = @{}
     if ($_ -match '^(\w+)=(.*)$') { $S[$Matches[1]] = $Matches[2] }
 }
 
+# ---- results archive + live report -----------------------------------------------
+# results.csv (per device): append-only archive, one line per verdict, UTF8.
+# report.html (shared): rebuilt from ALL */results.csv after EVERY verdict; the browser
+# tab auto-refreshes every 3s, so progress / metrics / final verdicts are visible live.
+$csvPath = Join-Path $outDir 'results.csv'
+$reportPath = Join-Path $OutRoot 'report.html'
+$caseOrder = @('BOOT','INSTALL','COLD_START','T1_MENU_RENDER','T2_START_GAME','T3_SELECT_CELL','T4_FILL_DIGIT','T5_ERASE','T6_HINT','T7_PAUSE','T7_RESUME','T8_BACKGROUND_PAUSE','T8_RESUME_AFTER_BG','T9_KILL_RESTORE','T10_NIGHT_TOGGLE','T11_SETTINGS_DRAWER','T11_BACK_CLOSES_DRAWER','T12_GRID_FILL','T13_BACK_TO_MENU','T14_BACK_MENU_EXIT','MEM_PSS')
+
+function Esc([string]$s) {
+    if (-not $s) { return '' }
+    return ($s -replace '&', '&amp;' -replace '<', '&lt;' -replace '>', '&gt;')
+}
+function Case-Label([string]$case) {
+    $k = 'LBL_' + $case
+    if ($S.ContainsKey($k)) { return $S[$k] }
+    return $case
+}
+# merge one device's csv into a case -> verdict map; strongest verdict wins per case
+# (a case may record several lines on failure paths): PASS > FAIL > SKIP > INFO
+function Merge-CaseRows([string]$dir) {
+    $rows = @{}
+    $csv = Join-Path $dir 'results.csv'
+    if (-not (Test-Path $csv)) { return $rows }
+    foreach ($ln in [System.IO.File]::ReadAllLines($csv, [System.Text.Encoding]::UTF8)) {
+        if (-not $ln) { continue }
+        $i1 = $ln.IndexOf(',')
+        if ($i1 -lt 1) { continue }
+        $case = $ln.Substring(0, $i1)
+        $rest = $ln.Substring($i1 + 1)
+        $i2 = $rest.IndexOf(',')
+        if ($i2 -ge 0) { $status = $rest.Substring(0, $i2); $detail = $rest.Substring($i2 + 1) }
+        else { $status = $rest; $detail = '' }
+        $rank = @{ PASS = 4; FAIL = 3; SKIP = 2; INFO = 1 }[$status]
+        if (-not $rank) { $rank = 0 }
+        $old = $rows[$case]
+        $oldRank = if ($old) { $old['rank'] } else { -1 }
+        if ($rank -ge $oldRank) { $rows[$case] = @{ status = $status; detail = $detail; rank = $rank } }
+    }
+    return $rows
+}
+function Write-Report {
+    $devDirs = @(Get-ChildItem $OutRoot -Directory -ErrorAction SilentlyContinue | Where-Object { Test-Path (Join-Path $_.FullName 'results.csv') } | Sort-Object Name)
+    $maps = @{}
+    foreach ($d in $devDirs) { $maps[$d.Name] = Merge-CaseRows $d.FullName }
+    $sb = New-Object System.Text.StringBuilder
+    [void]$sb.AppendLine('<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="3"><title>' + (Esc $S['REPORT_TITLE']) + '</title>')
+    [void]$sb.AppendLine('<style>body{font-family:Segoe UI,system-ui,sans-serif;background:#171512;color:#e8e0d0;margin:24px}h1{font-size:22px;font-weight:600;margin:0 0 6px}.sub{color:#a89f8d;font-size:12px;margin-bottom:20px}.cards{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:22px}.card{background:#201d19;border:1px solid #35302a;border-radius:10px;padding:14px 18px;min-width:230px}.card h2{margin:0 0 8px;font-size:15px;color:#f0e9da}.state{font-size:11px;padding:2px 8px;border-radius:10px;margin-left:8px}.done{background:#2e4425;color:#a5d68a}.running{background:#443a25;color:#e5c07b}.metric{font-size:12px;color:#a89f8d;margin:3px 0}.metric b{color:#e8e0d0;font-weight:600}.vpass{color:#a5d68a;font-weight:700}.vfail{color:#ef9a8a;font-weight:700}.bar{height:6px;background:#2b2721;border-radius:3px;margin-top:8px;overflow:hidden}.bar i{display:block;height:100%;background:#7da271}.bar i.warn{background:#d98f5f}table{border-collapse:collapse;width:100%;max-width:1120px;background:#201d19;border:1px solid #35302a;border-radius:10px;overflow:hidden}th,td{padding:9px 14px;text-align:left;border-bottom:1px solid #2b2721;font-size:13px}th{background:#26221d;color:#a89f8d;font-size:12px;letter-spacing:1px}tr:last-child td{border-bottom:none}td.case{color:#f0e9da}.badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 10px;border-radius:10px;letter-spacing:.5px}.PASS{background:#2e4425;color:#a5d68a}.FAIL{background:#4a2320;color:#ef9a8a}.SKIP{background:#33302b;color:#9c948a}.INFO{background:#1f3340;color:#8ec3e0}.small{color:#a89f8d;font-size:11px;margin-left:8px}</style></head><body>')
+    [void]$sb.AppendLine('<h1>' + (Esc $S['REPORT_TITLE']) + '</h1>')
+    [void]$sb.AppendLine('<div class="sub">' + (Esc $S['R_META']) + ' &middot; ' + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + '</div>')
+    if ($devDirs.Count -eq 0) { [void]$sb.AppendLine('<div class="sub">' + (Esc $S['R_EMPTY']) + '</div>') }
+    [void]$sb.AppendLine('<div class="cards">')
+    foreach ($d in $devDirs) {
+        $rows = $maps[$d.Name]
+        $isDone = $rows.ContainsKey('T14_BACK_MENU_EXIT')
+        $stateCls = 'done'; $stateTxt = $S['R_STATE_DONE']
+        if (-not $isDone) { $stateCls = 'running'; $stateTxt = $S['R_STATE_RUNNING'] }
+        $cold = '-'
+        if ($rows.ContainsKey('COLD_START') -and ($rows['COLD_START']['detail'] -match 'TotalTime=(\d+)ms')) {
+            $ms = [int]$Matches[1]; if ($ms -gt 0) { $cold = '' + $ms + ' ms' }
+        }
+        $mem = '-'
+        if ($rows.ContainsKey('MEM_PSS') -and ($rows['MEM_PSS']['detail'] -match '(\d+)\s*kB')) {
+            $mem = '' + [int]([int]$Matches[1] / 1024) + ' MB'
+        }
+        $doneN = 0; $failN = 0
+        foreach ($c in $caseOrder) {
+            if ($c -eq 'COLD_START' -or $c -eq 'MEM_PSS') { continue }
+            if ($rows.ContainsKey($c)) {
+                $doneN++
+                if ($rows[$c]['status'] -eq 'FAIL') { $failN++ }
+            }
+        }
+        $totalN = $caseOrder.Count - 2
+        $pct = if ($totalN -gt 0) { [int](100 * $doneN / $totalN) } else { 0 }
+        [void]$sb.AppendLine('<div class="card"><h2>' + (Esc $d.Name) + '<span class="state ' + $stateCls + '">' + (Esc $stateTxt) + '</span></h2>')
+        [void]$sb.AppendLine('<div class="metric">' + (Esc $S['R_COLD']) + ' <b>' + $cold + '</b> &middot; ' + (Esc $S['R_MEM']) + ' <b>' + $mem + '</b></div>')
+        [void]$sb.AppendLine('<div class="metric">' + (Esc $S['R_PROGRESS']) + ' <b>' + $doneN + '/' + $totalN + '</b></div>')
+        if ($isDone) {
+            $v = $S['R_ALLPASS']; $vc = 'vpass'
+            if ($failN -gt 0) { $v = $S['R_HASFAIL'] + ' (' + $failN + ')'; $vc = 'vfail' }
+            [void]$sb.AppendLine('<div class="metric ' + $vc + '">' + (Esc $v) + '</div>')
+        }
+        $barCls = ''; if ($failN -gt 0) { $barCls = ' class="warn"' }
+        [void]$sb.AppendLine('<div class="bar"><i' + $barCls + ' style="width:' + $pct + '%"></i></div></div>')
+    }
+    [void]$sb.AppendLine('</div>')
+    [void]$sb.AppendLine('<table><tr><th>' + (Esc $S['R_CASE']) + '</th>')
+    foreach ($d in $devDirs) { [void]$sb.AppendLine('<th>' + (Esc $d.Name.Replace('_API_35', '')) + '</th>') }
+    [void]$sb.AppendLine('</tr>')
+    $known = New-Object System.Collections.Generic.List[string]
+    foreach ($c in $caseOrder) { $known.Add($c) }
+    foreach ($d in $devDirs) { foreach ($c in $maps[$d.Name].Keys) { if (-not $known.Contains($c)) { $known.Add($c) } } }
+    foreach ($c in $known) {
+        [void]$sb.AppendLine('<tr><td class="case">' + (Esc (Case-Label $c)) + '</td>')
+        foreach ($d in $devDirs) {
+            $rows = $maps[$d.Name]
+            if ($rows.ContainsKey($c)) {
+                $r = $rows[$c]
+                [void]$sb.AppendLine('<td title="' + (Esc $r['detail']) + '"><span class="badge ' + $r['status'] + '">' + $r['status'] + '</span><span class="small">' + (Esc $r['detail']) + '</span></td>')
+            } else {
+                [void]$sb.AppendLine('<td><span class="small">-</span></td>')
+            }
+        }
+        [void]$sb.AppendLine('</tr>')
+    }
+    [void]$sb.AppendLine('</table></body></html>')
+    [System.IO.File]::WriteAllText($reportPath, $sb.ToString(), [System.Text.Encoding]::UTF8)
+}
+
 $script:results = New-Object System.Collections.Generic.List[string]
 $script:sw = [System.Diagnostics.Stopwatch]::StartNew()
 function Record($case, $status, $detail) {
     $line = "$case,$status,$detail"
     $script:results.Add($line)
-    # incremental: each verdict lands in results.csv the moment it is decided
-    Add-Content -Path (Join-Path $outDir 'results.csv') -Value $line -Encoding Ascii
+    # incremental archive: each verdict lands in results.csv the moment it is decided
+    Add-Content -Path $csvPath -Value $line -Encoding UTF8
     Write-Host ("  [{0} +{1:mm\:ss}] {2} :: {3}" -f $status, $script:sw.Elapsed, $case, $detail)
+    Write-Report
 }
+
+if ($ReportOnly) { Write-Report; Write-Host 'report.html regenerated (ReportOnly)'; exit 0 }
+
+# fresh empty csv -> the report shows this device running from the first second; open the report once
+[System.IO.File]::WriteAllText($csvPath, '')
+Write-Report
+Start-Process $reportPath
 function Shot($name) {
     # binary-safe: screencap to device file, then adb pull (PS text pipeline corrupts exec-out)
     $dev = "/sdcard/_shot_$name.png"
@@ -146,7 +263,9 @@ foreach ($d in $avdDirs) {
 # NOTE: never use -wipe-data: a freshly wiped emulator system is unsettled and the app
 # can hit a bind-time NPE (ActivityThread.handleBindApplication, seen 2026-10-08).
 # Key continuity is guaranteed by ANDROID_VENDOR_KEYS at a fixed path; no wipe needed.
-$emuProc = Start-Process -FilePath $emu -ArgumentList @('-avd', $AvdName, '-no-snapshot', '-no-audio', '-no-window', '-no-boot-anim', '-gpu', 'swiftshader_indirect', '-port', '5554') -RedirectStandardError (Join-Path $outDir 'emu_stderr.log') -RedirectStandardOutput (Join-Path $outDir 'emu_stdout.log') -PassThru
+# -WindowStyle Hidden: emulator.exe is console-subsystem; without this a black console
+# window lingers on the desktop for the whole run (report: 2026-10-08 user feedback).
+$emuProc = Start-Process -FilePath $emu -ArgumentList @('-avd', $AvdName, '-no-snapshot', '-no-audio', '-no-window', '-no-boot-anim', '-gpu', 'swiftshader_indirect', '-port', '5554') -WindowStyle Hidden -RedirectStandardError (Join-Path $outDir 'emu_stderr.log') -RedirectStandardOutput (Join-Path $outDir 'emu_stdout.log') -PassThru
 # bounded wait-for-device: if the emulator dies at startup this would hang forever otherwise
 $devUp = $false
 for ($i = 0; $i -lt 60; $i++) {
