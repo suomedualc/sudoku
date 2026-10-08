@@ -75,6 +75,23 @@ class TopDrawerKeysTest {
         assertFalse(decision.dismiss, "抬起事件不应关闭抽屉，否则一次 Esc 会被处理两遍")
     }
 
+    @Test
+    fun backKeyIsNeverConsumedByArbitration() {
+        // 系统返回键必须放行：Android 的返回在到达 SystemBackHandler（Activity 返回分发）之前
+        // 会先走 KeyEvent preview 链，仲裁一旦吞掉它，"返回关抽屉 / 返回回首页"就全数失灵。
+        // 无论抽屉开不开、可不可关，仲裁都不消费 Back——关闭与否由页面级 SystemBackHandler 裁决。
+        val dismissibleDrawer = TopDrawerKeys.decide(
+            isKeyDown = true, isEscape = false, dismissible = true, drawerHandled = false, isBack = true,
+        )
+        assertFalse(dismissibleDrawer.consumed, "Back 不进仲裁，放行给 SystemBackHandler")
+        assertFalse(dismissibleDrawer.dismiss, "也不在仲裁里关抽屉（避免与返回语义双份处理）")
+
+        val modalDrawer = TopDrawerKeys.decide(
+            isKeyDown = true, isEscape = false, dismissible = false, drawerHandled = false, isBack = true,
+        )
+        assertFalse(modalDrawer.consumed, "结算抽屉开着时 Back 同样放行 → SystemBackHandler 回首页")
+    }
+
     // ---------------------------------------------------------------- 控制器
     @Test
     fun controllerDoesNotConsumeWhenNoDrawerIsOpen() {

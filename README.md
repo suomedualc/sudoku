@@ -189,6 +189,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1   # 实�
 | `docs/07-设计评审（国际奖项对标）.md` | 设计一致性审查（含令牌扫描与对比度量算）、五维评分、已完成整改与 P1/P2 路线 |
 | `docs/08-Android模拟器测试报告.md` | Android 落地的模拟器测试：设备矩阵、用例结果、性能数据、缺陷与修复记录 |
 | `docs/09-竞品分析（数独清）.md` | 竞品「数独清」逆向观察：关卡体系、双键盘输入、可借鉴要素与差异化定位 |
+| `docs/10-项目优化方案.md` | 迭代 A–D 优化路线：Android 收口、触屏体验、成长系统、个性化与发布决策 |
 | `.codebuddy/rules/sudoku-dev.md` | 强制纪律：红线、开发思路、选型依据、模块说明、迭代计划 |
 
 ## 许可证

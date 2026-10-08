@@ -73,6 +73,7 @@ import org.example.sudoku.ui.components.TopDrawer
 import org.example.sudoku.ui.components.rememberTopDrawerController
 import org.example.sudoku.ui.i18n.Strings
 import org.example.sudoku.ui.i18n.stringsFor
+import org.example.sudoku.ui.platform.SystemBackHandler
 import org.example.sudoku.ui.theme.DesignTokens
 import org.example.sudoku.ui.theme.Ink
 
@@ -122,6 +123,15 @@ fun GameScreen(
     val strings = stringsFor(state.language)
     val focusRequester = remember { FocusRequester() }
     val drawer = rememberTopDrawerController()
+
+    // 系统返回键（Android，缺陷 D2）：返回键不进抽屉的模态仲裁（TopDrawerKeys 对 Back 一律放行——
+    // 吞掉它的话 Activity 的返回分发收不到事件，抽屉开着按返回就毫无反应）。
+    // 语义在此统一裁决：抽屉开着且可关 → 先关抽屉；结算抽屉（不可关）与无抽屉 → 回首页
+    // （对局已自动存档，与顶栏返回同义）。首页不拦截——系统默认行为（退出应用）。桌面端无系统返回键，actual 为空实现。
+    SystemBackHandler {
+        if (drawer.isOpen && drawer.dismissible) drawer.close()
+        else onAction(GameAction.Navigate(Screen.Menu))
+    }
 
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 

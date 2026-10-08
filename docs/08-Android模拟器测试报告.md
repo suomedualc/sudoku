@@ -29,7 +29,10 @@
 | T8 后台暂停 | Home → 返回 → "已暂停"遮罩在场 | PASS | PASS | PASS | 生命周期 → isWindowActive → 自动停表 |
 | T9 杀进程恢复 | force-stop → 重启 → 继续游戏 → 盘面还原 | PASS | PASS | PASS | 存档原子写 + 启动恢复链路 |
 | T10 夜墨切换 | 明暗切换 | PASS | PASS | PASS | 夜墨渲染目检通过（深底浅墨、语料正常） |
-| T11 返回键 | 系统返回行为 | INFO | INFO | INFO | v1：返回 = 退出（对局自动存盘），导航语义待 P3 迭代 |
+| T11 设置抽屉+返回关抽屉 | 返回键先关打开中的设置抽屉（D2 修复验证） | 见 §8 | 见 §8 | 见 §8 | 新增用例（迭代 A） |
+| T12 九宫格填数 | 窄屏九宫格键盘填数语义（D1 复验） | 见 §8 | 见 §8 | 见 §8 | 新增用例（迭代 A） |
+| T13 对局页返回 | 系统返回 → 回首页（对局自动存档） | 见 §8 | 见 §8 | 见 §8 | 新增用例（迭代 A） |
+| T14 首页返回 | 系统返回 → 默认退出应用 | 见 §8 | 见 §8 | 见 §8 | 新增用例（迭代 A） |
 | 性能 | 冷启动 / 内存 | 3.24s / 100 MB | 3.22s / 100 MB | 3.24s / 100 MB | 软渲染模拟器数据，真机预计显著更好 |
 
 **通过率**：12/14 用例通过（T4/T6 失败同源，见 §4-D1）；三台设备结果**完全一致**（一致性说明缺陷是系统性的布局问题而非环境偶发）。
@@ -60,6 +63,11 @@
 
 ### D2（P2）：返回键导航语义未实现
 系统返回 = 退出 Activity（对局自动存盘不丢数据，T11 验证 pid 存活/存档正常），但"对局页返回 → 首页"的导航语义待 P3 迭代（`BackHandler` 需要读取屏幕状态的桥接）。
+
+> ✅ **已修复（2026-10-08，迭代 A）**：新增 `ui/platform/SystemBackHandler` expect/actual 桥
+> （androidMain 直通 `androidx.activity.compose.BackHandler`，jvmMain 空实现——桌面无系统返回键）。
+> GameScreen 拦截语义：设置抽屉开着先关抽屉；结算抽屉/无抽屉时回首页（对局自动存档，与顶栏返回同义）；
+> 首页不拦截（系统默认退出）。详见 §8 迭代 A 冒烟。
 
 ### D3（P3）：应用图标未接线
 `androidMain` 未配置自适应图标（`docs/06` 资源已生成、未复制进 `res/`），启动器显示默认图标。
@@ -94,4 +102,37 @@
 - 「游戏设置」抽屉：四开关整宽、勾选框完整、层级清晰 ✓；
 - 桌面回归 jvmTest 137/137 全绿（宽屏布局路径未变）✓。
 
-**剩余**：真机测试与 AAB 打包（原计划阶段 5）、返回键导航语义（D2）、自适应图标接线（D3）。
+**剩余**：真机测试与 AAB 打包（原计划阶段 5）、自适应图标接线（D3）。
+
+## 8. 迭代 A 冒烟（2026-10-08）：D2 修复复验 + 环境迁移后全链路验证
+
+> 背景：`.android`/`.gradle`/`.vcpkg` 迁移 D 盘（junction 兜底 + 用户级 env
+> `ANDROID_AVD_HOME`/`ANDROID_USER_HOME`/`GRADLE_USER_HOME`/`VCPKG_ROOT`），
+> 本轮同时验证迁移后构建→AVD 识别→模拟器→安装→用例全链路无回归。
+> 测试脚本已入库：`tools/android-smoke.ps1` + `android-smoke-strings.txt`（T1–T14）。
+
+结果（2026-10-08，三台设备串行各跑一轮，脚本 `tools/android-smoke.ps1 -AvdName <设备>`）：
+**T1–T14 全部 PASS（14/14 × 3 台一致）**，D2 返回键语义、D1 修复后九宫格填数、设置抽屉全部实证通过。
+
+| 用例 | Small_Phone | Medium_Phone | Pixel_Tablet* |
+|---|---|---|---|
+| BOOT / INSTALL / COLD_START | PASS / PASS / 2593ms | PASS / PASS / 2922ms | PASS / PASS / 3145ms |
+| T1 菜单渲染 / T2 开局 / T3 触摸选格 | PASS | PASS | PASS |
+| T4 填数 / T5 擦除 / T6 提示 | PASS | PASS | PASS |
+| T7 暂停 / T8 后台暂停 / T9 杀进程恢复 | PASS | PASS | PASS |
+| T10 夜墨 | PASS | PASS | PASS |
+| T11 设置抽屉 + 返回关抽屉（D2） | PASS | PASS | PASS |
+| T12 九宫格填数（D1 复验） | PASS | PASS | PASS |
+| T13 对局页返回 → 首页（D2） | PASS | PASS | PASS |
+| T14 首页返回 → 默认退出（D2） | PASS | PASS | PASS |
+| MEM_PSS | 98.5 MB | 98 MB | 98.6 MB |
+
+\* `Pixel_Tablet_API_35` 实测布局宽度 411dp（手机形态 AVD），同样走窄屏布局；**宽屏路径（≥460dp 常驻开关行 + 横排键盘）由桌面端回归覆盖**（jvmTest 138/138，含 SystemBackHandler 桥接单测）。
+本轮环境：`.android`/`.gradle`/`.vcpkg` 已迁移 D 盘，构建→AVD 识别→模拟器→安装→用例全链路无回归（COLD_START 2.6–3.2s）。
+
+**测试基建三轮加固（沉淀于脚本注释）**：
+1. Find-Node 两段式正则：uiautomator XML 属性带引号，单段 `[^"]*` 跨不过中间属性（首轮 T1 级联失败根因）；
+2. 实例竞争：上一轮模拟器未退净即启动新实例触发 `FATAL: multiple emulators with the same AVD` → 杀进程后有界等待完全退出 + 锁清理重试；
+3. 键面角标误匹配：key 2 的剩余角标数恰为「5」时，`text="5"` 精确匹配按树序命中角标而非键面（T12 小屏 2/2 复现）→ `Find-Node -Largest` 按节点面积取键面。
+
+**结论**：迭代 A 冒烟放行；剩余 A2 自适应图标（D3）、A3 AAB 打包、A5 真机。

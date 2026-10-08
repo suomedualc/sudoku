@@ -57,9 +57,12 @@ import org.example.sudoku.ui.theme.inkRoundRect
  *
  * 约定：页面根节点把每个键**先交给** [TopDrawerController.handleKey]，由本策略统一裁决：
  * 1. 没有抽屉 → 控制器直接返回 false，页面照常处理；
- * 2. 抽屉打开 → **模态**：抽屉内已处理的键（↑↓ / Enter / Esc 回首页等）算已消费；
- * 3. 抽屉打开且按了 `Esc` 且抽屉可关 → 关闭抽屉；
- * 4. 其余键（含按键抬起）一律消费，不再落到下面的页面。
+ * 2. **系统返回键（`Key.Back`）不仲裁**——一律放行。Android 的返回键在到达
+ *    `SystemBackHandler`（Activity 返回分发）之前会先走 KeyEvent 的 preview 链，
+ *    在这里吞掉它，返回分发就永远收不到事件（冒烟实测：抽屉开着按返回毫无反应）；
+ * 3. 抽屉打开 → **模态**：抽屉内已处理的键（↑↓ / Enter / Esc 回首页等）算已消费；
+ * 4. 抽屉打开且按了 `Esc` 且抽屉可关 → 关闭抽屉；
+ * 5. 其余键（含按键抬起）一律消费，不再落到下面的页面。
  */
 object TopDrawerKeys {
     /** [consumed] = 页面是否应停止处理该键；[dismiss] = 是否顺带关闭抽屉。 */
@@ -70,7 +73,9 @@ object TopDrawerKeys {
         isEscape: Boolean,
         dismissible: Boolean,
         drawerHandled: Boolean,
+        isBack: Boolean = false,
     ): Decision = when {
+        isBack -> Decision(consumed = false, dismiss = false)               // 返回键放行（见上）
         !isKeyDown -> Decision(consumed = true, dismiss = false)            // 按键抬起：模态吞掉
         drawerHandled -> Decision(consumed = true, dismiss = false)         // 抽屉自己的快捷键
         isEscape && dismissible -> Decision(consumed = true, dismiss = true) // Esc 关抽屉
@@ -128,22 +133,29 @@ class TopDrawerController {
         return handleKeyFlags(
             isKeyDown = isKeyDown,
             isEscape = event.key == Key.Escape,
+            isBack = event.key == Key.Back,
             drawerHandled = isKeyDown && drawerHandler(event),
         )
     }
 
     /**
-     * 裁决的**纯入口**：只依赖三个布尔量。
+     * 裁决的**纯入口**：只依赖四个布尔量。
      *
      * 单独留这个入口是为了可测：[KeyEvent] 在跨平台测试源集里构造不出来，
      * 而"抽屉打开时哪些键被吞、Esc 该不该关"恰恰是最容易踩坑的地方。
      * 返回 true = 已消费（页面不要再处理）；抽屉可关且按了 Esc 时顺带关闭自己。
      */
-    internal fun handleKeyFlags(isKeyDown: Boolean, isEscape: Boolean, drawerHandled: Boolean): Boolean {
+    internal fun handleKeyFlags(
+        isKeyDown: Boolean,
+        isEscape: Boolean,
+        drawerHandled: Boolean,
+        isBack: Boolean = false,
+    ): Boolean {
         if (activeId == null) return false
         val decision = TopDrawerKeys.decide(
             isKeyDown = isKeyDown,
             isEscape = isEscape,
+            isBack = isBack,
             dismissible = dismissible,
             drawerHandled = drawerHandled,
         )

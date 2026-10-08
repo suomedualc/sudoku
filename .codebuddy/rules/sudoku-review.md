@@ -188,7 +188,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1 [-Flow <
     窄屏（页宽 < `FunctionNarrowMax` 460dp）四项开关收进「游戏设置」TopDrawer、顶栏窄屏只留难度+计时、
     键位提示行 `maxLines = 2`。Medium Phone 411dp 竖屏实测：键宽恢复 ~42dp、开关整宽、无截断。
     **桌面/平板（≥460dp）保持横排 1–9 + 常驻开关行不变**（横排是宽屏的既定设计）。
-19. Android 返回键导航语义未实现（v1 返回=退出，对局自动存盘）；自适应图标资源已生成未接线。
+19. ✅ **Android 返回键导航语义已实现（2026-10-08，原 D2）**：新增 `ui/platform/SystemBackHandler`
+    expect/actual 桥（androidMain 直通 `androidx.activity.compose.BackHandler`，jvmMain 空实现——桌面无系统返回键，
+    Esc 语义已由 TopDrawerKeys 覆盖）；GameScreen 拦截策略 = 可关闭抽屉开着先关抽屉 → 否则回首页
+    （对局自动存档，与顶栏返回同义）；首页不拦截（系统默认 = 退出应用）。
+    仍挂账：自适应图标资源已生成未接线（原 D3）。
 
 **第二轮修复（2026-10-07，用户三项需求）**
 16. ✅ 墨条"消失时间随点击次数累加"——显示从"挂起排队"改**顶替式固定时长**（新提示立即顶掉当前条，
