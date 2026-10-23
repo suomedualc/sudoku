@@ -147,7 +147,7 @@ org.example.sudoku
 
 ```powershell
 .\gradlew.bat :composeApp:run                  # 桌面直接运行
-.\gradlew.bat :composeApp:jvmTest --offline    # 单元测试 + UI 测试（161 项）
+.\gradlew.bat :composeApp:jvmTest --offline    # 单元测试 + UI 测试（165 项）
 .\gradlew.bat :composeApp:createDistributable --offline   # 便携版（build/compose/binaries/main/app）
 .\gradlew.bat :composeApp:assembleDebug --offline         # Android APK（build/outputs/apk/debug）
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1   # 实机冒烟（置顶 + 固定坐标，自动截图）
