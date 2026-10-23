@@ -60,11 +60,11 @@ class KeyMapTest {
         // 数字键是填数的专属通道：绑走之后"按 5"就填不了 5 了
         val map = KeyMap()
         for (d in '1'..'9') {
-            assertFalse(map.accepts(KeyAction.Up, d.toString()), "$d 不该能绑定")
+            assertFalse(map.accepts(d.toString()), "$d 不该能绑定")
         }
-        assertTrue(map.accepts(KeyAction.Up, "W"))
-        assertTrue(map.accepts(KeyAction.Erase, "0"), "0 不参与填数，可以绑给擦除")
-        assertTrue(map.accepts(KeyAction.Erase, KeyTokens.SPACE))
+        assertTrue(map.accepts("W"))
+        assertTrue(map.accepts("0"), "0 不参与填数，可以绑给擦除")
+        assertTrue(map.accepts(KeyTokens.SPACE))
     }
 
     @Test

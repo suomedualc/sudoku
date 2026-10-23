@@ -311,7 +311,7 @@ fun GameScreen(
             when {
                 // 绑不了的键（修饰键 / F1 等）：继续等，别把它当成"确认"
                 token == null -> Unit
-                !state.keyMap.accepts(target, token) -> {
+                !state.keyMap.accepts(token) -> {
                     captureHint = strings.digitsReserved
                     capturing = null
                 }

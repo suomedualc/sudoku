@@ -79,12 +79,15 @@ data class KeyMap(
     fun isErase(token: String): Boolean = token == erase
 
     /**
-     * 这个令牌能不能绑给 [action]。
+     * 这个令牌能不能绑给**任意**动作。
      *
      * **1–9 一律不绑**：数字键是"填数"的专属通道，绑走之后"按 5"就填不了 5 了——
      * 与其让玩家配出一个自己都解释不清的键盘，不如当场拒掉并说明原因（`0` 可以绑，它不参与填数）。
+     *
+     * 注意判据**与具体动作无关**（五个动作共用同一条规则），因此不接受 `action` 参数：
+     * 曾经有过一个 `action` 形参却从未被读取，读代码的人会以为"规则按动作分档"。
      */
-    fun accepts(action: KeyAction, token: String): Boolean = token !in FILL_DIGITS
+    fun accepts(token: String): Boolean = token !in FILL_DIGITS
 
     fun encode(): String = listOf(up, down, left, right, erase).joinToString(",")
 
