@@ -5,7 +5,14 @@ import org.example.sudoku.state.AppLanguage
 
 /**
  * 系统语言：`zh` 开头 → 简体中文，其余一律英文（与桌面同一套粗判规则）。
- * 用系统级 Resources——它的 locale 反映设备当前配置，不需要 Activity Context。
+ *
+ * 用 `Locale.getDefault()` 而**不是** `Resources.getSystem().configuration.locales`：
+ * - 本作只有中英两套，且 `AppLanguage.FollowSystem` 只在一处解析（`stringsFor`），
+ *   粗判足够；桌面端（`Strings.jvm.kt`）也是同一行实现，两端行为因此天然一致。
+ * - `Resources.getSystem()` 拿到的是**系统**配置而非**应用**配置，在多语言用户手动
+ *   "按应用设置语言"的场景下反而会读错，还得额外引 `AppCompatDelegate` / `LocaleManager`。
+ *
+ * 以后要区分 `zh_TW` 等变体、或要跟随"按应用设置的语言"，改这里一处即可。
  */
 actual fun systemAppLanguage(): AppLanguage {
     val locale = java.util.Locale.getDefault()
