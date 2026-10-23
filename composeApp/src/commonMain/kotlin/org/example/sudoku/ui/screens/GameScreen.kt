@@ -87,6 +87,9 @@ private const val DRAWER_KEYMAP = "game.keymap"
 /** 抽屉标识：游戏设置（窄屏时四项偏好收进抽屉，不占常驻布局空间）。 */
 private const val DRAWER_TOGGLES = "game.toggles"
 
+/** 抽屉标识：看答案确认（模态——它会**结束本局**，必须明确选择）。 */
+private const val DRAWER_REVEAL = "game.reveal"
+
 /**
  * 棋盘之外那层可点空白的测试标签。
  *
@@ -94,6 +97,14 @@ private const val DRAWER_TOGGLES = "game.toggles"
  * 这条行为必须能自动验收（靠肉眼看高亮有没有消失太不可靠）。
  */
 internal const val BoardBackdropTag = "game.boardBackdrop"
+
+/**
+ * 「看答案」确认按钮的测试标签。
+ *
+ * 必须给标签而不是按文案找：抽屉标题与按钮都叫「看答案」，按文案会命中两个节点
+ * （`assertIsDisplayed` 能过，但 `performMouseInput` 会因"期望恰好一个"而失败）。
+ */
+internal const val RevealConfirmTag = "game.revealConfirm"
 
 /** 对局页布局形态。 */
 internal enum class GameLayout { Portrait, Landscape }
@@ -252,6 +263,27 @@ fun GameScreen(
     }
 
     /**
+     * 看答案确认抽屉的键：`Enter` / 空格 = 确认看答案，`Esc` = 取消（可关，不强制）。
+     *
+     * 抽屉本身是模态的，其余按键由 [rememberTopDrawerController] 统一吞掉——
+     * 因此"打开确认框后误按数字键落子"不会发生。
+     */
+    val revealDrawerKeys: (KeyEvent) -> Boolean = { event ->
+        when (event.key) {
+            Key.Enter, Key.NumPadEnter, Key.Spacebar -> {
+                drawer.close()
+                dispatch(GameAction.Reveal)
+                true
+            }
+            Key.Escape -> {
+                drawer.close()
+                true
+            }
+            else -> false
+        }
+    }
+
+    /**
      * 键位设置抽屉内的键：**捕获态时任何可识别的按键都算"绑定"**。
      *
      * 几条细节：
@@ -324,6 +356,7 @@ fun GameScreen(
                 drawer.handleKey(event) { e ->
                     when {
                         drawer.isOpen(DRAWER_WIN) -> winDrawerKeys(e)
+                        drawer.isOpen(DRAWER_REVEAL) -> revealDrawerKeys(e)
                         drawer.isOpen(DRAWER_KEYMAP) -> keyMapDrawerKeys(e)
                         else -> false
                     }
@@ -392,6 +425,7 @@ fun GameScreen(
                 narrow = narrow,
                 onAction = dispatch,
                 onOpenKeyMap = { drawer.open(DRAWER_KEYMAP) },
+                onOpenReveal = { drawer.open(DRAWER_REVEAL) },
             )
 
             // 内容区：**纵向一列**——棋盘 → 数字键 → 偏好开关，整体居中。
@@ -499,6 +533,48 @@ fun GameScreen(
             onBackToMenu = { dispatch(GameAction.Navigate(Screen.Menu)) },
         )
 
+        // 看答案确认抽屉：会**结束本局**（记一次放弃、连胜清零、不计胜场），
+        // 因此与"通关抽屉"同样是模态的，但允许 Esc / 点遮罩取消——玩家打开它只是想确认后果。
+        TopDrawer(
+            visible = drawer.isOpen(DRAWER_REVEAL),
+            onDismiss = { drawer.close() },
+            restoreFocus = focusRequester,
+            a11yTitle = strings.revealTitle,
+        ) {
+            InkText(
+                text = strings.revealTitle,
+                modifier = Modifier.fillMaxWidth(),
+                style = Ink.Type.Title,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(DesignTokens.Spacing.Sm))
+            InkText(
+                text = strings.revealNote,
+                modifier = Modifier.fillMaxWidth(),
+                style = Ink.Type.Caption.copy(color = Ink.Light),
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(DesignTokens.Spacing.Lg))
+            Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Md)) {
+                InkButton(
+                    text = strings.cancel,
+                    onClick = { drawer.close() },
+                    modifier = Modifier.weight(1f),
+                    compact = true,
+                )
+                InkButton(
+                    text = strings.revealAnswer,
+                    onClick = {
+                        drawer.close()
+                        dispatch(GameAction.Reveal)
+                    },
+                    modifier = Modifier.weight(1f).testTag(RevealConfirmTag),
+                    compact = true,
+                    emphasized = true,
+                )
+            }
+        }
+
         // 键位设置抽屉：可 Esc / 点遮罩关闭（它不是结算，不需要强制选择）
         TopDrawer(
             visible = drawer.isOpen(DRAWER_KEYMAP),
@@ -562,6 +638,19 @@ fun GameScreen(
                 checked = state.strictMode,
                 onCheckedChange = { enabled -> dispatch(GameAction.ToggleStrict(enabled)) },
                 modifier = Modifier.fillMaxWidth(),
+            )
+            // 窄屏专属：「看答案」入口（宽屏它在顶栏）。先关本抽屉再开确认抽屉——
+            // 一个控制器只能同时开一个抽屉，不先关会出现"开了没反应"。
+            Spacer(Modifier.height(DesignTokens.Spacing.Md))
+            InkButton(
+                text = strings.revealAnswer,
+                onClick = {
+                    drawer.close()
+                    drawer.open(DRAWER_REVEAL)
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = state.interactive,
+                compact = true,
             )
         }
     }
@@ -643,6 +732,8 @@ private fun GameTopBar(
     onAction: (GameAction) -> Unit,
     /** 打开键位设置抽屉（抽屉状态在页面里，这里只发信号）。 */
     onOpenKeyMap: () -> Unit,
+    /** 打开「看答案」确认抽屉（同上：抽屉状态在页面里）。 */
+    onOpenReveal: () -> Unit,
 ) {
     val strings = stringsFor(state.language)
     Row(
@@ -697,6 +788,15 @@ private fun GameTopBar(
         // 放在最前与高频的提示 / 暂停 / 重置拉开距离，避免误触。
         // 窄屏（< 460dp）改由「游戏设置」抽屉提供入口 —— 顶栏已有 5 枚图标按钮，
         // 再加一枚会把中间读数区从 ~123dp 压到 ~63dp，正是 docs/08 §4-D1 那条截断缺陷。
+        if (!narrow) {
+            InkIconButton(
+                icon = InkIcon.Reveal,
+                contentDescription = strings.revealAnswer,
+                onClick = onOpenReveal,
+                enabled = state.interactive,
+                tooltipAlignment = Alignment.TopEnd,
+            )
+        }
         InkIconButton(
             icon = InkIcon.Keyboard,
             contentDescription = strings.keymapA11y,

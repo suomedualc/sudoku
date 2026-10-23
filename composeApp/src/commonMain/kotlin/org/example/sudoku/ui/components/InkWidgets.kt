@@ -542,6 +542,9 @@ enum class InkIcon {
     /** ！ 提示（求一个候选数字）。 */
     Hint,
 
+    /** 👁 看答案（认输）。 */
+    Reveal,
+
     /** 月牙：夜墨模式。 */
     Moon,
 
@@ -748,6 +751,11 @@ private fun DrawScope.drawInkIcon(icon: InkIcon, color: Color) {
 
         InkIcon.Hint -> drawBulb(c, r, w, color, a)
 
+        // 看答案：**一只眼睛**（上下两道弧 + 中间瞳孔）——"看"的通用符号。
+        // 与提示的灯泡刻意不同：灯泡是"给我一个数字"（继续玩），眼睛是"让我看整盘答案"（结束本局），
+        // 两者后果完全不同，形状必须一眼分开。
+        InkIcon.Reveal -> drawEye(c, r, w, color, a)
+
         InkIcon.Sun -> {
             drawCircle(color.copy(alpha = a), radius = r * 0.5f, center = c, style = Stroke(width = w, cap = StrokeCap.Round))
             repeat(8) { i ->
@@ -908,6 +916,46 @@ private fun DrawScope.drawEraser(
         color,
         36,
         alpha,
+    )
+}
+
+/**
+ * 眼睛（"看答案"）：上下两道对称的弧围成眼形 + 正中的瞳孔。
+ *
+ * 为什么不用"灯泡"或"！"：提示与看答案的**后果完全不同**——提示是"再给我一个数字"（继续玩），
+ * 看答案是"让我看整盘答案"（本局结束、记一次放弃）。两者都在顶栏且都是"求助"类动作，
+ * 因此形状必须在 36dp 上一眼分开：灯泡是竖长的圆+光，眼睛是**横向的梭形+圆心**。
+ *
+ * 用两条二次贝塞尔弧拼出眼形（上弧向下弯、下弧向上弯），瞳孔用实心圆——
+ * 弧只用四段采样点连线，与全站 `inkLine` 的手绘笔触一致，不引入新的绘制原语。
+ */
+private fun DrawScope.drawEye(
+    center: Offset,
+    radius: Float,
+    width: Float,
+    color: Color,
+    alpha: Float,
+) {
+    val halfW = radius * 1.02f
+    val halfH = radius * 0.56f
+    // 眼形：从左角出发，经上弧顶点到右角，再经下弧顶点回到左角。
+    // 每条弧用 3 段折线近似（采样 4 点），弯度足够读成弧，又不至于在 36dp 上抖。
+    fun arcPoints(bulge: Float): List<Offset> = (0..3).map { i ->
+        val t = i / 3f
+        val x = center.x - halfW + 2f * halfW * t
+        // 抛物线 y = -bulge * (1 - (2t-1)^2)：两端归零、中央达到 bulge
+        val k = 2f * t - 1f
+        Offset(x, center.y + bulge * (1f - k * k))
+    }
+    val upper = arcPoints(-halfH)
+    val lower = arcPoints(halfH)
+    upper.zipWithNext().forEachIndexed { i, (p, q) -> inkLine(p, q, width, color, 100 + i, alpha) }
+    lower.zipWithNext().forEachIndexed { i, (p, q) -> inkLine(p, q, width, color, 104 + i, alpha) }
+    // 瞳孔：实心小圆（"看得见"的核心）
+    drawCircle(
+        color = color.copy(alpha = alpha),
+        radius = radius * 0.24f,
+        center = center,
     )
 }
 

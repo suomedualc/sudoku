@@ -26,6 +26,7 @@ import org.example.sudoku.state.Screen
 import org.example.sudoku.state.Snapshot
 import org.example.sudoku.ui.screens.BoardBackdropTag
 import org.example.sudoku.ui.screens.GameScreen
+import org.example.sudoku.ui.screens.RevealConfirmTag
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -113,6 +114,71 @@ class GameScreenUiTest {
         waitForIdle()
         onNodeWithText("夜墨模式").assertIsDisplayed()
     }
+
+    /**
+     * 回归：**横屏下棋盘不能被压到下限**。
+     *
+     * 曾经的缺陷：横屏仍按竖屏的预算给棋盘上下各留 48dp 的浮动条槽（共 96dp），
+     * 而手机横屏（891×411dp）纵向只有 411dp —— 棋盘被 `coerceAtLeast(BoardMinSize)` 兜到
+     * **160dp**，单格仅 17dp，比竖屏（232dp / 25dp）还小，与"横屏腾出纵向空间"正好相反。
+     *
+     * 修法：横屏不留上下槽，撤销 / 重做改挂棋盘左侧竖轨（用横向富余换纵向）。
+     * 断言按"**单格 ≥ 24dp**"写：它比 `BoardMinSize` 更能反映"点得准"，也是这次修复的实质收益
+     * （17dp → 27dp）。只断言"没撞下限"会放过"刚好压线"的退步。
+     */
+    @Test
+    fun landscapeBoardKeepsCellsTappable() = runComposeUiTest {
+        setContent {
+            Box(Modifier.size(891.dp, 411.dp)) {
+                GameScreen(
+                    state = state,
+                    conflicts = BooleanArray(81),
+                    progress = 79 to 81,
+                    onAction = {},
+                )
+            }
+        }
+        val cell = onNodeWithContentDescription("第 1 行第 1 列，给定 5").fetchSemanticsNode().boundsInRoot
+        assertTrue(
+            cell.width >= 24f,
+            "手机横屏单格应 ≥ 24dp（修复前 17dp 撞在 BoardMinSize 下限上），实际 ${cell.width}",
+        )
+    }
+
+    /**
+     * 回归：**「看答案」入口必须可达**。
+     *
+     * 这条曾经断链：reducer、`Msg.Revealed`、中英文案、`I18nGuardTest` 全都写好了，
+     * 但 UI 里没有任何按钮派发 [GameAction.Reveal] —— 玩家卡死时没有"认输"出口，
+     * 只能硬重置（而重置不计放弃、清零计时，统计语义被绕过）。
+     *
+     * 这里走完整链路：点顶栏眼睛 → 确认抽屉出现 → 点确认 → 必须派发 Reveal；
+     * 同时验证"打开确认框 / 点取消都不派发"——它是会结束本局的动作，不能一次点击就生效。
+     */
+    @Test
+    fun revealAnswerRequiresConfirmationAndDispatches() = runComposeUiTest {
+        val actions = mutableListOf<GameAction>()
+        setContent { GameScreenHost(state) { actions += it } }
+
+        // ① 点顶栏「看答案」→ 只是打开确认抽屉，**不应**已经派发 Reveal
+        onNodeWithContentDescription("看答案").performMouseInput { click(center) }
+        waitForIdle()
+        onNodeWithText("看答案？").assertIsDisplayed()
+        assertTrue(actions.none { it is GameAction.Reveal }, "打开确认框不应派发 Reveal（必须二次确认）")
+
+        // ② 点「取消」→ 抽屉关闭，仍未派发
+        onNodeWithText("取消").performMouseInput { click(center) }
+        waitForIdle()
+        assertTrue(actions.none { it is GameAction.Reveal }, "取消后不应派发 Reveal")
+
+        // ③ 再打开并确认 → 派发一次 Reveal
+        onNodeWithContentDescription("看答案").performMouseInput { click(center) }
+        waitForIdle()
+        // 按**标签**而不是文案：抽屉标题与确认按钮都叫「看答案」，按文案会命中两个节点
+        onNodeWithTag(RevealConfirmTag).performMouseInput { click(center) }
+        waitForIdle()
+        assertEquals(1, actions.count { it is GameAction.Reveal }, "确认后应派发一次 Reveal")
+    }
 }
 
 /** 撤销按钮的顶边：条在棋盘上方时它明显更小，拿它当"条此刻在哪一侧"的判据。 */
@@ -130,9 +196,7 @@ private fun GameScreenHost(state: GameState, onAction: (GameAction) -> Unit = {}
             onAction = onAction,
         )
     }
-}
-
-private const val SOLUTION =
+}private const val SOLUTION =
     "534678912672195348198342567859761423426853791713924856961537284287419635345286179"
 
 private val Puzzle = SOLUTION.toBoard().also { it[80] = 0 }
