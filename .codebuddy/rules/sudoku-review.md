@@ -35,7 +35,7 @@
 4. **一次性提示走事件**：reducer 只发 `Msg` 语义键（`Reduction(state, message)`）→ ViewModel 事件通道 →
    Snackbar。提示不得塞回 `GameState`；UI 文案不得进 `state/`（见 §3.4 的 `keyTokenLabel` 反例）。
 5. **测试同步义务**：改 `core/` 补 `commonTest` 用例；改 `state/` 补 `GameReducerTest` / `GameStoreTest`（固定种子）；
-   改绘制 / 语义层跑 `BoardCanvasUiTest`；改配色跑 `InkThemeTest`。当前基线 **137 项**（`commonTest` 116 + `jvmTest` 21），
+   改绘制 / 语义层跑 `BoardCanvasUiTest`；改配色跑 `InkThemeTest`。当前基线 **161 项**（`commonTest` 124 + `jvmTest` 30 + `androidUnitTest` 7），
    数量变化要解释原因。
 6. **文档同改**：改 `state` 对外类型 / Action / Screen → 同步 `docs/01` §5；改视觉 → `docs/02`；
    改流程 / 测试数 → `docs/03`。**文档漂移按 P2 记**（本项目反复发生，见 §4-M8）。
@@ -127,7 +127,7 @@
 ## 3. 验证命令（审查结论的落地检查）
 
 ```powershell
-.\gradlew.bat :composeApp:jvmTest --offline      # 137 项基线，全绿才允许"无问题"结论
+.\gradlew.bat :composeApp:jvmTest --offline      # 161 项基线，全绿才允许"无问题"结论
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1 [-Flow <名字>]
 # 10 条流：menu / exit / win / theme / bar / ux / keys / keymap / stats / lang（置顶 + 固定坐标，自动截图）
 .\gradlew.bat :composeApp:createDistributable    # 改过运行期行为后重建便携版实机试玩
@@ -150,8 +150,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1 [-Flow <
 | M5 | 派生状态每秒重算 | conflicts/progress getter + 心跳 → 整屏重组 | ✅ 已修（derivedStateOf） |
 | M6 | 存档非原子写 | writeText 覆盖留半份存档窗口 | ✅ 已修（tmp + ATOMIC_MOVE） |
 | M7 | 每动作全量落盘 | 移动光标也重写整个文件 | ✅ 已修（persistsToDisk 白名单） |
-| M8 | 文档漂移 | rules/docs 的数字与实现不符（流数、入口数、设置项数、测试数） | ⚠️ **反复发生**：见 §5 开放问题；CR 必查 |
-| M9 | `LaunchedEffect(Unit)` 陈旧捕获 | 循环里用到的"会变的值"在首帧闭包里固化 | ⚠️ App.kt 提示循环存在（P1） |
+| M8 | 文档漂移 | rules/docs 的数字与实现不符（流数、入口数、设置项数、测试数） | ⚠️ **反复发生**：见 §5 开放问题；CR 必查。最近一例：`docs/02` §7「没有断点」与 `gameLayout` 实际有横屏断点不符（2026-10-24 已改） |
+| M9 | `LaunchedEffect(Unit)` 陈旧捕获 | 循环里用到的"会变的值"在首帧闭包里固化 | ✅ 已修（App.kt 提示循环改为循环内现取语言，见 §5-1）；新增 `LaunchedEffect` 时 CR 必查 |
 | M10 | i18n 字面量逃逸 | 可见文字 / 读屏绕过 Strings 字典 | ⚠️ 一轮抓出 7 处（P1），新增 UI 必查 |
 
 已判定**不成立**（勿再报）：出题同步执行卡 UI（实测 0–1ms）；严格模式拒绝冲突笔记（设计内语义）；
@@ -161,7 +161,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1 [-Flow <
 
 ## 5. 开放问题清单（2026-10-07 全量复审沉淀；同日已完成一轮修复并全量验证）
 
-> ✅ = 已修复（jvmTest 137 项全绿），CR 时如复现按 P1 报回归。
+> ✅ = 已修复（jvmTest 161 项全绿），CR 时如复现按 P1 报回归。
 
 **已修复（2026-10-07 修复轮）**
 1. ✅ `App.kt` 提示循环语言陈旧捕获——改为循环内 `stringsFor(viewModel.state.language)` 现取。
@@ -180,10 +180,49 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1 [-Flow <
     docs/01（五入口）、docs/02（五入口 + 随机句子 + 副标题）、docs/03（十条流 + 七项设置）、
     docs/05（删除与 L19 矛盾的重复"三入口"行）、README（功能节与键盘节补齐五入口）。
 
+**第三轮修复（2026-10-24，CR 报告 `docs/13` 的 5 项）**
+20. ✅ **P1-A Android 旋转后存档静默变只读**：存档实例从 `remember`（Activity 作用域）提升为
+    **进程级单例**（`MainActivity.companion.sharedStore()`）。根因是文件锁**同 JVM 内共享**——
+    Activity 重建即第二次 `tryLock()` → `OverlappingFileLockException` → 静默只读。
+    进程级后抢锁只发生一次；跨进程并发仍由文件锁保护。CR 必查：**任何平台都不得在会被重建的作用域里建 `MutexGameStore`**。
+21. ✅ **P1-B `Reveal` 接线**：新增 `InkIcon.Reveal`（自绘眼睛，与提示灯泡刻意区分）+ 顶栏按钮 +
+    二次确认抽屉（`Enter` 确认 / `Esc` 取消）；窄屏入口在「游戏设置」抽屉（顶栏加第 6 枚图标会触发 D1 截断）。
+    `GameScreenUiTest.revealAnswerRequiresConfirmationAndDispatches` 守链路可达。
+22. ✅ **P2-A `reset()` 漏清 `outcomeCounted`**：导致"通关 → 重置 → 再赢"第二次不进统计。
+    `GameReducerTest.resetAllowsNextWinToBeCountedAgain` 守。
+23. ✅ **P2-D 横屏判据统一**：`gameLayout` 改为 `宽 > 高 且 高 < 480dp`
+    （`DesignTokens.Sizes.LandscapeMaxHeight`），实现 / 令牌 / `docs/10` B2 三方一致；
+    `docs/02` §7「没有断点」已改写。`GameLayoutTest` 扩为 3 例（含 1180×900 必须判竖屏）。
+24. ✅ **P2-B 只读降级提示**：`GameStore.writable` 默认实现 + `App.kt` 启动弹一次墨条（`storeReadOnly`）。
+    ✅ **P2-C 死文案清理**：删 `pauseVeilTitle` / `candidatesOnHint` / `candidatesOffHint`。
+
+**第四轮修复（2026-10-24 晚，CR 后续项）**
+25. ✅ **横屏棋盘被压到下限**：横屏原按竖屏预算留上下各 48dp 浮动条槽（共 96dp），实测 891×411dp 下棋盘被
+    `coerceAtLeast(BoardMinSize)` 兜到 **160dp（单格 17dp）**，比竖屏 232dp 还小——与"横屏腾纵向空间"相反。
+    改为横屏**不留上下槽**、撤销/重做挂棋盘左侧竖轨（`BarRail`，用横向富余换纵向），实测 **237dp / 27dp**。
+    `GameScreenUiTest.landscapeBoardKeepsCellsTappable` 断言单格 ≥ 24dp 守。
+26. ✅ **「看答案」补 E2E 冒烟**：`smoke-e2e.ps1` 新增 `-Flow reveal`（点眼睛 → 确认抽屉 → Esc 取消不生效 →
+    再确认 → 棋盘填满），`ValidateSet` 同步。脚本保持纯 ASCII（新增行全 ASCII）。
+27. ✅ **加 CI**（此前零 CI）：`.github/workflows/ci.yml` 跑 `jvmTest` + `testDebugUnitTest` +
+    JVM/Android 双编译，失败上传测试报告。刻意不跑冒烟脚本（需真实窗口/模拟器/前台焦点）。
+28. ✅ **字体/语料双份复制加守卫（原 P2-E）**：`BundledAssetsParityTest` 用 **SHA-256** 逐字节比对
+    `jvmMain/resources` ↔ `androidMain` 的三组副本（霞鹜文楷 / Nunito / 语料库），并校验两端 TTF 数量一致。
+29. ✅ **文档漂移批（M8 又一例）**：测试数 **137 → 161** 全仓对齐（README / docs 01·03·04·05·07·08·10 / 两份 rules），
+    并修正 commonTest/jvmTest 拆分（116+21 → 120+34+7）与各套件明细。
+30. ✅ **`quadraticBezierTo` 弃用（10 处）** → `quadraticTo`，编译警告清零。
+31. ✅ **`KeyMap.accepts(action, token)` 冗余参数** → `accepts(token)`：判据本就与动作无关，
+    留着形参会让读者误以为"规则按动作分档"。调用点（GameScreen + KeyMapTest）同步。
+32. ✅ **`Strings.android` 注释与实现不符**：原注释称"用系统级 Resources"，实现是 `Locale.getDefault()`；
+    已改写并说明**为什么不**用 `Resources.getSystem()`（读系统配置而非应用配置，多语言用户会读错）。
+33. ✅ **Android 端自动化测试从 0 到 7**：新增 `androidUnitTest` 源集（**不需要 Robolectric**——
+    `AndroidGameStore` 只依赖 `java.io`/`java.nio`，构造器可注入 `saveFile` 绕开 Context）。
+    覆盖原子写行为：覆盖写、临时文件不残留、目录自动创建、往返一致、缺文件/坏内容降级 null、写入失败不抛。
+    **这是存档路径首次有直接测试**（此前 `FileGameStore`/`AndroidGameStore` 两个实现都没测过）。
+
 **仍开放（挂账，未修）**
 14. `MenuScreen` 焦点模型与游标模型并存（Tab 聚焦后 Enter 走游标项）。超出"不影响核心功能"边界，待拍板。
     （androidMain 已随 2026-10-07 P0 启动落地并模拟器验证，原挂账关闭。）
-15. `Strings` 中英键一致性无自动化守卫（本次修复删除了虚假注释；如需真正守卫需引入反射或代码生成，暂缓）。
+15. ✅ **Strings 键一致性守卫已实现（2026-10-18）**：新增 `I18nGuardTest`（jvmTest），用 `Strings::class.java.declaredMethods` 反推全部字符串键，逐键断言中英非空白、`format` 占位符一致，并对全部 `Msg` 语义键在两种语言下真实 `render()`（不抛异常、不空白）——走 JDK 反射、零依赖，不需要反射库 / 代码生成。
 18. ✅ **窄屏适配缺陷已修复（2026-10-07）**：`NumberPad` 新增**九宫格形态**（3×3 + 竖置擦除，`grid` 参数）、
     窄屏（页宽 < `FunctionNarrowMax` 460dp）四项开关收进「游戏设置」TopDrawer、顶栏窄屏只留难度+计时、
     键位提示行 `maxLines = 2`。Medium Phone 411dp 竖屏实测：键宽恢复 ~42dp、开关整宽、无截断。
@@ -192,7 +231,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1 [-Flow <
     expect/actual 桥（androidMain 直通 `androidx.activity.compose.BackHandler`，jvmMain 空实现——桌面无系统返回键，
     Esc 语义已由 TopDrawerKeys 覆盖）；GameScreen 拦截策略 = 可关闭抽屉开着先关抽屉 → 否则回首页
     （对局自动存档，与顶栏返回同义）；首页不拦截（系统默认 = 退出应用）。
-    仍挂账：自适应图标资源已生成未接线（原 D3）。
+    自适应图标（原 D3）已于 2026-10-18 随迭代 A2 接线完成（见 `docs/10` §1）。
 
 **第二轮修复（2026-10-07，用户三项需求）**
 16. ✅ 墨条"消失时间随点击次数累加"——显示从"挂起排队"改**顶替式固定时长**（新提示立即顶掉当前条，

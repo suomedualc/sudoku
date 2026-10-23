@@ -1,6 +1,6 @@
 # Android 模拟器测试报告
 
-> 编号：TR-2026-10-07-01 · 测试对象：`composeApp-debug.apk` 21.2 MB（versionName 2.1.0，minSdk 24 / targetSdk 36）
+> 编号：TR-2026-10-07-01 · 测试对象：`composeApp-debug.apk` 21.2 MB（versionName 2.1.0，minSdk 24→26 / targetSdk 36）
 > 测试日期：2026-10-07 · 测试方式：自动化脚本（adb 键盘/触控注入 + uiautomator 语义断言 + 逐帧截图）+ 人工目检
 > 关联：`docs/05` P0 Android 落地计划 · `.codebuddy/rules/sudoku-review.md` §5
 
@@ -70,7 +70,10 @@
 > 首页不拦截（系统默认退出）。详见 §8 迭代 A 冒烟。
 
 ### D3（P3）：应用图标未接线
-`androidMain` 未配置自适应图标（`docs/06` 资源已生成、未复制进 `res/`），启动器显示默认图标。
+> ✅ **已修复（2026-10-18，迭代 A2）**：`assets/icon/android/adaptive/res/` 的 `mipmap-*` 与 `values/` 已拷入
+> `composeApp/src/androidMain/res/`，传统兜底图标（8.0 以下 `ic_launcher.png` / `ic_launcher_round.png`）同拷入，
+> `AndroidManifest.xml` 补 `android:icon="@mipmap/ic_launcher"` / `android:roundIcon="@mipmap/ic_launcher_round"`；
+> `assembleDebug` 通过（`processDebugResources` 解析成功）。
 
 ## 5. 测试基建的教训（沉淀进脚本注释）
 
@@ -100,9 +103,9 @@
 - 九宫格键宽 ~42dp、角标清晰、竖置擦除键拇指可达 ✓；
 - 顶栏"简单 00:01"无截断 ✓；键位提示两行完整 ✓；
 - 「游戏设置」抽屉：四开关整宽、勾选框完整、层级清晰 ✓；
-- 桌面回归 jvmTest 137/137 全绿（宽屏布局路径未变）✓。
+- 桌面回归 jvmTest 161/161 全绿（宽屏布局路径未变）✓。
 
-**剩余**：真机测试与 AAB 打包（原计划阶段 5）、自适应图标接线（D3）。
+**剩余**：真机测试与 AAB 打包（原计划阶段 5）。
 
 ## 8. 迭代 A 冒烟（2026-10-08）：D2 修复复验 + 环境迁移后全链路验证
 
@@ -135,4 +138,4 @@
 2. 实例竞争：上一轮模拟器未退净即启动新实例触发 `FATAL: multiple emulators with the same AVD` → 杀进程后有界等待完全退出 + 锁清理重试；
 3. 键面角标误匹配：key 2 的剩余角标数恰为「5」时，`text="5"` 精确匹配按树序命中角标而非键面（T12 小屏 2/2 复现）→ `Find-Node -Largest` 按节点面积取键面。
 
-**结论**：迭代 A 冒烟放行；剩余 A2 自适应图标（D3）、A3 AAB 打包、A5 真机。
+**结论**：迭代 A 冒烟放行；剩余 A3 AAB 打包、A5 真机。
