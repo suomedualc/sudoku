@@ -59,6 +59,25 @@ interface Strings {
     val pausedLabel: String
     val hintsUsed: String // "提示 ×%1$d"
 
+    /**
+     * 看答案（认输）：顶栏按钮名 / 确认抽屉标题与说明。
+     *
+     * 它是**不可撤销地结束本局**的操作（记一次放弃、连胜清零、本局不进胜场），
+     * 因此与"重置"分开、并且必须二次确认。
+     */
+    val revealAnswer: String
+    val revealTitle: String
+    val revealNote: String
+
+    /**
+     * 存档只读提示（启动时弹一次墨条）。
+     *
+     * 触发条件：同一份存档已被另一个实例持有写锁，本实例降级为只读
+     * （见 `MutexGameStore.writable`）。**必须告知玩家**——否则他会玩完整局，
+     * 然后发现进度一条都没存下来，且全程没有任何异常。
+     */
+    val storeReadOnly: String
+
     // —— 棋盘无障碍 ——
     val boardDesc: String // "数独棋盘，难度 %1$s，已填 %2$d / %3$d"
     val boardPaused: String // "，已暂停"
@@ -77,7 +96,6 @@ interface Strings {
     val notesSeparator: String // "，与同行列宫重复"
 
     // —— 暂停遮罩 / 通关抽屉 ——
-    val pauseVeilTitle: String
     val winTitle: String
     val winTimeLabel: String
     val winDifficultyLabel: String
@@ -96,8 +114,6 @@ interface Strings {
     val toggleShowNotes: String
     val toggleHintCandidates: String
     val toggleStrict: String
-    val candidatesOffHint: String
-    val candidatesOnHint: String
 
     // —— 悬浮输入面板 ——
     val padNoCandidates: String
@@ -244,6 +260,12 @@ object ZhStrings : Strings {
     override val pausedLabel = "已暂停"
     override val hintsUsed = "提示 ×%1\$d"
 
+    override val revealAnswer = "看答案"
+    override val revealTitle = "看答案？"
+    override val revealNote = "本局将结束，记一次放弃，不计入胜场"
+
+    override val storeReadOnly = "另一实例正在使用存档，本次以只读打开（进度不会保存）"
+
     override val boardDesc = "数独棋盘，难度 %1\$s，已填 %2\$d / %3\$d"
     override val boardPaused = "，已暂停"
     override val boardNoteMode = "，笔记模式"
@@ -257,8 +279,6 @@ object ZhStrings : Strings {
     override val cellFilled = "，填入 %1\$d"
     override val cellConflict = "，与同行列宫重复"
     override val notesSeparator = "、"
-
-    override val pauseVeilTitle = "已暂停"
     override val winTitle = "通关"
     override val winTimeLabel = "本局用时"
     override val winDifficultyLabel = "难度"
@@ -276,8 +296,6 @@ object ZhStrings : Strings {
     override val toggleShowNotes = "显示笔记"
     override val toggleHintCandidates = "候选提示"
     override val toggleStrict = "严格模式"
-    override val candidatesOffHint = "开：在空格里显示可填数字（半透明灰）"
-    override val candidatesOnHint = "空格里的半透明灰数字 = 规则允许的候选"
     override val padNoCandidates = "本格无可填数字"
 
     override val keymapTitle = "键位设置"
@@ -386,6 +404,12 @@ object EnStrings : Strings {
     override val pausedLabel = "Paused"
     override val hintsUsed = "Hints ×%1\$d"
 
+    override val revealAnswer = "Show answer"
+    override val revealTitle = "Show the answer?"
+    override val revealNote = "This game ends and counts as abandoned — it won't count as a win"
+
+    override val storeReadOnly = "Another instance holds the save file — running read-only (progress won't be saved)"
+
     override val boardDesc = "Sudoku board, difficulty %1\$s, %2\$d of %3\$d filled"
     override val boardPaused = ", paused"
     override val boardNoteMode = ", notes on"
@@ -399,8 +423,6 @@ object EnStrings : Strings {
     override val cellFilled = ", filled %1\$d"
     override val cellConflict = ", conflicts with peers"
     override val notesSeparator = ", "
-
-    override val pauseVeilTitle = "Paused"
     override val winTitle = "Solved"
     override val winTimeLabel = "Time"
     override val winDifficultyLabel = "Difficulty"
@@ -418,8 +440,6 @@ object EnStrings : Strings {
     override val toggleShowNotes = "Show notes"
     override val toggleHintCandidates = "Candidates"
     override val toggleStrict = "Strict"
-    override val candidatesOffHint = "On: allowed digits show up in empty cells (faint grey)"
-    override val candidatesOnHint = "Faint grey digits in empty cells = rule-allowed candidates"
     override val padNoCandidates = "No digit fits here"
 
     override val keymapTitle = "Key bindings"
