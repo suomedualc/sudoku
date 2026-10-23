@@ -44,6 +44,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.example.sudoku.core.Game
@@ -93,6 +94,29 @@ private const val DRAWER_TOGGLES = "game.toggles"
  * 这条行为必须能自动验收（靠肉眼看高亮有没有消失太不可靠）。
  */
 internal const val BoardBackdropTag = "game.boardBackdrop"
+
+/** 对局页布局形态。 */
+internal enum class GameLayout { Portrait, Landscape }
+
+/**
+ * 布局形态判定（纯函数）：**宽 > 高 且 高 < [DesignTokens.Sizes.LandscapeMaxHeight]** 判为横屏双栏。
+ *
+ * 用宽高比较而不是平台 / 屏幕 API：桌面窗口、Android 横竖屏、折叠屏展开态共用同一套判据，
+ * 也便于单测（不依赖真机旋转）。等宽高按竖屏（纵列）处理。
+ *
+ * **为什么要加高度上限**（`docs/10` §迭代 B2 的"新断点：高 < 480dp 且宽 > 高"）：
+ * 双栏的前提是"纵向空间不够，把键盘挪到右边"。若只看"宽 > 高"，桌面默认窗口（1180×900）
+ * 就会被判为横屏——那是个**高度充裕**的窗口，双栏反而把棋盘从 ~500dp 压到 ~400dp、
+ * 还把 1–9 横排挤成九宫格，与 `docs/02` §7「对局页只有一条纵列」的设计相悖。
+ * 加上 480dp 之后：手机横屏（高 360–430dp）走双栏，桌面窗口与平板横屏（高 ≥ 600dp）
+ * 保持纵列，两边各得其所。
+ */
+internal fun gameLayout(width: Dp, height: Dp): GameLayout =
+    if (width > height && height < DesignTokens.Sizes.LandscapeMaxHeight) {
+        GameLayout.Landscape
+    } else {
+        GameLayout.Portrait
+    }
 
 /**
  * 对局界面（手写纸 · 油墨）。
@@ -276,6 +300,7 @@ fun GameScreen(
         state.paused,
         state.noteMode,
         state.hintCandidates,
+        state.language,
         done,
         total,
     ) {
@@ -312,11 +337,14 @@ fun GameScreen(
         // 功能区的**窄屏断点**（页宽 < 460dp）：数字键盘切九宫格、四项开关收进设置抽屉——
         // 横排 1–9 至少需要 ~500dp，硬塞进窄页会把键压成不可点的细条（docs/08 §4-D1）
         val narrow = maxWidth < DesignTokens.Sizes.FunctionNarrowMax
-        // 功能区的高度（数字键一行或九宫格 + 偏好开关一行或设置按钮）+ 底部键位提示一行：
-        // 棋盘必须避开它们，否则会被挤成一条。窄屏九宫格更高（3×52+2×间距）；
-        // 键位提示行在窄屏允许折两行（KeyHintRow maxLines = 2）
+        // 横屏：棋盘左 + 键盘右双栏（右栏较窄，键盘用九宫格 + 开关进抽屉）
+        val landscape = gameLayout(maxWidth, maxHeight) == GameLayout.Landscape
+        // 键盘切九宫格的判据：竖屏窄机 或 横屏（右栏宽度有限，横排 1–9 塞不下）
+        val keypadGrid = narrow || landscape
+        // 功能区的高度（仅竖屏用）：数字键一行/九宫格 + 偏好开关一行/设置按钮，
+        // 棋盘必须避开它——横屏时功能区改到右栏、不再占棋盘下方的纵向空间
         val functionsHeight =
-            (if (narrow) DesignTokens.Sizes.KeyHeight * 3 + DesignTokens.Spacing.Sm * 2 else DesignTokens.Sizes.KeyHeight) +
+            (if (keypadGrid) DesignTokens.Sizes.KeyHeight * 3 + DesignTokens.Spacing.Sm * 2 else DesignTokens.Sizes.KeyHeight) +
                 DesignTokens.Spacing.Sm + DesignTokens.Sizes.CompactItemHeight
         // 纵向必须为这些让出位置：顶栏 + 上下留白 + 棋盘上下的两条浮动条槽 +
         // 棋盘与功能区之间的间距 + 功能区 + 键位提示 + 底部提示条
@@ -328,10 +356,31 @@ fun GameScreen(
                 functionsHeight +
                 DesignTokens.Sizes.KeyHintHeight * (if (narrow) 2 else 1) +
                 DesignTokens.Sizes.SnackbarReserve
-        val boardSide = minOf(
-            maxWidth - pad * 2,
-            (maxHeight - reserved).coerceAtLeast(DesignTokens.Sizes.BoardMinSize),
-        )
+        // 横屏：棋盘边长由**高度**主导（宽是富余的），并给右栏 + 左侧浮动竖轨留出固定宽度。
+        //
+        // 与竖屏的关键差别：**不留上下的浮动条槽**。横屏纵向最稀缺，两条 48dp 的槽要吃掉 96dp；
+        // 实测 891×411dp 时棋盘因此被压到 BoardMinSize 下限 160dp（单格 17dp，几乎点不准），
+        // 比竖屏的 232dp 还小 —— 与"横屏腾出纵向空间"的初衷正好相反。
+        // 现在把撤销 / 重做挪到棋盘左侧的**竖轨**（[BarRail]），用横向富余换纵向。
+        val reservedLandscape =
+            DesignTokens.Sizes.TopBarHeight +
+                pad * 2 +
+                DesignTokens.Sizes.KeyHintHeight +
+                DesignTokens.Sizes.SnackbarReserve
+        val boardSide = if (landscape) {
+            minOf(
+                (maxHeight - reservedLandscape).coerceAtLeast(DesignTokens.Sizes.BoardMinSize),
+                (
+                    maxWidth - pad * 2 - pad - DesignTokens.Sizes.LandscapeControlWidth -
+                        DesignTokens.Sizes.FloatingBarSlot - pad
+                    ).coerceAtLeast(DesignTokens.Sizes.BoardMinSize),
+            )
+        } else {
+            minOf(
+                maxWidth - pad * 2,
+                (maxHeight - reserved).coerceAtLeast(DesignTokens.Sizes.BoardMinSize),
+            )
+        }
 
         Column(modifier = Modifier.fillMaxSize()) {
             // 顶栏：左「返回菜单」· 中状态读数 · 右「提示 / 暂停 / 重置 + 明暗切换」
@@ -361,39 +410,79 @@ fun GameScreen(
                         .testTag(BoardBackdropTag)
                         .pointerInput(Unit) { detectTapGestures { clearBoard() } },
                 )
-                Column(
-                    modifier = Modifier.fillMaxSize().padding(pad),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    BoardStage(
-                        strings = strings,
-                        game = game,
-                        state = state,
-                        conflicts = conflicts,
-                        description = boardDescription,
-                        padCell = padCell,
-                        onAction = dispatch,
-                        onCellClick = onCellClick,
-                        expandVertically = false,
-                        // 只定**宽度**：高度由内容（两条浮动条槽 + 正方形棋盘）决定，
-                        // 用 size() 会把棋盘压扁——这正是"容器不是方的 → 读屏与实际错位"的来源。
-                        modifier = Modifier.width(boardSide),
-                    )
-                    Spacer(Modifier.height(pad))
-                    // 功能区与棋盘**同宽**：整页因此是一条自上而下的中轴，视线不用左右找
-                    FunctionArea(
-                        strings = strings,
-                        game = game,
-                        state = state,
-                        narrow = narrow,
-                        onOpenToggles = { drawer.open(DRAWER_TOGGLES) },
-                        onAction = dispatch,
-                        modifier = Modifier.width(boardSide),
-                    )
-                    Spacer(Modifier.height(DesignTokens.Spacing.Xs))
-                    // 键位提示占**整页宽**（不跟棋盘同宽）：文案长，挤在棋盘那一列会折行，
-                    // 一折行就会把预留的高度撑破、反过来挤小棋盘
-                    KeyHintRow(strings = strings, keyMap = state.keyMap, modifier = Modifier.fillMaxWidth())
+                if (landscape) {
+                    // 横屏双栏：棋盘左 + 键盘右（右栏较窄，键盘用九宫格 + 开关进设置抽屉）；
+                    // 键位提示压在内容底部、占整页宽。棋盘边长由高度主导，题面四周仍留白。
+                    Column(modifier = Modifier.fillMaxSize().padding(pad)) {
+                        Row(
+                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                            verticalAlignment = Alignment.Top,
+                        ) {
+                            // 左侧竖轨：撤销 / 重做。横屏不占上下的槽（见 reservedLandscape 注释）
+                            BarRail(strings = strings, state = state, onAction = dispatch)
+                            BoardStage(
+                                strings = strings,
+                                game = game,
+                                state = state,
+                                conflicts = conflicts,
+                                description = boardDescription,
+                                padCell = padCell,
+                                onAction = dispatch,
+                                onCellClick = onCellClick,
+                                expandVertically = false,
+                                // 横屏不留上下浮动条槽：纵向让给棋盘，条改在左侧竖轨
+                                reserveBarSlots = false,
+                                modifier = Modifier.width(boardSide),
+                            )
+                            Spacer(Modifier.width(pad))
+                            FunctionArea(
+                                strings = strings,
+                                game = game,
+                                state = state,
+                                narrow = true,
+                                onOpenToggles = { drawer.open(DRAWER_TOGGLES) },
+                                onAction = dispatch,
+                                modifier = Modifier.width(DesignTokens.Sizes.LandscapeControlWidth),
+                            )
+                        }
+                        KeyHintRow(strings = strings, keyMap = state.keyMap, modifier = Modifier.fillMaxWidth())
+                    }
+                } else {
+                    // 竖屏：纵向一列——棋盘 → 数字键 → 偏好开关，整体居中，唯一中轴。
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(pad),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        BoardStage(
+                            strings = strings,
+                            game = game,
+                            state = state,
+                            conflicts = conflicts,
+                            description = boardDescription,
+                            padCell = padCell,
+                            onAction = dispatch,
+                            onCellClick = onCellClick,
+                            expandVertically = false,
+                            // 只定**宽度**：高度由内容（两条浮动条槽 + 正方形棋盘）决定，
+                            // 用 size() 会把棋盘压扁——这正是"容器不是方的 → 读屏与实际错位"的来源。
+                            modifier = Modifier.width(boardSide),
+                        )
+                        Spacer(Modifier.height(pad))
+                        // 功能区与棋盘**同宽**：整页因此是一条自上而下的中轴，视线不用左右找
+                        FunctionArea(
+                            strings = strings,
+                            game = game,
+                            state = state,
+                            narrow = narrow,
+                            onOpenToggles = { drawer.open(DRAWER_TOGGLES) },
+                            onAction = dispatch,
+                            modifier = Modifier.width(boardSide),
+                        )
+                        Spacer(Modifier.height(DesignTokens.Spacing.Xs))
+                        // 键位提示占**整页宽**（不跟棋盘同宽）：文案长，挤在棋盘那一列会折行，
+                        // 一折行就会把预留的高度撑破、反过来挤小棋盘
+                        KeyHintRow(strings = strings, keyMap = state.keyMap, modifier = Modifier.fillMaxWidth())
+                    }
                 }
             }
         }
@@ -601,8 +690,13 @@ private fun GameTopBar(
         }
 
         // 右侧这一组**都贴右边缘**：提示片一律向左长，才不会被窗口右边缘切掉。
-        // 键位设置放在这一组的**最前面**：新增按钮时保持明暗切换仍在最后一位，
-        // 顶栏最右侧那枚按钮的位置才不会变（冒烟脚本按固定坐标点它）。
+        // 新按钮一律加在**这一组的最前面**（向左生长）：整组是右对齐的，因此已有按钮的
+        // 横坐标全部不变——明暗切换仍在最右（冒烟脚本按固定坐标点它，`tools/smoke-e2e.ps1`）。
+        //
+        // 「看答案」**只在宽屏放进顶栏**：它是**低频且会结束本局**的动作（记一次放弃），
+        // 放在最前与高频的提示 / 暂停 / 重置拉开距离，避免误触。
+        // 窄屏（< 460dp）改由「游戏设置」抽屉提供入口 —— 顶栏已有 5 枚图标按钮，
+        // 再加一枚会把中间读数区从 ~123dp 压到 ~63dp，正是 docs/08 §4-D1 那条截断缺陷。
         InkIconButton(
             icon = InkIcon.Keyboard,
             contentDescription = strings.keymapA11y,
@@ -665,6 +759,15 @@ private fun BoardStage(
     onCellClick: (Int, Boolean) -> Unit,
     expandVertically: Boolean,
     modifier: Modifier = Modifier,
+    /**
+     * 是否在棋盘上 / 下留出浮动条的两条槽。
+     *
+     * **横屏传 false**：那时纵向是最稀缺的资源，两条 48dp 的槽要吃掉 96dp——实测手机横屏
+     * （891×411dp）里棋盘因此被压到 `BoardMinSize` 下限 160dp（单格 17dp，几乎点不准）。
+     * 横屏改由调用方把撤销 / 重做挂到棋盘**左侧的竖轨**上：横向本来就富余，用宽度换高度，
+     * 而且竖轨同样不会压住题面（与"条绝不挡棋盘"这条不变量一致）。
+     */
+    reserveBarSlots: Boolean = true,
 ) {
     var barSide by remember { mutableStateOf(FloatingBarPolicy.Default) }
     // 棋盘容器高度单独记账：**不要在 pointerInput 协程里直接读 `size.height`**——
@@ -674,7 +777,9 @@ private fun BoardStage(
     var boardHeight by remember { mutableIntStateOf(0) }
 
     Column(modifier = modifier) {
-        BarSlot(visible = barSide == BarSide.Top) { UndoRedoBar(strings, state, onAction) }
+        if (reserveBarSlots) {
+            BarSlot(visible = barSide == BarSide.Top) { UndoRedoBar(strings, state, onAction) }
+        }
 
         // 外层 Box 吃掉剩余空间，内层**强制正方形**——棋盘在任何窗口比例下都必须是方的。
         // 理由不只是好看：`BoardCanvas` 按 `min(宽, 高)` 画网格，而语义层是按"父容器的 1/9"铺的
@@ -742,7 +847,9 @@ private fun BoardStage(
             }
         }
 
-        BarSlot(visible = barSide == BarSide.Bottom) { UndoRedoBar(strings, state, onAction) }
+        if (reserveBarSlots) {
+            BarSlot(visible = barSide == BarSide.Bottom) { UndoRedoBar(strings, state, onAction) }
+        }
     }
 }
 
@@ -754,6 +861,45 @@ private fun BarSlot(visible: Boolean, content: @Composable () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         if (visible) content()
+    }
+}
+
+/**
+ * 横屏的**竖轨**：撤销 / 重做挂在棋盘左侧的窄列里。
+ *
+ * 为什么横屏要换成竖轨：横屏纵向最稀缺。原本上下两条 48dp 的槽要吃掉 96dp，
+ * 实测 891×411dp 里棋盘被压到 160dp 下限（单格 17dp）。竖轨用**横向富余**换纵向，
+ * 棋盘因此能拿回接近满高的边长；同时竖轨在棋盘之外，"条不挡题面"这条不变量依然成立。
+ *
+ * 宽度取 [DesignTokens.Sizes.FloatingBarSlot]：与原来的槽同宽，撤销 / 重做按钮（36dp）
+ * 居中放得下，命中区仍由 `clickable` 自动扩到 48dp。
+ */
+@Composable
+private fun BarRail(strings: Strings, state: GameState, onAction: (GameAction) -> Unit) {
+    Box(
+        modifier = Modifier
+            .width(DesignTokens.Sizes.FloatingBarSlot)
+            .fillMaxHeight(),
+        contentAlignment = Alignment.Center,
+    ) {
+        // 竖着排：撤销在上、重做在下，与"上一条、下一条"的阅读顺序一致
+        Column(
+            verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Sm),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            InkIconButton(
+                icon = InkIcon.Undo,
+                contentDescription = strings.undo,
+                onClick = { onAction(GameAction.Undo) },
+                enabled = state.undoStack.isNotEmpty(),
+            )
+            InkIconButton(
+                icon = InkIcon.Redo,
+                contentDescription = strings.redo,
+                onClick = { onAction(GameAction.Redo) },
+                enabled = state.redoStack.isNotEmpty(),
+            )
+        }
     }
 }
 

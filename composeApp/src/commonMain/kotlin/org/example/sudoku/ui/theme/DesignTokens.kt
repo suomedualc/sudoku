@@ -50,6 +50,18 @@ object DesignTokens {
          */
         val FunctionNarrowMax: Dp = 460.dp
 
+        /** 横屏双栏里右侧控制栏的固定宽度（棋盘占剩下的宽度）。 */
+        val LandscapeControlWidth: Dp = 300.dp
+
+        /**
+         * 横屏双栏的**高度上限**：`宽 > 高 且 高 < 此值` 才判横屏（见 `GameScreen.gameLayout`）。
+         *
+         * 双栏是为了解决"纵向不够、把键盘挪到右边"，因此只在**真的矮**时才启用。
+         * 480dp 的分界来自 `docs/10` 迭代 B2 的断点定义，也是手机横屏（360–430dp）
+         * 与桌面窗口 / 平板横屏（≥600dp）之间的自然空隙——后者高度充裕，纵列布局反而更舒服。
+         */
+        val LandscapeMaxHeight: Dp = 480.dp
+
         /** 首页主菜单项高度。 */
         val MenuItemHeight: Dp = 60.dp
 
