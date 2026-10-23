@@ -8,6 +8,8 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import org.example.sudoku.platform.FileGameStore
+import org.example.sudoku.platform.FileSaveMutex
+import org.example.sudoku.state.MutexGameStore
 import org.example.sudoku.ui.theme.DesignTokens
 import java.awt.Dimension
 import java.awt.image.BufferedImage
@@ -33,7 +35,11 @@ fun main() = application {
 
         // 桌面注入文件存档：实现首页「继续游戏」与关窗后恢复；
         // isWindowActive 用于最小化时自动暂停（避免挂后台还在走表）
-        val store = remember { FileGameStore() }
+        // 多实例互斥：同一存档只有一个可写实例（第二个实例降级只读，不去覆盖主实例数据）
+        val store = remember {
+            val base = FileGameStore()
+            MutexGameStore(base, FileSaveMutex(base.saveFile))
+        }
         App(
             store = store,
             onExit = ::exitApplication,
