@@ -176,8 +176,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1 [-Flow <
 10. ✅ `Strings.kt` 删除对不存在 `StringsTest` 的虚假引用（改为强调"中英同批给齐，无自动守卫"）。
 11. ✅ `KeyMap.decode` 逐槽位复检 "1–9 拒绑"（撞数字的槽位回落默认键位，`KeyMapTest` 补断言）。
 12. ✅ 删除 `Difficulty.label`（core 不再携带 UI 文案；测试失败消息改用 `name`）。
-13. ✅ 文档漂移批：rules（七项设置 / 五入口 / 十条流 / 新局继承七项偏好 / GameSettings 七字段）、
-    docs/01（五入口）、docs/02（五入口 + 随机句子 + 副标题）、docs/03（十条流 + 七项设置）、
+13. ✅ 文档漂移批：rules（七项设置 / 五入口 / 十一条流 / 新局继承七项偏好 / GameSettings 七字段）、
+    docs/01（五入口）、docs/02（五入口 + 随机句子 + 副标题）、docs/03（十一条流 + 七项设置）、
     docs/05（删除与 L19 矛盾的重复"三入口"行）、README（功能节与键盘节补齐五入口）。
 
 **第三轮修复（2026-10-24，CR 报告 `docs/13` 的 5 项）**
@@ -218,6 +218,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1 [-Flow <
     `AndroidGameStore` 只依赖 `java.io`/`java.nio`，构造器可注入 `saveFile` 绕开 Context）。
     覆盖原子写行为：覆盖写、临时文件不残留、目录自动创建、往返一致、缺文件/坏内容降级 null、写入失败不抛。
     **这是存档路径首次有直接测试**（此前 `FileGameStore`/`AndroidGameStore` 两个实现都没测过）。
+
+34. ✅ **冒烟脚本 DPI 缺陷（既有，本轮暴露）**：HiDPI（150%，144 DPI）机器上固定坐标全部落空
+    ——PowerShell 默认 DPI 不感知，`GetWindowRect` 返虚拟坐标而 `SetCursorPos`/`CopyFromScreen`
+    用物理坐标，两套混用使"点 1146,59"落到窗口外，表现为**顶栏图标消失、棋盘溢出**（酷似 UI bug）。
+    修法：`Set-DpiAware()`（PER_MONITOR_AWARE_V2）+ 坐标按 `Get-DpiScale` 显式换算。
+    **CR/冒烟必查**：换机器跑冒烟前，先排除"是 DPI 不是 UI"。
+35. ✅ **冒烟流数量漂移**：docs 长期写"十条流"，实际已 11 条（本轮 + `reveal`）。已全仓对齐。
 
 **仍开放（挂账，未修）**
 14. `MenuScreen` 焦点模型与游标模型并存（Tab 聚焦后 Enter 走游标项）。超出"不影响核心功能"边界，待拍板。

@@ -316,7 +316,7 @@
   `createDistributable` 产出 `binaries/main/app/SudokuInk/`（自带 JRE）。
 - 实机冒烟：`powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1`（先 `createDistributable`）。
   它把窗口 `HWND_TOPMOST` 钉在 (100,100) 1180×900，**每次注入前断言前台是应用**（否则中止），按窗口矩形截图，
-  覆盖**十条流**（`menu` 首页 + 难度抽屉 / `exit` 退出确认 / `win` 通关抽屉 / `theme` 夜墨 / `bar` 浮动条 /
+  覆盖**十一条流**（`menu` 首页 + 难度抽屉 / `exit` 退出确认 / `win` 通关抽屉 / `theme` 夜墨 / `bar` 浮动条 /
   `ux` 交互细节 / `keys` 键盘光标 / `keymap` 键位自定义 / `stats` 游玩统计 / `lang` 多语言与随机句子），
   并自动备份恢复 `~/.sudoku-ink/save.txt`；`-Flow <名字>` 可单跑一条。
   **教训**：不置顶就注入按键/点击，桌面有别的窗口时会打到别人的窗口上（点击落到过浏览器）；
