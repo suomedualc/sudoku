@@ -15,7 +15,7 @@ import java.nio.file.StandardCopyOption
  * 文件内容见 [SaveCodec] v2：设置常驻，未完成对局可选。
  * 所有 IO 都包在 `runCatching` 里：存档失败不应该影响玩游戏。
  */
-class FileGameStore(private val saveFile: File = defaultSaveFile()) : GameStore {
+class FileGameStore(val saveFile: File = defaultSaveFile()) : GameStore {
 
     override fun load(): SaveFile? = runCatching {
         if (saveFile.isFile) SaveCodec.decode(saveFile.readText()) else null

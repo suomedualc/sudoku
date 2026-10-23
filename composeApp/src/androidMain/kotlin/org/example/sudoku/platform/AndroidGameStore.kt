@@ -17,7 +17,7 @@ import java.nio.file.StandardCopyOption
  *
  * 路径来自 [AppGlobals]（须在 MainActivity.onCreate 初始化，早于首次组合）。
  */
-class AndroidGameStore(private val saveFile: File = defaultSaveFile()) : GameStore {
+class AndroidGameStore(val saveFile: File = defaultSaveFile()) : GameStore {
 
     override fun load(): SaveFile? = runCatching {
         if (saveFile.isFile) SaveCodec.decode(saveFile.readText()) else null

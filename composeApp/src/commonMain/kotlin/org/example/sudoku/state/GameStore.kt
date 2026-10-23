@@ -55,12 +55,58 @@ interface GameStore {
 
     /** 写入存档：设置总是写入，`game == null` 表示没有可继续的对局。 */
     fun save(file: SaveFile)
+
+    /**
+     * 本实例**是否能真正写盘**（默认 true）。
+     *
+     * 只有 [MutexGameStore] 在抢锁失败时返回 false。UI 用它决定是否提示玩家"本次只读"——
+     * 没有这条通路的话，只读降级就是**完全静默**的：玩家会玩完整局，然后发现进度一条没存，
+     * 而全程没有任何异常或提示。
+     */
+    val writable: Boolean get() = true
 }
 
 /** 默认实现：什么都不做（用于测试或不希望落盘的场景）。 */
 object NoopGameStore : GameStore {
     override fun load(): SaveFile? = null
     override fun save(file: SaveFile) = Unit
+}
+
+/**
+ * 存档写锁端口（**纯契约**，实现放平台层）：多实例场景下，同一份存档只允许一个实例持有写锁。
+ *
+ * 做成端口而不是直接在 [GameStore] 里加锁：锁是 IO / 平台能力（文件锁、进程锁），
+ * 而 `state/` 保持零平台依赖；测试可用内存实现精确模拟"抢到 / 抢不到"。
+ */
+interface SaveMutex {
+    /** 尝试获取排他写锁并**保持到 [release]**；失败（已被其他实例持有）返回 false。 */
+    fun acquire(): Boolean
+
+    /** 释放写锁。 */
+    fun release()
+}
+
+/**
+ * 带互斥的存档装饰器：启动时抢写锁，抢不到则降级为**只读**——
+ * [load] 照常（让"第二实例"仍能看盘面），[save] 静默跳过（不去覆盖主实例的数据）。
+ *
+ * 这是"多实例不并发写同一存档"的唯一守门点：真正的文件锁在平台层的 `SaveMutex` 实现里，
+ * 这里只表达"抢不到就不写"的策略，因此可单测、可回放。
+ */
+class MutexGameStore(
+    private val delegate: GameStore,
+    private val mutex: SaveMutex,
+) : GameStore {
+    private val acquired: Boolean = mutex.acquire()
+
+    /** 本实例是否持有写锁（false = 只读）。 */
+    override val writable: Boolean get() = acquired
+
+    override fun load(): SaveFile? = delegate.load()
+
+    override fun save(file: SaveFile) {
+        if (acquired) delegate.save(file)
+    }
 }
 
 /**
