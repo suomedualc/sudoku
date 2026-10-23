@@ -287,8 +287,8 @@ fun DrawScope.inkLine(
     val b = pointAt(0.68f, 2)
     val path = Path().apply {
         moveTo(from.x, from.y)
-        quadraticBezierTo(a.x, a.y, (a.x + b.x) / 2f, (a.y + b.y) / 2f)
-        quadraticBezierTo(b.x, b.y, to.x, to.y)
+        quadraticTo(a.x, a.y, (a.x + b.x) / 2f, (a.y + b.y) / 2f)
+        quadraticTo(b.x, b.y, to.x, to.y)
     }
     drawPath(path, color.copy(alpha = alpha), style = Stroke(width = widthPx, cap = StrokeCap.Round))
     translate(0.5f, 0.35f) {
@@ -326,20 +326,20 @@ fun DrawScope.inkRoundRect(
     val path = Path().apply {
         moveTo(rect.left + r, rect.top)
         val topMid = bow(Offset(rect.left + r, rect.top), Offset(rect.right - r, rect.top), 1)
-        quadraticBezierTo(topMid.x, topMid.y, rect.right - r, rect.top)
-        quadraticBezierTo(rect.right, rect.top, rect.right, rect.top + r)
+        quadraticTo(topMid.x, topMid.y, rect.right - r, rect.top)
+        quadraticTo(rect.right, rect.top, rect.right, rect.top + r)
 
         val rightMid = bow(Offset(rect.right, rect.top + r), Offset(rect.right, rect.bottom - r), 2)
-        quadraticBezierTo(rightMid.x, rightMid.y, rect.right, rect.bottom - r)
-        quadraticBezierTo(rect.right, rect.bottom, rect.right - r, rect.bottom)
+        quadraticTo(rightMid.x, rightMid.y, rect.right, rect.bottom - r)
+        quadraticTo(rect.right, rect.bottom, rect.right - r, rect.bottom)
 
         val bottomMid = bow(Offset(rect.right - r, rect.bottom), Offset(rect.left + r, rect.bottom), 3)
-        quadraticBezierTo(bottomMid.x, bottomMid.y, rect.left + r, rect.bottom)
-        quadraticBezierTo(rect.left, rect.bottom, rect.left, rect.bottom - r)
+        quadraticTo(bottomMid.x, bottomMid.y, rect.left + r, rect.bottom)
+        quadraticTo(rect.left, rect.bottom, rect.left, rect.bottom - r)
 
         val leftMid = bow(Offset(rect.left, rect.bottom - r), Offset(rect.left, rect.top + r), 4)
-        quadraticBezierTo(leftMid.x, leftMid.y, rect.left, rect.top + r)
-        quadraticBezierTo(rect.left, rect.top, rect.left + r, rect.top)
+        quadraticTo(leftMid.x, leftMid.y, rect.left, rect.top + r)
+        quadraticTo(rect.left, rect.top, rect.left + r, rect.top)
         close()
     }
 
