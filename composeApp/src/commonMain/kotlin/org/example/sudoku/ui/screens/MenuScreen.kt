@@ -84,7 +84,9 @@ fun MenuScreen(
     val exitCursor = remember { MenuCursor() }
     val languageCursor = remember { MenuCursor() }
     val difficulties = remember { Difficulty.entries }
-    val difficultyItemCount = difficulties.size + 1
+    // 难度抽屉只有 4 个难度按钮、没有「取消」项：光标上限必须等于条目数，
+    // 否则键盘连按 ↓ 会走到不存在的第 5 项（高亮消失、Enter 只关抽屉不开局）。
+    val difficultyItemCount = difficulties.size
 
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
