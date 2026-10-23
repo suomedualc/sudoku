@@ -92,7 +92,14 @@ android {
         // 也贴合本项目"8.0 及以上"的兼容承诺（见 docs/08 验收口径）。
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
+        // 版本号约定：**versionCode 由 versionName 推导**，major*10000 + minor*100 + patch。
+        //   versionName 2.1.0 → versionCode 20100
+        // 为什么不再用 1：versionCode 是 Play 判定"新旧"的唯一依据，与 versionName 无关。
+        // 用 1 起步会得到一个"语义是 2.1.0、排序是第 1 版"的割裂状态——后续任何更新都必须
+        // 手动跳到比 1 大的数，而开发者在 versionName 上看到的进度（2.1 → 2.2）与
+        // versionCode 完全对不上。按上面的公式推导，两者永远同向，且留足每段 100 个补丁位。
+        // 递增规则：改 versionName 必须同步改 versionCode（本注释就是唯一的约定来源）。
+        versionCode = 20100
         versionName = "2.1.0"
     }
     compileOptions {
