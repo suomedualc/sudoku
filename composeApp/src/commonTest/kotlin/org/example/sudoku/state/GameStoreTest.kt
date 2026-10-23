@@ -34,7 +34,9 @@ class GameStoreTest {
         )
 
         val decoded = SaveCodec.decode(
-            SaveCodec.encode(SaveFile(settings = settings, game = SavedGame(game, notes, 123))),
+            SaveCodec.encode(
+                SaveFile(settings = settings, game = SavedGame(game, notes, 123, hintUsed = true, hintsCount = 4)),
+            ),
         )
 
         assertNotNull(decoded)
@@ -47,6 +49,8 @@ class GameStoreTest {
         assertEquals(game.difficulty, restored.game.difficulty)
         assertTrue(restored.notes.contentEquals(notes), "笔记应完整还原")
         assertEquals(123, restored.elapsed)
+        assertTrue(restored.hintUsed, "本局是否用过提示应完整还原")
+        assertEquals(4, restored.hintsCount, "本局提示次数应完整还原")
     }
 
     @Test
@@ -228,12 +232,21 @@ class GameStoreTest {
         first.syncClock()
         assertTrue(first.canResume, "有未完成对局时应可继续")
 
+        // 用一次提示（另选一个空格让 reducer 填答案）：提示标记（是否用过 + 次数）也应随存档保留
+        val hintPos = (0..80).first { first.state.game!!.current[it] == 0 }
+        first.dispatch(GameAction.Select(hintPos))
+        first.dispatch(GameAction.Hint)
+        assertTrue(first.state.hintUsed, "用提示后 hintUsed 应为真")
+        assertEquals(1, first.state.hintsCount, "用一次提示 hintsCount 应为 1")
+
         // 模拟重启：同一份存档交给新的状态容器
         val second = GameViewModel(seed = 11, store = store)
         assertNotNull(second.state.game, "重启后应恢复到未完成对局")
         assertEquals(Screen.Menu, second.state.screen, "恢复后仍停在首页，由玩家决定是否继续")
         assertEquals(4, second.state.game!!.current[pos], "盘面应还原")
         assertEquals(first.state.elapsed, second.state.elapsed, "计时应还原")
+        assertTrue(second.state.hintUsed, "是否用过提示应随存档保留")
+        assertEquals(1, second.state.hintsCount, "提示次数应随存档保留")
         assertTrue(second.canResume)
     }
 

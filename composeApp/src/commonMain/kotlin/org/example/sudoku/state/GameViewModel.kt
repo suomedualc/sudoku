@@ -138,7 +138,7 @@ class GameViewModel(
             SaveFile(
                 settings = state.settings,
                 stats = state.stats,
-                game = if (resumable) SavedGame(game, state.notes, state.elapsed) else null,
+                game = if (resumable) SavedGame(game, state.notes, state.elapsed, state.hintUsed, state.hintsCount) else null,
             ),
         )
     }
@@ -171,6 +171,8 @@ private fun SaveFile.toState(): GameState = GameState(
     game = game?.game,
     notes = game?.notes ?: IntArray(81),
     elapsed = game?.elapsed ?: 0,
+    hintUsed = game?.hintUsed ?: false,
+    hintsCount = game?.hintsCount ?: 0,
     strictMode = settings.strictMode,
     showNotes = settings.showNotes,
     noteMode = settings.noteMode,

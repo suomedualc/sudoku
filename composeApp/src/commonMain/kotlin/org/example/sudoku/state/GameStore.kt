@@ -21,11 +21,15 @@ data class GameSettings(
     val language: AppLanguage = AppLanguage.ZhCn,
 )
 
-/** 存档中的一局对弈：题面 / 当前盘 / 答案由 [Game] 承载，外加笔记与已用时。 */
+/** 存档中的一局对弈：题面 / 当前盘 / 答案由 [Game] 承载，外加笔记、已用时与本局提示标记。 */
 data class SavedGame(
     val game: Game,
     val notes: IntArray,
     val elapsed: Int,
+    /** 本局是否用过提示（通关提示条"用了提示"依赖它；续局后不该归零）。 */
+    val hintUsed: Boolean = false,
+    /** 本局提示次数（顶栏"提示 ×N"与通关抽屉依赖它；续局后不该归零）。 */
+    val hintsCount: Int = 0,
 )
 
 /**
@@ -123,13 +127,15 @@ class MutexGameStore(
  * keyMap=DirectionUp,DirectionDown,DirectionLeft,DirectionRight,0   ← 上/下/左/右/擦除 五个键位令牌
  * language=ZhCn                ← 界面语言
  * stats=3,1,2450,180,2,2,2,120,0,0,0   ← 统计（逗号分隔的 11 个数，见 GameStats.encode）
- * game=1                       ← 仅当有未完成对局时出现，随后 6 行一并出现
+ * game=1                       ← 仅当有未完成对局时出现，随后 8 行一并出现
  * difficulty=Easy
  * puzzle=<81 位数字，0 表示空格>
  * current=<81 位数字>
  * solution=<81 位数字>
  * notes=<81 个十进制整数，逗号分隔>
  * elapsed=<秒>
+ * hintUsed=0|1                 ← 本局是否用过提示
+ * hintsCount=<次>              ← 本局提示次数（旧存档缺行取 0）
  * ```
  *
  * **向后兼容**：v1 文件没有设置行、v2 早期文件没有 `hintCandidates` 行，[decode] 都对缺失项取默认值，
@@ -163,6 +169,8 @@ object SaveCodec {
         appendLine("solution=${game.solution.toDigits()}")
         appendLine("notes=${saved.notes.joinToString(",")}")
         appendLine("elapsed=${saved.elapsed}")
+        appendLine("hintUsed=${saved.hintUsed.flag()}")
+        appendLine("hintsCount=${saved.hintsCount}")
     }
 
     fun decode(text: String): SaveFile? = runCatching {
@@ -207,7 +215,10 @@ object SaveCodec {
         require(notes.size == BOARD_SIZE) { "笔记数量不为 81" }
         val elapsed = getValue("elapsed").toInt()
         require(elapsed >= 0) { "计时为负" }
-        return SavedGame(Game(puzzle, current, solution, difficulty), notes, elapsed)
+        // 旧存档没有这两行 → 取默认（false / 0）：与旧行为一致，不因缺行而作废
+        val hintUsed = this["hintUsed"].toFlag(default = false)
+        val hintsCount = this["hintsCount"]?.toIntOrNull()?.coerceAtLeast(0) ?: 0
+        return SavedGame(Game(puzzle, current, solution, difficulty), notes, elapsed, hintUsed, hintsCount)
     }
 
     private fun Boolean.flag(): Int = if (this) 1 else 0
