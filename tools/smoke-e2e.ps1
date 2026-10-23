@@ -24,6 +24,8 @@
 #   keymap  -- key binding drawer: rebind, backspace clears, hint row follows the settings
 #   stats   -- stats drawer: entries render from the save file
 #   lang    -- language drawer: switch to English and back, whole page re-renders instantly
+#   reveal  -- show-answer: top-bar eye icon -> confirm drawer -> Esc cancels (no reveal),
+#              then confirm -> board filled with the solution, game settled
 #
 # The script backs up and restores the player save (~/.sudoku-ink/save.txt) around
 # the win flow, and kills any leftover process on exit.
@@ -43,7 +45,7 @@ param(
     [int]$Width = 1180,
     [int]$Height = 900,
     [string]$OutDir = $env:TEMP,
-    [ValidateSet('all', 'menu', 'exit', 'win', 'theme', 'bar', 'ux', 'keys', 'keymap', 'stats', 'lang')]
+    [ValidateSet('all', 'menu', 'exit', 'win', 'theme', 'bar', 'ux', 'keys', 'keymap', 'stats', 'lang', 'reveal')]
     [string]$Flow = 'all'
 )
 
@@ -480,6 +482,48 @@ try {
         Send-Key $p 'Escape'
         Save-Shot $p 'lang_menu_back_zh'
         Stop-App $p
+    }
+
+    if ($Flow -eq 'all' -or $Flow -eq 'reveal') {
+
+        Write-Host '== flow: show answer (eye icon -> confirm drawer) =='
+
+        # Blank 3 so the board is NOT one-empty: revealing must fill several cells.
+
+        Write-OneEmptySave $saveFile -Blank 3
+
+        $p = Start-App
+
+        Send-Key $p 'Down' $script:KeyExtended    # "Resume game"
+
+        Send-Key $p 'Enter'
+
+        Save-Shot $p 'reveal_before'
+
+        # The eye icon is the leftmost of the right-hand group (added 2026-10-24).
+
+        # It sits one 44dp pitch left of the keymap button (970).
+
+        Send-Click $p 926 59
+
+        Save-Shot $p 'reveal_confirm_drawer'
+
+        # Esc must CANCEL: board stays unsolved (no reveal dispatched).
+
+        Send-Key $p 'Escape'
+
+        Save-Shot $p 'reveal_cancelled'
+
+        # Open again, confirm with Enter: board fills with the solution, game settles.
+
+        Send-Click $p 926 59
+
+        Send-Key $p 'Enter'
+
+        Save-Shot $p 'reveal_confirmed'
+
+        Stop-App $p
+
     }
 } catch {
     Write-Host ('SMOKE FAILED: ' + $_.Exception.Message)
