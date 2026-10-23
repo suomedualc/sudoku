@@ -53,8 +53,14 @@ object DesignTokens {
         /** 首页主菜单项高度。 */
         val MenuItemHeight: Dp = 60.dp
 
-        /** 次级按钮（紧凑）高度。 */
-        val CompactItemHeight: Dp = 42.dp
+        /**
+         * 次级按钮（紧凑 / 开关行条目）高度。
+         *
+         * 取 **48dp**：对齐 Android / Material 的**最小触控目标**标准，让视觉高度与命中区一致——
+         * 虽然 `clickable` / `toggleable` 会自动把命中区扩到 48dp，但视觉只有 42 时，
+         * 相邻控件出现不可见的 3dp 命中重叠，观感与标准也不一致（`HitAreaTest` 守着这条底线）。
+         */
+        val CompactItemHeight: Dp = 48.dp
 
         /** 首页底部装饰棋盘的边长。 */
         val SketchSize: Dp = 168.dp
