@@ -225,6 +225,39 @@ class GameReducerTest {
         assertEquals(1, state.stats.currentStreak)
     }
 
+    /**
+     * 回归：**重置后再次通关必须重新记一次胜场**。
+     *
+     * `outcomeCounted` 是"本局结果已记账"的闸门（防"通关→撤销→再赢"重复计）。
+     * 它不随 [Snapshot] 回滚，因此 [GameReducer] 的 `reset` 必须**显式清掉**它——
+     * 漏掉时表现为：通关 → 重置 → 认真再解一次 → 第二次通关不进统计（且此后
+     * "放弃"也不会记账）。这里用最短路径复现：把盘面摆成终盘只留一格，再填回。
+     */
+    @Test
+    fun resetAllowsNextWinToBeCountedAgain() {
+        val initial = newGame()
+        val solution = initial.game!!.solution
+        val pos = initial.game!!.puzzle.indexOfFirst { it == 0 }
+
+        /** 把盘面直接摆成"只差 pos 一格"，再填入答案 —— 走完整的 settle 记账路径。 */
+        fun winNow(from: GameState): GameState {
+            val almost = solution.copyOf().also { it[pos] = 0 }
+            val staged = from.copy(game = from.game!!.copy(current = almost), selected = pos)
+            return reduce(staged, GameAction.Digit(solution[pos], advance = false))
+        }
+
+        val firstWin = winNow(initial)
+        assertTrue(firstWin.won, "第一次应通关")
+        assertEquals(1, firstWin.stats.gamesWon, "第一次通关记 1 场")
+
+        val afterReset = reduce(firstWin, GameAction.Reset)
+        assertFalse(afterReset.outcomeCounted, "重置必须清掉记账闸门，否则下一局无法再记账")
+
+        val secondWin = winNow(afterReset)
+        assertTrue(secondWin.won, "重置后应能再次通关")
+        assertEquals(2, secondWin.stats.gamesWon, "重置后再次通关应记第 2 场")
+    }
+
     @Test
     fun syncElapsedWritesRealSecondsOnlyInGame() {
         val state = newGame()

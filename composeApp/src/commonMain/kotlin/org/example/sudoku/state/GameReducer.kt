@@ -269,6 +269,12 @@ object GameReducer {
                 paused = false,
                 hintUsed = false,
                 hintsCount = 0,
+                // 重置 = 这一局重新开始，**结果记账也必须一起清零**：
+                // `outcomeCounted` 是"本局结果已计入统计"的闸门（防止"通关→撤销→再赢"记两次），
+                // 它不随 Snapshot 回滚（撤销一次重置不会把它恢复），所以这里必须显式清。
+                // 漏掉它的后果：通关 → 重置 → 认真再解一次 → **第二次通关不进胜场统计**，
+                // 且此后再开新局时"放弃"也不会记账（`abandonIfInProgress` 同样看这个闸门）。
+                outcomeCounted = false,
             ),
             Msg.ResetDone,
         )
