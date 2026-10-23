@@ -70,6 +70,15 @@ fun App(
         }
     }
 
+    // 存档只读 → 启动时告知一次。
+    // `MutexGameStore` 抢不到写锁时会静默跳过所有 save()，玩家否则会玩完整局才发现进度没存。
+    // 放在 `LaunchedEffect(store)` 里而不是构造期：墨条要等首帧组合完成后才显示得出来。
+    LaunchedEffect(store) {
+        if (!store.writable) {
+            snackbarState.show(stringsFor(viewModel.state.language).storeReadOnly)
+        }
+    }
+
     // 窗口最小化 / 切后台 → 自动暂停
     LaunchedEffect(isWindowActive) {
         if (!isWindowActive) viewModel.dispatch(GameAction.Pause)
