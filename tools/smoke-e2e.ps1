@@ -63,6 +63,10 @@ public struct RectE2E { public int L; public int T; public int R; public int B; 
 public class WinE2E {
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RectE2E r);
     [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint f);
+    // DPI 感知：见 Set-DpiAware 的注释——SetWindowPos / SetCursorPos / CopyFromScreen
+    // 吃的是**物理像素**，而 Compose 按 dp 布局，150% 缩放下直接传 1180x900 会得到 787x600dp。
+    [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr h);
+    [DllImport("user32.dll")] public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr ctx);
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
     [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);
@@ -76,6 +80,23 @@ public class WinE2E {
     [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
 }
 '@
+
+# 必须在任何窗口/坐标 API 之前调用：让后续 GetWindowRect / SetCursorPos /
+# CopyFromScreen 统一使用物理像素（详见 Set-DpiAware 注释）。
+# 让**本 PowerShell 线程**变成 per-monitor DPI 感知（PER_MONITOR_AWARE_V2 = -4）。
+#
+# 这是整条坐标链路的前提，漏了它就会出现"看起来在跑、坐标全错"：
+# PowerShell 默认是 DPI-**不感知**的，于是
+#   - GetWindowRect 返回**虚拟坐标**（1180x900）
+#   - 而 SetCursorPos / CopyFromScreen 作用在**物理坐标**上（1770x1350 @150%）
+# 两者混用 → 点 (1146,59) 实际落在 (1719,88) 之外、截图裁掉右侧 —— 表现为
+# "顶栏图标消失、棋盘溢出"，极易被误判成 UI bug 而不是脚本 bug。
+#
+# 设成感知后全部 API 统一用物理像素，脚本里的 dp 坐标再由 Get-DpiScale 显式换算。
+function Set-DpiAware() {
+    try { [WinE2E]::SetThreadDpiAwarenessContext([IntPtr](-4)) | Out-Null } catch { }
+}
+Set-DpiAware
 
 $script:WM_KEYDOWN = 0x0100
 $script:WM_KEYUP = 0x0101
@@ -97,8 +118,24 @@ $script:VK = @{
 }
 $script:KeyExtended = 0x0001   # KEYEVENTF_EXTENDEDKEY -- arrow keys need it to read as arrow keys
 
+
+# 窗口的 DPI 缩放比（1.0 = 100%，1.5 = 150%）。
+# 必须在 Set-DpiAware 之后调用，否则 GetDpiForWindow 也会按虚拟坐标换算。
+# 失败时回退 1.0（老系统没有这些 API，那时也不会有 DPI 缩放问题）。
+function Get-DpiScale($p) {
+    try {
+        $dpi = [WinE2E]::GetDpiForWindow($p.MainWindowHandle)
+        if ($dpi -ge 96) { return $dpi / 96.0 }
+    } catch { }
+    return 1.0
+}
+
 function Pin($p) {
-    [WinE2E]::SetWindowPos($p.MainWindowHandle, $script:HWND_TOPMOST, $Left, $Top, $Width, $Height, 0x0040) | Out-Null
+    # 尺寸按 DPI 放大：让**客户端**落在 $Width x $Height dp 上（脚本里的坐标都是 dp）
+    $scale = Get-DpiScale $p
+    $physW = [int]($Width * $scale)
+    $physH = [int]($Height * $scale)
+    [WinE2E]::SetWindowPos($p.MainWindowHandle, $script:HWND_TOPMOST, $Left, $Top, $physW, $physH, 0x0040) | Out-Null
     Start-Sleep -Milliseconds 400
 }
 
@@ -188,7 +225,8 @@ function Send-Click($p, [int]$x, [int]$y, [int]$waitMs = 700) {
     Assert-Foreground $p
     $r = New-Object RectE2E
     [WinE2E]::GetWindowRect($p.MainWindowHandle, [ref]$r) | Out-Null
-    [WinE2E]::SetCursorPos(($r.L + $x), ($r.T + $y)) | Out-Null
+    $s = Get-DpiScale $p
+    [WinE2E]::SetCursorPos(($r.L + [int]($x * $s)), ($r.T + [int]($y * $s))) | Out-Null
     Start-Sleep -Milliseconds 200
     [WinE2E]::mouse_event(0x0002, 0, 0, 0, [IntPtr]0)
     [WinE2E]::mouse_event(0x0004, 0, 0, 0, [IntPtr]0)
@@ -200,7 +238,8 @@ function Send-Hover($p, [int]$x, [int]$y, [int]$waitMs = 500) {
     Assert-Foreground $p
     $r = New-Object RectE2E
     [WinE2E]::GetWindowRect($p.MainWindowHandle, [ref]$r) | Out-Null
-    [WinE2E]::SetCursorPos(($r.L + $x), ($r.T + $y)) | Out-Null
+    $s = Get-DpiScale $p
+    [WinE2E]::SetCursorPos(($r.L + [int]($x * $s)), ($r.T + [int]($y * $s))) | Out-Null
     Start-Sleep -Milliseconds $waitMs
 }
 
