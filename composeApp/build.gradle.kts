@@ -64,6 +64,21 @@ kotlin {
             implementation(compose.uiTest)
             implementation(compose.desktop.currentOs)
         }
+
+        // Android 端单元测试（`gradlew :composeApp:testDebugUnitTest`）。
+        //
+        // **为什么能在纯 JVM 上跑**：`AndroidGameStore` 只依赖 `java.io` / `java.nio`
+        // （原子写用 `Files.move(ATOMIC_MOVE)`，API 26+ 才有，这也是 minSdk=26 的原因），
+        // **不碰任何 `android.*` API**——唯一与 Android 相关的是 `defaultSaveFile()` 里的
+        // `AppGlobals.appContext`，而构造器允许显式传入 `saveFile`，测试绕开它即可。
+        // 因此这里不需要 Robolectric（省掉一个重依赖 + 一整套 Android 资源模拟）。
+        //
+        // 覆盖目标：原子写的**实际行为**（覆盖写、临时文件不残留、目录自动创建、
+        // 写出与读回往返一致）。这些此前**两个实现都没有直接测试**，
+        // 而存档路径正是"数据丢失"类缺陷的所在地。
+        androidUnitTest.dependencies {
+            implementation(kotlin("test"))
+        }
     }
 }
 
@@ -73,7 +88,9 @@ android {
     compileSdk = 36
     defaultConfig {
         applicationId = "org.example.sudoku"
-        minSdk = 24
+        // Android 8.0+（API 26）：存档用到的 java.nio.file.Files.move 需要 API 26；
+        // 也贴合本项目"8.0 及以上"的兼容承诺（见 docs/08 验收口径）。
+        minSdk = 26
         targetSdk = 36
         versionCode = 1
         versionName = "2.1.0"
