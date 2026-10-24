@@ -197,7 +197,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1   # 实�
 | `docs/12-跨端功能审核报告.md` | 两端功能对齐审核、跨端差异与待补全缺口 |
 | `docs/13-代码审查报告（2026-10-24）.md` | 2026-10-24 全量代码审查：结论、三轮共 17 项修复的细节与反向验证记录 |
 | **`docs/14-交接文档.md`** | **接手项目先读这份**：十分钟上手、架构要点、关键机制、完成度、坑清单 |
-| `.codebuddy/rules/sudoku-dev.md` | 强制纪律：红线、开发思路、选型依据、模块说明、迭代计划 |
+| `_archive/codebuddy-rules-20261024/sudoku-dev.md` | 强制纪律：红线、开发思路、选型依据、模块说明、迭代计划 |
 
 ## 许可证
 

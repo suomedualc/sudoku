@@ -1,7 +1,9 @@
 # 数独（手写纸 · 简约油墨）· 工作区硬约束
 
 > 本文件只放**每次动手都必须遵守**的硬约束；完整论证、选型依据、模块说明、历史踩坑库在
-> `.codebuddy/rules/sudoku-dev.md`（开发纪律，40,792 B）与 `.codebuddy/rules/sudoku-review.md`（审查规则，24,003 B）——**按需读取，不要凭记忆**。
+> `_archive/codebuddy-rules-20261024/sudoku-dev.md`（开发纪律，40,792 B）与 `_archive/codebuddy-rules-20261024/sudoku-review.md`（审查规则，24,003 B）——**按需读取，不要凭记忆**。
+> 这两份原文原先在 `.codebuddy/rules/`（DSH 不加载该目录），已于 2026-10-24 压缩并入本文件后**归档**：
+> `_archive/codebuddy-rules-20261024/MANIFEST.csv` 含 SHA256；`.codebuddy/` 已删除。
 > 与代码冲突时以本文件 §1 红线为准；要违反红线必须先说明理由并取得同意。
 > 读文件纪律、上下文压缩止损、删除取证流程等跨工作区规则在 `~/.dsh/AGENTS.md`，此处不重复。
 
@@ -118,7 +120,7 @@
 | 加图标 | ①`InkIcon` 枚举 ②`drawInkIcon` 用 `inkLine` 自绘（禁图标库/图标字体）③`InkIconButton` 承载，说明走 `contentDescription` ④贴窗口边缘必须传 `tooltipAlignment` |
 | 改键盘 / 光标 | 光标判据只写 `core/CellCursor.kt`；键位在 `state/KeyMap.kt`；**"按键→令牌"换算只在 `ui/components/KeyToken`**（state 层禁 Compose）；跑 `smoke-e2e.ps1 -Flow keys,keymap` |
 | 改棋盘语义 | 只能 `weight(1f)` 等分，**禁 `fillMax*(1f/9f)`**；验证必须点**最后一格** |
-| 加难度 / 屏幕 / 平台 | 见 `.codebuddy/rules/sudoku-dev.md` §3.6 |
+| 加难度 / 屏幕 / 平台 | 见 `_archive/codebuddy-rules-20261024/sudoku-dev.md` §3.6 |
 
 ---
 
@@ -211,7 +213,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1 -Flow <�
 1. **证据先行**：评论前读完整文件，不只读 diff 片段；依赖生命周期的问题追到调用方。
 2. 结论必须带 `文件:行`；禁纯表扬、禁"可能/也许"式评论。
 3. **i18n 红线是本项目最高频违规源**：界面上任何可见文字 / 读屏文案 / 悬停提示一律走 `ui/i18n/Strings` 中英双份，reducer 只发 `Msg`。审查动作：对 commonMain 做**中文字面量扫描**（排除注释 / i18n 目录 / 句子语料 / `AppLanguage.label`）。
-4. 每个发现先对照 `.codebuddy/rules/sudoku-review.md` §4 模式库：回归（升级严重度）/ 新问题 / **已接受取舍（不报）**。
+4. 每个发现先对照 `_archive/codebuddy-rules-20261024/sudoku-review.md` §4 模式库：回归（升级严重度）/ 新问题 / **已接受取舍（不报）**。
 5. ≥3 个发现时派 2 个子代理并行独立复核（存在性 / 行号 / 严重度 / 误报），2/2 采信、1/2 带注采信、0/2 剔除。
 6. 修完必须跑 **§8 验证命令**，并把结论回写 review 文件 §5 开放问题清单（保持其为最新真相）。
 
@@ -315,6 +317,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1 -Flow <�
 
 ## 13. 源码位置索引
 
-- 详细规则：`.codebuddy/rules/sudoku-dev.md`（开发，40,792 B）· `.codebuddy/rules/sudoku-review.md`（审查，24,003 B）
+- 详细规则：`_archive/codebuddy-rules-20261024/sudoku-dev.md`（开发，40,792 B）· `_archive/codebuddy-rules-20261024/sudoku-review.md`（审查，24,003 B）
 - 文档：`docs/01` 架构 · `docs/02` 设计规范 · `docs/03` 开发流程 · `docs/04` AI 协作 · `docs/05` 发展规划 · `docs/06` 图标 · `docs/07` 设计评审 · `docs/10` 优化方案 · `docs/11` Android 上线 · `docs/13` CR 报告 · **`docs/14` 交接文档（接手先读）**
 - 工具：`tools/make-icon.ps1`（图标唯一来源）· `tools/get-fonts.ps1`（字体钉死 URL/版本）· `tools/smoke-e2e.ps1`（实机冒烟）

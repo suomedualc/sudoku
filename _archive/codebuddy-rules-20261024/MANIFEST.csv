@@ -1,0 +1,3 @@
+filename,size_bytes,sha256,archived_from
+sudoku-dev.md,40792,B7FDD171D6EE068EF6485C9D011FAD32FC0D94BA750A498D34D36AB7FBB9B047,.codebuddy/rules/sudoku-dev.md
+sudoku-review.md,24003,4B314731F8D98519A4A7356E604AA85B77BB5019D33D31D17DD734CF346BE13B,.codebuddy/rules/sudoku-review.md

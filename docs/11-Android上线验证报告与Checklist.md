@@ -2,7 +2,7 @@
 
 > 版本：v1.0（2026-10-18）· 对象：`SudokuInk` Android 目标（`org.example.sudoku`）
 > 范围：全量代码排查、bug 修复、兼容性核查、构建/测试验证、上线 checklist
-> 关联：`docs/05-发展规划.md` · `docs/08-Android模拟器测试报告.md` · `docs/10-项目优化方案.md` · `.codebuddy/rules/sudoku-review.md`
+> 关联：`docs/05-发展规划.md` · `docs/08-Android模拟器测试报告.md` · `docs/10-项目优化方案.md` · `_archive/codebuddy-rules-20261024/sudoku-review.md`
 
 ---
 

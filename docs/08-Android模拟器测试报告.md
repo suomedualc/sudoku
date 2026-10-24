@@ -6,7 +6,7 @@
 > 此后字体换成官方 Lite 版（24.4MB → 13.3MB），**当前 APK 为 17.0MB**（2026-10-24 实测）。
 > 功能结论仍有效；体积数字请以 README / `docs/11` 的当前值为准。
 > 测试日期：2026-10-07 · 测试方式：自动化脚本（adb 键盘/触控注入 + uiautomator 语义断言 + 逐帧截图）+ 人工目检
-> 关联：`docs/05` P0 Android 落地计划 · `.codebuddy/rules/sudoku-review.md` §5
+> 关联：`docs/05` P0 Android 落地计划 · `_archive/codebuddy-rules-20261024/sudoku-review.md` §5
 
 ## 1. 测试环境与设备矩阵
 
