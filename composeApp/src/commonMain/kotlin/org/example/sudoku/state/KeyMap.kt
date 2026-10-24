@@ -25,7 +25,7 @@ enum class KeyAction { Up, Down, Left, Right, Erase }
 /**
  * 玩家的键位配置（**跨对局保留**，随存档落盘）。
  *
- * 默认：方向键移动 + `0` 擦除。另有三条兜底写在 `GameScreen.handleKeyEvent`：
+ * 默认：方向键移动 + `0` 擦除。另有三条兜底写在 `GameKeyHandling.handleKeyEvent`：
  * 退格 / Delete **始终**可擦除、方向键**始终**可移动——
  * 键位设置是为了"更好用"，不能成为"把自己锁死在门外"的方式。
  */

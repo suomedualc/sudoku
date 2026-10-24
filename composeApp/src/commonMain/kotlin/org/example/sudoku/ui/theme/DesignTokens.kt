@@ -54,7 +54,7 @@ object DesignTokens {
         val LandscapeControlWidth: Dp = 300.dp
 
         /**
-         * 横屏双栏的**高度上限**：`宽 > 高 且 高 < 此值` 才判横屏（见 `GameScreen.gameLayout`）。
+         * 横屏双栏的**高度上限**：`宽 > 高 且 高 < 此值` 才判横屏（见 `GameLayout.gameLayout`）。
          *
          * 双栏是为了解决"纵向不够、把键盘挪到右边"，因此只在**真的矮**时才启用。
          * 480dp 的分界来自 `docs/10` 迭代 B2 的断点定义，也是手机横屏（360–430dp）
