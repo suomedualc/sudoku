@@ -310,7 +310,7 @@ Android 独有 7 项另跑 `testDebugUnitTest`，去重合计 168）+ **实机�
 - **`JAVA_HOME` 必须是 JDK 17–24**（本项目用 21）。`jvmToolchain(21)` 复用该 JVM，**仓库内不写死本机路径**；
   本机已在**用户级** `~/.gradle/gradle.properties` 同时声明 `org.gradle.java.home` 与 `org.gradle.java.installations.paths`，
   因此即使 `JAVA_HOME` 被改错（如指向 JDK 25），守护进程仍按 JDK 21 启动——已实测 `BUILD SUCCESSFUL`，
-  报错只有一串版本号（如 `25.0.4.1`）是 Gradle 8.12 遇到 JDK 25 的典型表现。
+  报错只有一串版本号（如 `25.0.4.1`）是 Gradle 8.14.4 遇到 JDK 25 的典型表现。
 - 依赖已缓存，日常加 `--offline` 更快：`.\gradlew.bat :composeApp:jvmTest --offline`。
 - `build/` 与 `composeApp/build/` 属可再生产物，可随时清理（MSI 打包需联网重下 WiX 工具集约 99 MB）。
 - 打包：`.\gradlew.bat :composeApp:packageMsi` 产出 `composeApp/build/compose/binaries/main/msi/SudokuInk-2.1.0.msi`（66.1 MB）；

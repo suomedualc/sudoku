@@ -14,9 +14,9 @@ plugins {
 }
 
 kotlin {
-    // 固定编译工具链：Gradle 8.12 可用，Kotlin 2.4.0 与 Compose Multiplatform 1.11.1 对齐。
+    // 固定编译工具链：Gradle 8.14.4（wrapper 实版，Kotlin 2.4.0 与 Compose Multiplatform 1.11.1 对齐）。
     // 注意：这只是编译/测试用的 JDK；启动 Gradle 的 JAVA_HOME 同样必须指向 JDK 17+（≤24），
-    //       实测 JDK 25 会让 Gradle 8.12 直接失败（详见 docs/03-开发流程.md §1）。
+    //       实测 JDK 25 会让 Gradle 8.14.4 直接失败（详见 docs/03-开发流程.md §1）。
     jvmToolchain(21)
 
     // Android（docs/05 P0）：业务代码零改动，只在此处与 androidMain 的平台接缝落地。

@@ -109,7 +109,8 @@
 | Kotlin | 2.4.0 | 由 Gradle 插件拉取 |
 | Compose Multiplatform | 1.11.1 | 与 Kotlin 2.4.0 由同一版本目录锁定 |
 | 第三方 UI 库 | 无 | 骨架 / 控件 / 提示全部自绘（`docs/02` §3.2） |
-| Gradle | 8.12 | wrapper 已入库，无需本机安装 |
+| Gradle | 8.14.4 | wrapper 已入库，无需本机安装（Kotlin 2.5 起要求 ≥ 8.14.4，已提前升级） |
+| Android Gradle Plugin | 8.10.1 | `compileSdk 36` / `minSdk 26` / `targetSdk 36` |
 | JDK | 21（17–24 皆可） | 编译工具链由 `jvmToolchain(21)` 固定 |
 
 Kotlin 与 CMP 由同一版本目录锁定（2.4.0 + 1.11.1 是已验证搭配），无第三方库强绑定，详见 `docs/03` §2。
@@ -132,7 +133,9 @@ org.example.sudoku
 │   │                FloatingPad.kt（就近输入）· FloatingBarPolicy.kt（浮动条换边判据）
 │   │                TopDrawer.kt（顶部抽屉：覆盖层唯一出口）· InkSnackbar.kt（自绘墨条提示）
 │   ├── screens/  MenuScreen（**五入口** + 键盘导航 + 统计 / 语言抽屉 + 随机句子）
-│   │             · GameScreen（**顶栏 + 棋盘舞台 + 功能区** + 通关抽屉 + 键盘）
+│   │             · 对局页**已拆 7 文件**：GameScreen（编排：布局预算 / 抽屉 / 键序 / 读屏文案）
+│   │               + GameLayout（竖横屏断点纯函数）· GameTopBar · GameBoardStage（含浮动条 / 悬浮面板 / 暂停遮）
+│   │               + GameFunctionArea · GameKeyHandling · GameWinDrawer
 │   └── App.kt    页面骨架（Box + 安全区）+ 两页导航 + 自绘墨条提示
 └── entrypoints
     ├── androidMain/MainActivity.kt
