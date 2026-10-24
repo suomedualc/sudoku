@@ -190,11 +190,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1   # 实�
 | `docs/08-Android模拟器测试报告.md` | Android 落地的模拟器测试：设备矩阵、用例结果、性能数据、缺陷与修复记录 |
 | `docs/09-竞品分析（数独清）.md` | 竞品「数独清」逆向观察：关卡体系、双键盘输入、可借鉴要素与差异化定位 |
 | `docs/10-项目优化方案.md` | 迭代 A–D 优化路线：Android 收口、触屏体验、成长系统、个性化与发布决策 |
+| `docs/11-Android上线验证报告与Checklist.md` | **发布前必看**：上线验证 checklist、剩余未勾项与决策记录 |
+| `docs/12-跨端功能审核报告.md` | 两端功能对齐审核、跨端差异与待补全缺口 |
+| `docs/13-代码审查报告（2026-10-24）.md` | 2026-10-24 全量代码审查：结论、三轮共 17 项修复的细节与反向验证记录 |
+| **`docs/14-交接文档.md`** | **接手项目先读这份**：十分钟上手、架构要点、关键机制、完成度、坑清单 |
 | `.codebuddy/rules/sudoku-dev.md` | 强制纪律：红线、开发思路、选型依据、模块说明、迭代计划 |
 
 ## 许可证
 
 本项目以 [MIT 许可证](LICENSE) 开源。
 
-捆绑字体：**霞鹜文楷 LXGW WenKai**（© 2021-2026 LXGW，保留名「LXGW / 霞鹜」）与 **Nunito**（© The Nunito Project Authors），
+捆绑字体：**霞鹜文楷 LXGW WenKai Lite**（© 2021-2026 LXGW，保留名「LXGW / 霞鹜」）与 **Nunito**（© The Nunito Project Authors），
 均以 [SIL Open Font License 1.1](https://openfontlicense.org) 授权，随包分发；授权原文见 `composeApp/src/jvmMain/resources/fonts/OFL-*.txt`。
