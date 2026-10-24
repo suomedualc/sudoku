@@ -103,6 +103,47 @@ class GameReducerTest {
         assertEquals(Msg.NoNoteOnFilled, outcome.message, "笔记模式的提示应说明原因")
     }
 
+    /**
+     * 双键盘（`NumberPad` 的空心数字行）：[GameAction.NoteDigit] **无视 noteMode** 直接记笔记。
+     *
+     * 这是触屏便利性的核心：不切开关就能记笔记。若哪天有人把它"简化"成
+     * `Digit` + 临时切 `noteMode`，这条测试会立刻发现（toggle 会让 noteMode 残留为 true）。
+     */
+    @Test
+    fun noteDigitRecordsNoteWithoutTouchingNoteMode() {
+        val pos = firstEmpty(newGame())
+        var state = reduce(newGame(), GameAction.Select(pos))
+        assertFalse(state.noteMode, "前置条件：noteMode 关闭")
+
+        state = reduce(state, GameAction.NoteDigit(7))
+        assertEquals(1 shl 6, state.notes[pos], "空心数字应直接记笔记")
+        assertEquals(0, state.game!!.current[pos], "笔记不写入盘面")
+        assertFalse(state.noteMode, "NoteDigit 不得改动全局 noteMode 开关")
+
+        state = reduce(state, GameAction.NoteDigit(7))
+        assertEquals(0, state.notes[pos], "重复点同一空心数字应取消该笔记")
+        assertFalse(state.noteMode, "取消笔记也不得改动 noteMode")
+    }
+
+    /**
+     * `NoteDigit` 对**已填格**必须拒绝并给出原因，而不是静默改成填数。
+     *
+     * 双键盘那一行虽然只在空格时显示，但动作本身也要守住语义：
+     * 万一边界情况漏了（选中格刚被别的路径填上），也不能把"记笔记"变成"覆盖数字"。
+     */
+    @Test
+    fun noteDigitOnFilledCellIsRejectedWithReason() {
+        val pos = firstEmpty(newGame())
+        var state = reduce(newGame(), GameAction.Select(pos))
+        state = reduce(state, GameAction.Digit(5))
+        assertEquals(5, state.game!!.current[pos], "前置条件：该格已填 5")
+
+        val outcome = reduction(state, GameAction.NoteDigit(3))
+        assertEquals(Msg.NoNoteOnFilled, outcome.message, "已填格不能记笔记，且要说明原因")
+        assertEquals(5, outcome.state.game!!.current[pos], "盘面不得被改动")
+        assertEquals(0, outcome.state.notes[pos], "不得写入笔记")
+    }
+
     @Test
     fun hintCandidatesToggleIsPureSettingAndSurvivesNewGame() {
         val fresh = newGame()

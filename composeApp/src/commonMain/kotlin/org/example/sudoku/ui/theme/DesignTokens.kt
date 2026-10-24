@@ -142,6 +142,16 @@ object DesignTokens {
         /** 数字键高度（常驻键盘的方块键）。 */
         val KeyHeight: Dp = 52.dp
 
+        /**
+         * **笔记键盘**的键高度：比数字键矮一档。
+         *
+         * 笔记键是"第二排"输入通道（见 `NumberPad` 的 `showNoteRow`），
+         * 不该和主键盘抢视觉重量——主键盘是"落子"，笔记键是"标注"。
+         * 40dp 的**视觉**高度不影响可点性：`clickable` 会把命中区补到 48dp，
+         * `HitAreaTest` 守的也是命中区而非视觉高度。
+         */
+        val NoteKeyHeight: Dp = 40.dp
+
         /** 勾选方框的边长（开关行右侧的手绘勾框）。 */
         val MarkBox: Dp = 24.dp
 

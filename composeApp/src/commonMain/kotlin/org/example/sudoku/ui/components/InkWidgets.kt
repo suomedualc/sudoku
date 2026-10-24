@@ -47,6 +47,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -236,6 +237,15 @@ fun InkKey(
     badge: String? = null,
     /** 内容是纯数字时置 true：换 [Ink.FontDigits]（Nunito）并收紧字距——数字不是方块字，不需要标题那 2sp 的呼吸字距。 */
     digit: Boolean = false,
+    /**
+     * 文字画成**空心**（只描边不填充）。
+     *
+     * 用在双键盘的"笔记键"上：空心 = 标注 / 备注，实心 = 落子。这是**字形**层面的区分，
+     * 不依赖颜色——夜墨主题下颜色翻转，字形不翻（全站铁律，见 `docs/02` §3）。
+     *
+     * 描边宽度取 `Stroke.Thin`：40dp 的笔记键上仍清晰，再粗就会把数字内腔糊住。
+     */
+    hollow: Boolean = false,
 ) {
     val keyStyle = if (digit) {
         Ink.Type.Title.copy(fontFamily = Ink.FontDigits, letterSpacing = 0.sp)
@@ -246,6 +256,13 @@ fun InkKey(
         Ink.Type.Meta.copy(color = Ink.Light, fontFamily = Ink.FontDigits, letterSpacing = 0.sp)
     } else {
         Ink.Type.Meta.copy(color = Ink.Light)
+    }
+    // 空心字：把笔画改成描边。必须在 composition 里算（toPx 需要 Density）
+    val hollowStroke = if (hollow) {
+        val px = with(LocalDensity.current) { DesignTokens.Stroke.Thin.toPx() }
+        Stroke(width = px)
+    } else {
+        null
     }
     InkSurface(
         onClick = onClick,
@@ -258,7 +275,11 @@ fun InkKey(
     ) {
         InkText(
             text = text,
-            style = keyStyle.copy(fontSize = fontSize, color = if (enabled) Ink.Black else Ink.Faint),
+            style = keyStyle.copy(
+                fontSize = fontSize,
+                color = if (enabled) Ink.Black else Ink.Faint,
+                drawStyle = hollowStroke,
+            ),
         )
         if (badge != null) {
             InkText(

@@ -376,9 +376,40 @@ fun GameScreen(
         val keypadGrid = narrow || landscape
         // 功能区的高度（仅竖屏用）：数字键一行/九宫格 + 偏好开关一行/设置按钮，
         // 棋盘必须避开它——横屏时功能区改到右栏、不再占棋盘下方的纵向空间
-        val functionsHeight =
-            (if (keypadGrid) DesignTokens.Sizes.KeyHeight * 3 + DesignTokens.Spacing.Sm * 2 else DesignTokens.Sizes.KeyHeight) +
-                DesignTokens.Spacing.Sm + DesignTokens.Sizes.CompactItemHeight
+        val keypadHeight =
+            if (keypadGrid) DesignTokens.Sizes.KeyHeight * 3 + DesignTokens.Spacing.Sm * 2
+            else DesignTokens.Sizes.KeyHeight
+        // 笔记块（双键盘的第二块）需要的高度：九宫格 3×3 用 NoteKeyHeight，横排一行
+        // 笔记块是**单行**（1–9 一行，见 NumberPad）：纵向只吃 40dp，
+        // 这是它在手机竖屏与横屏都放得下的关键（3×3 要 128dp，实测会挤掉底部按钮）
+        val noteBlockHeight = DesignTokens.Sizes.NoteKeyHeight
+        val baseFunctionsHeight =
+            keypadHeight + DesignTokens.Spacing.Sm + DesignTokens.Sizes.CompactItemHeight
+        // **双键盘是否放得下**：只在"加上笔记块之后，棋盘仍不低于 BoardMinSize"时才启用。
+        //
+        // 这是本轮唯一需要预算的地方：小屏（360×640）实测把笔记块塞进去后，
+        // 主键盘与「游戏设置」被挤出屏幕（渲染验证过）。所以不无条件加，
+        // 而是先按"没有笔记块"的预算算棋盘，再看剩余高度够不够再放一块。
+        val noteRowBudget = noteBlockHeight + DesignTokens.Spacing.Xs
+        val reservedBase =
+            DesignTokens.Sizes.TopBarHeight +
+                pad * 2 +
+                DesignTokens.Sizes.FloatingBarSlot * 2 +
+                pad +
+                baseFunctionsHeight +
+                DesignTokens.Sizes.KeyHintHeight * (if (narrow) 2 else 1) +
+                DesignTokens.Sizes.SnackbarReserve
+        val spareHeight = maxHeight - reservedBase - DesignTokens.Sizes.BoardMinSize
+        // 横屏**同样要判**：右栏纵向只有 411dp，主键盘 172dp + 笔记块 132dp + 抽屉按钮 +
+        // 键位提示会超（渲染验证：笔记块被截断在屏幕外）。
+        // 横屏的可用高度是 maxHeight（右栏独占一整列），因此同一套判据直接适用。
+        val showNotePad = if (landscape) {
+            val spareLandscape = maxHeight - (DesignTokens.Sizes.TopBarHeight + pad * 2 + baseFunctionsHeight + DesignTokens.Sizes.KeyHintHeight * 2)
+            spareLandscape >= noteRowBudget
+        } else {
+            spareHeight >= noteRowBudget
+        }
+        val functionsHeight = baseFunctionsHeight + if (showNotePad) noteRowBudget else 0.dp
         // 纵向必须为这些让出位置：顶栏 + 上下留白 + 棋盘上下的两条浮动条槽 +
         // 棋盘与功能区之间的间距 + 功能区 + 键位提示 + 底部提示条
         val reserved =
@@ -474,6 +505,7 @@ fun GameScreen(
                                 game = game,
                                 state = state,
                                 narrow = true,
+                                showNotePad = showNotePad,
                                 onOpenToggles = { drawer.open(DRAWER_TOGGLES) },
                                 onAction = dispatch,
                                 modifier = Modifier.width(DesignTokens.Sizes.LandscapeControlWidth),
@@ -508,6 +540,7 @@ fun GameScreen(
                             game = game,
                             state = state,
                             narrow = narrow,
+                            showNotePad = showNotePad,
                             onOpenToggles = { drawer.open(DRAWER_TOGGLES) },
                             onAction = dispatch,
                             modifier = Modifier.width(boardSide),
@@ -1074,12 +1107,14 @@ private fun FunctionArea(
     game: Game,
     state: GameState,
     narrow: Boolean,
+    /** 是否启用双键盘（笔记块）；由页面按纵向预算决定（见 `showNotePad`）。 */
+    showNotePad: Boolean,
     onOpenToggles: () -> Unit,
     onAction: (GameAction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(DesignTokens.Spacing.Sm)) {
-        NumberRow(strings, game, state, onAction, grid = narrow)
+        NumberRow(strings, game, state, onAction, grid = narrow, showNotePad = showNotePad)
         if (narrow) {
             // 窄屏：四项偏好收进「游戏设置」抽屉（TopDrawer，覆盖层唯一形态）——
             // 常驻开关行在窄屏会把勾选框挤出屏幕（docs/08 §4-D1）
@@ -1102,6 +1137,7 @@ private fun NumberRow(
     state: GameState,
     onAction: (GameAction) -> Unit,
     grid: Boolean,
+    showNotePad: Boolean = false,
 ) {
     // 笔记模式下不限制（要能记"不可能的数字"）；其余按盘面 + 选中格缓存——
     // 计时每秒触发一次重组，不缓存就是每秒白扫一遍 81 格。
@@ -1113,6 +1149,15 @@ private fun NumberRow(
     val remaining = remember(game) {
         IntArray(9) { digit -> 9 - game.current.count { it == digit + 1 } }
     }
+    // 当前格的笔记掩码（空心键已记下的显示为实心）；无选中格时为 0
+    val noteMask = remember(state.notes, state.selected) {
+        state.selected?.let { state.notes[it] } ?: 0
+    }
+    // 双键盘只在"选中了一个**空格**"时出现：
+    // - 没选格 → 点了会回 Msg.SelectFirst；
+    // - 选中的是已填格 → 笔记写不进去（reducer 回 Msg.NoNoteOnFilled）。
+    // 两种情况下摆一排点了会报错的键都没有意义。
+    val noteRowUseful = state.selected?.let { game.current[it] == 0 } == true
     NumberPad(
         strings = strings,
         legalMask = legalMask,
@@ -1121,6 +1166,10 @@ private fun NumberRow(
         onDigit = { onAction(GameAction.Digit(it)) },
         onErase = { onAction(GameAction.Digit(0)) },
         grid = grid,
+        // 两个条件**同时**成立才画：这一格能记笔记，且纵向预算放得下（见 showNotePad）
+        showNoteRow = noteRowUseful && showNotePad,
+        onNoteDigit = { onAction(GameAction.NoteDigit(it)) },
+        noteMask = noteMask,
     )
 }
 

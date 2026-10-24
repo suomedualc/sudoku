@@ -179,6 +179,42 @@ class GameScreenUiTest {
         waitForIdle()
         assertEquals(1, actions.count { it is GameAction.Reveal }, "确认后应派发一次 Reveal")
     }
+    /**
+     * 双键盘：选中**空格**时，笔记行必须真的出现在界面上。
+     *
+     * 语义部分（点空心数字 → `NoteDigit`、不受 `noteMode` 影响）已由
+     * `GameReducerTest.noteDigitRecordsNoteWithoutTouchingNoteMode` 覆盖；
+     * 这里只守"它到底有没有被画出来"——因为这个功能曾经因为纵向预算不足而
+     * 在手机上完全不可见（3×3 笔记块要 128dp，把底部按钮挤出屏幕）。
+     *
+     * 判据：数字 1 的语义节点应出现**两次**（主键盘一次 + 笔记行一次）。
+     * 只数节点数，不点它——点击路由由上面的 reducer 测试保证，
+     * 在这里点反而会因"两个同名节点"而依赖脆弱的索引选择。
+     */
+    @Test
+    @OptIn(ExperimentalTestApi::class)
+    fun noteRowAppearsWhenBlankCellSelected() = runComposeUiTest {
+        val blankGame = Game(
+            puzzle = IntArray(81),
+            current = IntArray(81),
+            solution = Current.copyOf(),
+            difficulty = Difficulty.Easy,
+        )
+        val blankState = GameState(screen = Screen.Game, game = blankGame, selected = 0)
+        setContent {
+            // 给足纵向空间：桌面窗口下双键盘必须显示
+            Box(Modifier.size(1180.dp, 900.dp)) {
+                GameScreen(
+                    state = blankState,
+                    conflicts = BooleanArray(81),
+                    progress = 0 to 81,
+                    onAction = {},
+                )
+            }
+        }
+        // 用 assertCountEquals 而不是手数节点：它是稳定 API，且失败信息直接给出期望/实际
+        onAllNodesWithText("1").assertCountEquals(2)
+    }
 }
 
 /** 撤销按钮的顶边：条在棋盘上方时它明显更小，拿它当"条此刻在哪一侧"的判据。 */
@@ -223,5 +259,6 @@ private val state = GameState(
         ),
     ),
 )
+
 
 private fun String.toBoard(): IntArray = IntArray(81) { this[it].digitToInt() }

@@ -21,6 +21,18 @@ sealed interface GameAction {
     data class Digit(val value: Int, val advance: Boolean = false) : GameAction
 
     /**
+     * **直接记笔记**：把 [value] 记进当前格的笔记（已记则取消）。
+     *
+     * 与 `Digit` 分开的原因：`Digit` 的行为取决于 `noteMode` 这个**全局开关**，
+     * 而双键盘（`NumberPad.showNoteRow`）要求"点空心数字 = 记笔记"**无条件成立**——
+     * 玩家不该为了记一个笔记先去切开关再切回来（触屏上那是 3 次点击）。
+     *
+     * 因此本动作**不看 `noteMode`**，reducer 里直接按"笔记"处理；
+     * 物理键盘的 `N` 键路径（切 `noteMode` 再按数字）保持原样不变。
+     */
+    data class NoteDigit(val value: Int) : GameAction
+
+    /**
      * 把光标放到**第一个空格**（读序：从左到右、从上到下）。
      *
      * 只在还没有选中格时生效（已有选中就原样返回）——因此它既可以当"开局定位"用，

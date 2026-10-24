@@ -58,6 +58,8 @@ object GameReducer {
         GameAction.Deselect -> Reduction(state.copy(selected = null))
 
         is GameAction.Digit -> place(state, action.value, action.advance)
+        // 双键盘的"空心数字"：**无条件**按笔记处理，不看 noteMode（见 GameAction.NoteDigit 的注释）
+        is GameAction.NoteDigit -> place(state, action.value, advance = false, forceNote = true)
         is GameAction.Move -> move(state, action.dRow, action.dCol, action.jumpToBlank)
         // 键位：只改 keyMap，不动选中格也不动盘面；冲突（一键兼两职）由 KeyMap.bind 处理
         is GameAction.BindKey -> Reduction(state.copy(keyMap = state.keyMap.bind(action.action, action.token)))
@@ -101,7 +103,19 @@ object GameReducer {
         return Reduction(state.copy(selected = first))
     }
 
-    private fun place(state: GameState, value: Int, advance: Boolean): Reduction {
+    /**
+     * 填数 / 记笔记的统一落子路径。
+     *
+     * [forceNote] = true 时**无视 `noteMode`**，直接按笔记处理——这是双键盘
+     * （`NumberPad` 的空心数字行）要的语义：点空心键就该记笔记，不该取决于一个全局开关。
+     * 物理键盘与主键盘走的仍是 `noteMode` 那条老路，行为不变。
+     */
+    private fun place(
+        state: GameState,
+        value: Int,
+        advance: Boolean,
+        forceNote: Boolean = false,
+    ): Reduction {
         if (!state.interactive) return Reduction(state)
         val game = state.game ?: return Reduction(state)
         val pos = state.selected ?: return Reduction(state, Msg.SelectFirst)
@@ -111,15 +125,16 @@ object GameReducer {
         val notes = state.notes.copyOf()
         val current = game.current.copyOf()
 
+        // 笔记模式（或强制笔记）只对空格生效
+        val noteIntent = forceNote || state.noteMode
         // 无变化的输入不写入历史：否则 Undo 会表现为"点了没反应"
         if (value == 0 && current[pos] == 0 && notes[pos] == 0) return Reduction(state)
 
-        // 笔记模式只对空格生效
-        if (state.noteMode && value != 0 && current[pos] != 0) {
+        if (noteIntent && value != 0 && current[pos] != 0) {
             return Reduction(state, Msg.NoNoteOnFilled)
         }
 
-        if (value != 0 && state.strictMode) {
+        if (value != 0 && !noteIntent && state.strictMode) {
             val allowed = Sudoku.legalMask(current, pos)
             if ((allowed and (1 shl (value - 1))) == 0) {
                 return Reduction(state, Msg.StrictConflict)
@@ -136,7 +151,7 @@ object GameReducer {
                 current[pos] = 0
                 notes[pos] = 0
             }
-            state.noteMode -> notes[pos] = notes[pos] xor (1 shl (value - 1))
+            noteIntent -> notes[pos] = notes[pos] xor (1 shl (value - 1))
             current[pos] == value -> {
                 current[pos] = 0
                 notes[pos] = 0
@@ -149,7 +164,7 @@ object GameReducer {
             }
         }
 
-        val message = if (value != 0 && !state.noteMode && Sudoku.conflictFlags(current)[pos]) {
+        val message = if (value != 0 && !noteIntent && Sudoku.conflictFlags(current)[pos]) {
             Msg.Conflict(value)
         } else {
             null
