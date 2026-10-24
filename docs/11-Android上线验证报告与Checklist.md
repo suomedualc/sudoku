@@ -95,7 +95,8 @@
 - [x] 跨源集资产一致性守卫（`BundledAssetsParityTest`，SHA-256 逐字节比对字体/语料双份副本）
 - [x] Android 端单元测试（`androidUnitTest` 源集，7 项覆盖 `AndroidGameStore` 原子写；
       纯 JVM 可跑，不需要 Robolectric）
-- [x] CI（`.github/workflows/ci.yml`：jvmTest + testDebugUnitTest + 双平台编译）
+- [ ] CI（**已移除**：曾配过 `.github/workflows/ci.yml`，因暂不验证 CI 流程而删除。
+      将来需要时重建：`jvmTest` + `testDebugUnitTest` + 双平台编译即可）
 - [ ] 字体子集化评估（Web 目标体积 24.7MB；OFL 子集需改名）
 - [ ] 触屏双键盘笔记块（迭代 B 剩余项，体验升级）
 

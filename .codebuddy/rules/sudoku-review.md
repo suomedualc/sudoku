@@ -203,8 +203,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1 [-Flow <
     `GameScreenUiTest.landscapeBoardKeepsCellsTappable` 断言单格 ≥ 24dp 守。
 26. ✅ **「看答案」补 E2E 冒烟**：`smoke-e2e.ps1` 新增 `-Flow reveal`（点眼睛 → 确认抽屉 → Esc 取消不生效 →
     再确认 → 棋盘填满），`ValidateSet` 同步。脚本保持纯 ASCII（新增行全 ASCII）。
-27. ✅ **加 CI**（此前零 CI）：`.github/workflows/ci.yml` 跑 `jvmTest` + `testDebugUnitTest` +
-    JVM/Android 双编译，失败上传测试报告。刻意不跑冒烟脚本（需真实窗口/模拟器/前台焦点）。
+27. ⛔ **CI 曾加后移除**：`.github/workflows/ci.yml`（jvmTest + testDebugUnitTest + 双平台编译）
+    已按用户决定**从仓库删除**——暂不验证 CI 流程。**不要**在 CR 里把"无 CI"再当缺陷报，也不要擅自重建；将来需要时按同样内容重建。
 28. ✅ **字体/语料双份复制加守卫（原 P2-E）**：`BundledAssetsParityTest` 用 **SHA-256** 逐字节比对
     `jvmMain/resources` ↔ `androidMain` 的三组副本（霞鹜文楷 / Nunito / 语料库），并校验两端 TTF 数量一致。
 29. ✅ **文档漂移批（M8 又一例）**：测试数 **137 → 161** 全仓对齐（README / docs 01·03·04·05·07·08·10 / 两份 rules），
