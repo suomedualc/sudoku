@@ -147,7 +147,7 @@ org.example.sudoku
 
 ```powershell
 .\gradlew.bat :composeApp:run                  # 桌面直接运行
-.\gradlew.bat :composeApp:jvmTest --offline    # 单元测试 + UI 测试（165 项）
+.\gradlew.bat :composeApp:jvmTest --offline    # 单元测试 + UI 测试（168 项）
 .\gradlew.bat :composeApp:createDistributable --offline   # 便携版（build/compose/binaries/main/app）
 .\gradlew.bat :composeApp:assembleDebug --offline         # Android APK（build/outputs/apk/debug）
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1   # 实机冒烟（置顶 + 固定坐标，自动截图）
@@ -168,8 +168,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1   # 实�
 
 | 目标 | 状态 | 说明 |
 |---|---|---|
-| Desktop / JVM | ✅ | Windows 上完成编译、测试、运行与 MSI 打包验证；三平台图标（`.ico` / `.png` / `.icns`）已就绪 |
-| Android | ✅ 已启用 | `assembleDebug` 通过（APK 21.2MB）；三档模拟器（小屏 / 标准 / 平板）功能用例验证（`docs/08` 测试报告）；窄屏适配修复、自适应图标接线与 AAB 打包为下一迭代 |
+| Desktop / JVM | ✅ | Windows 上完成编译、测试、运行与 **MSI 打包验证**（`SudokuInk-2.1.0.msi`，66.1MB）；三平台图标（`.ico` / `.png` / `.icns`）已就绪 |
+| Android | ✅ 已启用 | `assembleDebug` 通过（APK 17.0MB）；三档模拟器（小屏 / 标准 / 平板）功能用例验证（`docs/08`）；窄屏适配、横屏双栏、自适应图标、双键盘均已交付。**发布前置未做**：AAB 签名、真机矩阵、商店素材（见 `docs/11`） |
 | iOS / macOS | 接入即用 | 构建需 macOS 主机；`.icns` 已生成（`docs/06` §7） |
 | Web（wasmJs / js） | 接入即用 | 可在 Windows 上构建；需评估 13.3MB 字体资源的体积 |
 

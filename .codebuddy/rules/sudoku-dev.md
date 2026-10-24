@@ -65,7 +65,7 @@
     **打包图标与运行时图标必须同源**：jpackage 只把图标嵌进 exe；AWT 窗口默认仍显示 JDK 的 Java 图标，
     因此 `jvmMain/main.kt` 必须显式设置 `window.iconImages`（PNG 经 `jvmMain { resources.srcDir("icons") }` 进 jar）。
 
-**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 165 项）+ **实机冒烟**
+**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 168 项）+ **实机冒烟**
 （`tools/smoke-e2e.ps1`，置顶 + 固定坐标，见 §5）+ **实机试玩**（§6 第 4–5 条）+ 肉眼验收四档窗口。
 
 ---
@@ -312,7 +312,7 @@
   报错只有一串版本号（如 `25.0.4.1`）是 Gradle 8.12 遇到 JDK 25 的典型表现。
 - 依赖已缓存，日常加 `--offline` 更快：`.\gradlew.bat :composeApp:jvmTest --offline`。
 - `build/` 与 `composeApp/build/` 属可再生产物，可随时清理（MSI 打包需联网重下 WiX 工具集约 99 MB）。
-- 打包：`.\gradlew.bat :composeApp:packageMsi` 产出 `composeApp/build/compose/binaries/main/msi/SudokuInk-2.0.0.msi`（约 60 MB）；
+- 打包：`.\gradlew.bat :composeApp:packageMsi` 产出 `composeApp/build/compose/binaries/main/msi/SudokuInk-2.1.0.msi`（66.1 MB）；
   `createDistributable` 产出 `binaries/main/app/SudokuInk/`（自带 JRE）。
 - 实机冒烟：`powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1`（先 `createDistributable`）。
   它把窗口 `HWND_TOPMOST` 钉在 (100,100) 1180×900，**每次注入前断言前台是应用**（否则中止），按窗口矩形截图，
@@ -339,7 +339,7 @@
 - **精准投喂**：先 `@folder composeApp/src/commonMain` 预热，再用 `@file` / `@code` 定位；方法见 `docs/04`。
 - **负面约束随需求一起给**：把本文件 §0 的相关红线直接写进需求里。
 - **提交前自检清单**：
-  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（165 项）；改过 `state/` 或 `core/` 时必须补/改用例；
+  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（168 项）；改过 `state/` 或 `core/` 时必须补/改用例；
      动过字体 / 资源时跑 `BundledFontsTest`（字体在、family 对、中文/数字各归其位、**数字族的中文兜底链还在**）；
      动过棋盘绘制 / 语义层时要跑 `BoardCanvasUiTest`（81 节点 + 点击穿透 + 暂停遮读屏）；
      **动过配色必须跑 `InkThemeTest`**（两套主题的前三级都要 ≥ 4.5:1；新增色值必须同时给浅 / 深两套）；

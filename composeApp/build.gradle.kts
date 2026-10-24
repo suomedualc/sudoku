@@ -116,7 +116,9 @@ compose.desktop {
             // 打包标识必须纯 ASCII、无空格：jpackage 会把它用作产品名 / 安装目录名 / MSI 标识，
             // 中文与空格在 MSI、DMG 上会产生异常产品名甚至直接失败（旧值 "数独 Sudoku"）。
             packageName = "SudokuInk"
-            packageVersion = "2.0.0"
+            // 与 Android 的 versionName 保持一致（见上方 versionCode 约定）：
+        // 两端对外报同一个版本号，避免 MSI 叫 2.0.0、APK 叫 2.1.0 的割裂。
+        packageVersion = "2.1.0"
             description = "Sudoku with hand-drawn ink style (Kotlin + Compose Multiplatform)"
             vendor = "suomedualc"
             copyright = "Copyright (c) 2026 suomedualc. MIT License."
