@@ -16,7 +16,7 @@ class BundledFontsTest {
 
     @Test
     fun wenkaiIsBundledAndDisplaysCjk() {
-        val font = load("/fonts/LXGWWenKai-Regular.ttf")
+        val font = load("/fonts/LXGWWenKaiLite-Regular.ttf")
         assertNotNull(font, "霞鹜文楷字体资源缺失（resources/fonts）")
 
         val family = font.family

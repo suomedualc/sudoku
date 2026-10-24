@@ -13,8 +13,8 @@ import org.example.sudoku.R
  * 取不到时返回 null，调用方回退系统族。
  */
 actual fun textFontFamily(): FontFamily? =
-    runCatching { FontFamily(Font(R.font.lxgw_wen_kai)) }.getOrNull()
+    runCatching { FontFamily(Font(R.font.lxgw_wen_kai_lite)) }.getOrNull()
 
 actual fun digitFontFamily(): FontFamily? = runCatching {
-    FontFamily(Font(R.font.nunito), Font(R.font.lxgw_wen_kai))
+    FontFamily(Font(R.font.nunito), Font(R.font.lxgw_wen_kai_lite))
 }.getOrNull()

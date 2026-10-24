@@ -35,8 +35,8 @@ class BundledAssetsParityTest {
     @Test
     fun fontCopiesAreByteIdentical() {
         assertParity(
-            left = "composeApp/src/jvmMain/resources/fonts/LXGWWenKai-Regular.ttf",
-            right = "composeApp/src/androidMain/res/font/lxgw_wen_kai.ttf",
+            left = "composeApp/src/jvmMain/resources/fonts/LXGWWenKaiLite-Regular.ttf",
+            right = "composeApp/src/androidMain/res/font/lxgw_wen_kai_lite.ttf",
             what = "霞鹜文楷字体",
         )
     }
@@ -94,7 +94,7 @@ class BundledAssetsParityTest {
         assertTrue(a.isFile, "$what 缺失：$left")
         assertTrue(b.isFile, "$what 缺失：$right")
         // 用 SHA-256 而不是 contentHashCode()：后者只有 32 位，拿来做"逐字节相同"的判据
-        // 在 25MB 字体上碰撞概率虽低但并非为零，而误判成"一致"正是本测试要防的事。
+        // 在十几 MB 字体上碰撞概率虽低但并非为零，而误判成"一致"正是本测试要防的事。
         assertEquals(
             sha256(a) to a.length(),
             sha256(b) to b.length(),

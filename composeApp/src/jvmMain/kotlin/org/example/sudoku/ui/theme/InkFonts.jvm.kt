@@ -10,7 +10,7 @@ import java.io.File
 /**
  * 桌面端字体加载：**打包字体优先，系统字体兜底**。
  *
- * - 正文：`fonts/LXGWWenKai-Regular.ttf`（霞鹜文楷，OFL 1.1）→ 系统楷书 → 调用方回退衬线体；
+ * - 正文：`fonts/LXGWWenKaiLite-Regular.ttf`（霞鹜文楷**轻便版**，OFL 1.1）→ 系统楷书 → 调用方回退衬线体；
  * - 数字：`fonts/Nunito.ttf`（Nunito 变量字体，OFL 1.1，**中文回退霞鹜文楷**）→ 调用方回退无衬线体。
  *
  * 加载方式说明（Compose Multiplatform 1.11 的桌面端）：
@@ -18,7 +18,7 @@ import java.io.File
  *   与 `Font(file)`（按磁盘文件）两个入口，**没有**"按 classpath 资源 / 字节数组"的入口；
  * - 打包字体打进 jar 后不是磁盘文件，所以先把资源落到一个临时文件、再用 `Font(file)` 装载，
  *   与旧代码"从系统字体文件加载"是同一条 `FileFont` 路径，行为确定。
- * - 每次启动首帧才惰性解一次（`deleteOnExit` 自动清理），24MB 的一次性磁盘写可忽略。
+ * - 每次启动首帧才惰性解一次（`deleteOnExit` 自动清理），13MB 的一次性磁盘写可忽略。
  * - 组合回退链要拿 `Font` 对象再传给 `FontFamily(...)`：这个版本的 `FontFamily.fonts` 是 internal，
  *   拿不到已建好的族去"再拼一遍"。
  *
@@ -26,7 +26,7 @@ import java.io.File
  * 打包的是**未修改的原版**，保留字体名合法。若后续为移动端做子集，需按 OFL 第 3 条
  * 处理保留字体名（霞鹜文楷的 OFL 声明保留「LXGW / 霞鹜」等名）。
  */
-private val bundledWenKaiFont: Font? by lazy { loadResourceFont("fonts/LXGWWenKai-Regular.ttf") }
+private val bundledWenKaiFont: Font? by lazy { loadResourceFont("fonts/LXGWWenKaiLite-Regular.ttf") }
 
 private val bundledNunitoFont: Font? by lazy { loadResourceFont("fonts/Nunito.ttf") }
 
@@ -36,7 +36,7 @@ private fun loadResourceFont(resource: String): Font? {
     }.getOrNull() ?: return null
     return runCatching {
         val file = fontCacheFile(resource)
-        // 已缓存且字节数一致就直接复用：字体每次启动都要用，缓存下来省掉约 25MB 的一次性写出。
+        // 已缓存且字节数一致就直接复用：字体每次启动都要用，缓存下来省掉约 13MB 的一次性写出。
         if (!file.isFile || file.length() != bytes.size.toLong()) file.writeBytes(bytes)
         PlatformFont(file = file, weight = FontWeight.Normal, style = FontStyle.Normal)
     }.getOrNull()
@@ -45,7 +45,7 @@ private fun loadResourceFont(resource: String): Font? {
 /**
  * 字体缓存位置：`~/.sudoku-ink/fonts/`。
  *
- * 早前用 `File.createTempFile` + `deleteOnExit`：每次启动都要重写约 25MB，且进程被强杀时
+ * 早前用 `File.createTempFile` + `deleteOnExit`：每次启动都要重写约 13MB，且进程被强杀时
  * 临时文件会残留（多开几个实例还会各写一份）。缓存目录里按字节数校验，写一半的坏文件会被重写。
  */
 private fun fontCacheFile(resource: String): File {

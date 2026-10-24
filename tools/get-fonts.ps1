@@ -5,7 +5,7 @@
 # release and drops the files next to the app so the bundling is audit-able.
 #
 # Sources (both SIL OFL 1.1):
-#   LXGW WenKai v1.522  https://github.com/lxgw/LxgwWenKai/releases/tag/v1.522
+#   LXGW WenKai Lite v1.530  https://github.com/lxgw/LxgwWenKai-Lite/releases/tag/v1.530
 #   Nunito              https://github.com/google/fonts/tree/main/ofl/nunito
 #
 # Usage:
@@ -23,16 +23,16 @@ if (-not [System.IO.Directory]::Exists($Root)) { throw ("fonts dir not found: " 
 
 $targets = @(
     @{
-        Url   = 'https://github.com/lxgw/LxgwWenKai/releases/download/v1.522/LXGWWenKai-Regular.ttf'
-        Out   = 'LXGWWenKai-Regular.ttf'
+        Url   = 'https://github.com/lxgw/LxgwWenKai-Lite/releases/download/v1.530/LXGWWenKaiLite-Regular.ttf'
+        Out   = 'LXGWWenKaiLite-Regular.ttf'
     },
     @{
         Url   = 'https://raw.githubusercontent.com/google/fonts/main/ofl/nunito/Nunito%5Bwght%5D.ttf'
         Out   = 'Nunito.ttf'
     },
     @{
-        Url   = 'https://raw.githubusercontent.com/lxgw/LxgwWenKai/main/OFL.txt'
-        Out   = 'OFL-LXGWWenKai.txt'
+        Url   = 'https://raw.githubusercontent.com/lxgw/LxgwWenKai-Lite/main/OFL.txt'
+        Out   = 'OFL-LXGWWenKaiLite.txt'
     },
     @{
         Url   = 'https://raw.githubusercontent.com/google/fonts/main/ofl/nunito/OFL.txt'
