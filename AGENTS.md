@@ -16,7 +16,7 @@
 
 ### 分层与状态
 1. `core/` 只许 Kotlin 标准库 + `kotlin.random.Random`：禁 IO / 时钟 / UI / 平台 API。
-2. `state/` 禁 Compose / 平台 API；`GameReducer` 必须纯函数（同 state+action+rng ⇒ 同结果）。
+2. `state/` 禁平台 API；**规则层**（`GameReducer` / `GameState` / `GameStore` / `GameAction` / `Msg` / `KeyMap` / `GameStats` / `Language`）禁 Compose；`GameReducer` 必须纯函数（同 state+action+rng ⇒ 同结果）。**唯一例外是 `GameViewModel`**——它是状态容器（持有状态 + 通知观察者），用 `compose.runtime` 的 `mutableStateOf` / `derivedStateOf` 实现重组感知，这是职责内需要；`compose.runtime` 是跨平台纯 Kotlin 库，不阻碍 iOS/Web 接入。若将来换 UI 框架，只需替换容器实现。
 3. 改 `core/` 同步补 `commonTest`；改 `state/` 行为补 `GameReducerTest` / `GameStoreTest`（固定种子）。
 4. 改 `state/` 对外类型 / Action / `Screen` 同步更新 `docs/01` §5。
 5. 新增依赖或升版本先在 `gradle/libs.versions.toml` 对齐并登记理由（Kotlin 与 CMP 同一版本目录锁定）。
@@ -95,11 +95,11 @@
 | 层 / 源集 | 约束 | 关键文件 |
 |---|---|---|
 | `core/` | 零平台依赖 | `Sudoku.kt`（位掩码求解 / 出题）、`CellCursor.kt`（光标纯逻辑）、`KeyMap` 令牌 |
-| `state/` | 禁 Compose；纯 reducer | `GameState` / `GameReducer` / `GameStore`(`SaveCodec` v2) / `KeyMap` / `GameStats` |
+| `state/` | 规则层禁 Compose（`GameViewModel` 例外，见 §1 红线 2）；纯 reducer | `GameState` / `GameReducer` / `GameStore`(`SaveCodec` v2) / `KeyMap` / `GameStats` / `GameViewModel`(状态容器) |
 | `ui/` | 唯一 Compose 层 | `theme/Ink.kt`(配色字体唯一出口) · `theme/DesignTokens.kt`(尺寸唯一出口) · `components/`(墨线控件 / `BoardCanvas` / `TopDrawer`) · `i18n/Strings` |
 | `ui/screens` | 对局页**已拆 7 文件** | `GameScreen`(编排) / `GameLayout`(断点纯函数) / `GameTopBar` / `GameBoardStage` / `GameFunctionArea` / `GameKeyHandling` / `GameWinDrawer` |
 | `jvmMain` / `androidMain` | 仅装配 | `main.kt`(1180×900，最小 940×720) / `FileGameStore` / `AndroidGameStore`(原子写) |
-| 平台接缝 | `expect/actual` | `SafeArea` / `Motion` / `Strings` / `InkFonts` / `SystemBackHandler` / `GameStore`——**新增平台必须补 actual，缺了编译失败** |
+| 平台接缝 | `expect/actual`（共 **7** 个） | `SafeArea` / `Motion` / `Strings`（含 `readSentenceCorpusText`）/ `InkFonts` / `SystemBackHandler`——**新增平台必须补 actual，缺了编译失败**。注意 `GameStore` **不是** expect/actual，是端口注入（见 `state/GameStore.kt` KDoc） |
 
 **核心不变量**
 - `Board = IntArray`(81 格，0–9)；`data class` 的 `equals` 对数组是**引用比较**，禁 `==` 做业务判断；改状态必须 `copyOf()`。
@@ -118,7 +118,7 @@
 | 加玩法开关 | 另加 `GameAction.Toggle*` + reducer 分支 + 功能区开关行 + 若影响规则则加测试 |
 | 改配色 | 只改 `Ink`；**必须同时给浅/深两套**并重算对比度；跑 `InkThemeTest` |
 | 加图标 | ①`InkIcon` 枚举 ②`drawInkIcon` 用 `inkLine` 自绘（禁图标库/图标字体）③`InkIconButton` 承载，说明走 `contentDescription` ④贴窗口边缘必须传 `tooltipAlignment` |
-| 改键盘 / 光标 | 光标判据只写 `core/CellCursor.kt`；键位在 `state/KeyMap.kt`；**"按键→令牌"换算只在 `ui/components/KeyToken`**（state 层禁 Compose）；跑 `smoke-e2e.ps1 -Flow keys,keymap` |
+| 改键盘 / 光标 | 光标判据只写 `core/CellCursor.kt`；键位在 `state/KeyMap.kt`；**"按键→令牌"换算只在 `ui/components/KeyToken`**（`KeyMap` / `KeyAction` 属规则层，禁 Compose）；跑 `smoke-e2e.ps1 -Flow keys,keymap` |
 | 改棋盘语义 | 只能 `weight(1f)` 等分，**禁 `fillMax*(1f/9f)`**；验证必须点**最后一格** |
 | 加难度 / 屏幕 / 平台 | 见 `_archive/codebuddy-rules-20261024/sudoku-dev.md` §3.6 |
 
