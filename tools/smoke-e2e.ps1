@@ -39,7 +39,7 @@
 # as ANSI and non-ASCII characters will break parsing.
 [CmdletBinding()]
 param(
-    [string]$ExePath = 'D:\LESSON\sudoku\composeApp\build\compose\binaries\main\app\SudokuInk\SudokuInk.exe',
+    [string]$ExePath = '',
     [int]$Left = 100,
     [int]$Top = 100,
     [int]$Width = 1180,
@@ -50,6 +50,17 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Resolve the app executable relative to this script so the tool is portable across
+# checkouts. The old hardcoded default (D:\LESSON\sudoku\...) broke silently after the
+# repo moved to X:\sudoku-main: every documented invocation omits -ExePath, so it died
+# with a "not found" that looked like a build problem. Derived from $PSScriptRoot,
+# never from the current directory, so it also works when invoked from elsewhere.
+if ([string]::IsNullOrWhiteSpace($ExePath)) {
+    $repoRoot = Split-Path -Parent $PSScriptRoot
+    $ExePath = Join-Path $repoRoot 'composeApp\build\compose\binaries\main\app\SudokuInk\SudokuInk.exe'
+}
+
 # The screenshot writer saves into -OutDir as-is; a missing directory surfaces as an
 # opaque "GDI+ generic error", so make sure it exists up front.
 if (-not (Test-Path -LiteralPath $OutDir)) {
