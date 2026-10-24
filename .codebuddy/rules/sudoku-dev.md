@@ -28,36 +28,36 @@
    以及今后任何"请先做决定"的浮层都用它；**禁止** `Dialog` / `Popup` / 自造遮罩 / 第二套覆盖层实现。
    页面根节点必须在 `onPreviewKeyEvent` 里先 `drawer.handleKey(event, drawerKeys)` 再处理自己的键——
    Compose 的预览事件是**父先于子**，不仲裁就会出现"抽屉打开时底下的菜单/棋盘同时响应"。
-9. 手绘线条必须使用 `inkLine / inkRoundRect / inkHatch`，且抖动的种子必须由内容派生（纯函数）——
-   **禁止** `Random()` 之类每次重绘都会变的抖动源（会让界面"抖"）。
-10. 绘制尺寸一律用 dp / `toSp()`，**禁止**把 `DrawScope` 的像素值直接当 dp / sp 用。
+10. 手绘线条必须使用 `inkLine / inkRoundRect / inkHatch`，且抖动的种子必须由内容派生（纯函数）——
+    **禁止** `Random()` 之类每次重绘都会变的抖动源（会让界面"抖"）。
+11. 绘制尺寸一律用 dp / `toSp()`，**禁止**把 `DrawScope` 的像素值直接当 dp / sp 用。
 
 **工程**
 
-11. 一次性提示统一走 `reduce` 返回的 `Reduction.message` → `GameViewModel.messages` 事件通道 → Snackbar；
+12. 一次性提示统一走 `reduce` 返回的 `Reduction.message` → `GameViewModel.messages` 事件通道 → Snackbar；
     **不要**把事件塞回 `GameState`，也不要新增弹窗式反馈。
-12. 计时只允许"由注入的单调时钟算出秒数 + `SyncElapsed`"这一条路径；禁止在 reducer 里读时钟或累加 Tick。
-13. `archive/` 里的 TS / Rust 旧实现只作参考，**不得**当作当前实现引用或复制。
-14. 文档与代码必须同一次改动内保持一致。
-15. **打包标识必须是纯 ASCII、无空格**（`packageName` / `vendor`）；改 `nativeDistributions` 后必须真跑一次
+13. 计时只允许"由注入的单调时钟算出秒数 + `SyncElapsed`"这一条路径；禁止在 reducer 里读时钟或累加 Tick。
+14. `archive/` 里的 TS / Rust 旧实现只作参考，**不得**当作当前实现引用或复制。
+15. 文档与代码必须同一次改动内保持一致。
+16. **打包标识必须是纯 ASCII、无空格**（`packageName` / `vendor`）；改 `nativeDistributions` 后必须真跑一次
     `packageMsi` 验证，不能只看 `createDistributable` 通过就宣布打包没问题。
-16. 应用图标是**生成资产**：只通过 `tools/make-icon.ps1` 产出（运行时 `composeApp/icons/` + 交付 `assets/icon/`），
+17. 应用图标是**生成资产**：只通过 `tools/make-icon.ps1` 产出（运行时 `composeApp/icons/` + 交付 `assets/icon/`），
     不手改二进制、不在构建期临时生成。构图必须是**九宫格 + 数字**（禁止落子/棋子形态，避免与五子棋混淆），
     规范见 `docs/06-应用图标设计.md`。
-17. **视觉常量必须来自令牌，不许在调用点写裸值**（铁律见 `docs/02` §9）：
+18. **视觉常量必须来自令牌，不许在调用点写裸值**（铁律见 `docs/02` §9）：
     字号只能取 `Ink.Type` 六档（`Meta/Caption/Body/Title/Headline/Display`，含字距与行高）；
     颜色/透明度的纸只走 `Ink.Paper/PaperShade/PaperSheet`、墨只走 `Black/Grey/Light/Faint`；
     线宽只走 `DesignTokens.Stroke`；动效时长只走 `DesignTokens.Motion`（**退场快于进场、开局显影 ≤ 200ms**）。
     新增档位必须先加令牌并写清用途——"看起来差不多"不是加档的理由。
-18. **可读性硬线**：`Light` 及以上对三种纸底都要 ≥ 4.5:1（WCAG AA 小字），`Faint` 只能用于禁用态文字。
+19. **可读性硬线**：`Light` 及以上对三种纸底都要 ≥ 4.5:1（WCAG AA 小字），`Faint` 只能用于禁用态文字。
     **改任何色值前先跑对比度量算**（算法与结论见 `docs/07` §5）；候选数字 `Alpha.Hint` 是唯一被允许低于 AA 的
     信息色，理由是它为冗余通道（浮层与键盘都能拿到同一信息）。
-19. **无障碍不能回退**：棋盘必须保持**两级语义**（整盘汇总 + 81 个格子节点），格子文案由
+20. **无障碍不能回退**：棋盘必须保持**两级语义**（整盘汇总 + 81 个格子节点），格子文案由
     `cellA11yLabel` 纯函数产出（改文案要同步 `BoardSemanticsTest`）；**格子不许进 Tab 序**（键盘模型是方向键选格），
     语义层**不许吞掉点击**（有专项 UI 测试守着）。新增棋盘可视化（如新的提示层）要评估是否需要进朗读文案。
-20. **新增动画必须过 reduced-motion**：任何 `animate*AsState` / `tween` 的时长都要经 `motionDurationMs(baseMs)`
+21. **新增动画必须过 reduced-motion**：任何 `animate*AsState` / `tween` 的时长都要经 `motionDurationMs(baseMs)`
     （开启时返回 **0**，不做半速播放）；平台判定只在 `prefersReducedMotion()` 里做，不在调用点读系统设置。
-21. **字体是分发资产**：正文用打包霞鹜文楷（`Ink.FontText`）、数字用打包 Nunito（`Ink.FontDigits` / `Ink.digitStyle`），
+22. **字体是分发资产**：正文用打包霞鹜文楷（`Ink.FontText`）、数字用打包 Nunito（`Ink.FontDigits` / `Ink.digitStyle`），
     都在 `resources/fonts/`（OFL 1.1，授权原文随包）。**数字字体只用于"数字读数"**（棋盘格内 / 数字键盘键位 /
     计时 / 进度 / 通关用时），句子里的数字仍走正文字体；**数字族必须保留霞鹜文楷回退**
     （`digitFontChain()` 长度为 2，否则暂停时计时位的「已暂停」会渲染成豆腐块）。改字体来源 / 版本要同步 `tools/get-fonts.ps1`（钉死 URL 与版本）并保留 OFL 原文；
@@ -65,7 +65,8 @@
     **打包图标与运行时图标必须同源**：jpackage 只把图标嵌进 exe；AWT 窗口默认仍显示 JDK 的 Java 图标，
     因此 `jvmMain/main.kt` 必须显式设置 `window.iconImages`（PNG 经 `jvmMain { resources.srcDir("icons") }` 进 jar）。
 
-**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 168 项）+ **实机冒烟**
+**自检**：`.\gradlew.bat :composeApp:jvmTest --offline` 全绿（当前 **161 项** = commonTest 126 + jvmTest 35；
+Android 独有 7 项另跑 `testDebugUnitTest`，去重合计 168）+ **实机冒烟**
 （`tools/smoke-e2e.ps1`，置顶 + 固定坐标，见 §5）+ **实机试玩**（§6 第 4–5 条）+ 肉眼验收四档窗口。
 
 ---
@@ -339,12 +340,13 @@
 - **精准投喂**：先 `@folder composeApp/src/commonMain` 预热，再用 `@file` / `@code` 定位；方法见 `docs/04`。
 - **负面约束随需求一起给**：把本文件 §0 的相关红线直接写进需求里。
 - **提交前自检清单**：
-  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（168 项）；改过 `state/` 或 `core/` 时必须补/改用例；
+  1. `.\gradlew.bat :composeApp:jvmTest --offline` 全绿（**161 项**）；改过 `state/` 或 `core/` 时必须补/改用例；
+     Android 端改动另跑 `:composeApp:testDebugUnitTest --offline`（**133 项** = 同一批 126 重复 + 独有 7，去重合计 168）；
      动过字体 / 资源时跑 `BundledFontsTest`（字体在、family 对、中文/数字各归其位、**数字族的中文兜底链还在**）；
      动过棋盘绘制 / 语义层时要跑 `BoardCanvasUiTest`（81 节点 + 点击穿透 + 暂停遮读屏）；
      **动过配色必须跑 `InkThemeTest`**（两套主题的前三级都要 ≥ 4.5:1；新增色值必须同时给浅 / 深两套）；
      动过覆盖层 / 键盘映射时，跑 `tools\smoke-e2e.ps1` 并看截图；
-  2. 无新增色相、无裸色值 / 魔法尺寸（§0 6–8）；
+  2. 无新增色相、无裸色值 / 魔法尺寸（§0 6–8、18）；
   3. 四档窗口肉眼验收：1180×900 / 800×600 / 500×1000 / 1024×768；
   4. 键盘路径可走通：首页 ↑↓ + Enter、对局内方向键 / 数字 / Ctrl+Z/Y、`Esc` 收浮层、通关后 Enter / Esc；
   5. 鼠标路径可走通：点空格弹悬浮面板 → 点键填数 → 面板消失；开关切换后棋盘立刻有反馈；
