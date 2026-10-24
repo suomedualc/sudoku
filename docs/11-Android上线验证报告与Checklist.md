@@ -97,7 +97,7 @@
       纯 JVM 可跑，不需要 Robolectric）
 - [ ] CI（**已移除**：曾配过 `.github/workflows/ci.yml`，因暂不验证 CI 流程而删除。
       将来需要时重建：`jvmTest` + `testDebugUnitTest` + 双平台编译即可）
-- [ ] 字体子集化评估（Web 目标体积 24.7MB；OFL 子集需改名）
+- [ ] 字体子集化评估（Web 目标体积 13.3MB，已换官方 Lite 版；进一步子集需按 OFL 改名）
 - [ ] 触屏双键盘笔记块（迭代 B 剩余项，体验升级）
 
 ---

@@ -171,7 +171,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\smoke-e2e.ps1   # 实�
 | Desktop / JVM | ✅ | Windows 上完成编译、测试、运行与 MSI 打包验证；三平台图标（`.ico` / `.png` / `.icns`）已就绪 |
 | Android | ✅ 已启用 | `assembleDebug` 通过（APK 21.2MB）；三档模拟器（小屏 / 标准 / 平板）功能用例验证（`docs/08` 测试报告）；窄屏适配修复、自适应图标接线与 AAB 打包为下一迭代 |
 | iOS / macOS | 接入即用 | 构建需 macOS 主机；`.icns` 已生成（`docs/06` §7） |
-| Web（wasmJs / js） | 接入即用 | 可在 Windows 上构建；需评估 24.7MB 字体资源的体积 |
+| Web（wasmJs / js） | 接入即用 | 可在 Windows 上构建；需评估 13.3MB 字体资源的体积 |
 
 `core` 与 `state` 两层零平台依赖，新增平台只需补 target、entrypoint 与 `GameStore` 实现，业务代码不动。
 平台策略与顺序见 `docs/05` §3。
